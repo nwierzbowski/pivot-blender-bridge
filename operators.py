@@ -1,8 +1,10 @@
 import bpy
 
+from .constants import PRE
 
-class MYADDON_OT_SegmentScene(bpy.types.Operator):
-    bl_idname = "myaddon.segment_scene"
+
+class Splatter_OT_Segment_Scene(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".segment_scene"
     bl_label = "Segment Scene"
     bl_options = {"REGISTER", "UNDO"}
 
