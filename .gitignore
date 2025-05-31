@@ -3,12 +3,10 @@ __pycache__/
 *.pyc
 
 # Virtual environments
-deep_learning_models/venv_envs/
+deep_learning_models/user_venvs/
 
 # Temporary data for inference
 deep_learning_models/temp_data/
-
-developer_only_training_repos/
 
 # OS-specific files
 .DS_Store
