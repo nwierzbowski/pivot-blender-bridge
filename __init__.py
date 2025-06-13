@@ -61,7 +61,11 @@ import bpy
 #                 pass
 
 
-from .operators import Splatter_OT_Generate_Room, Splatter_OT_Segment_Scene
+from .operators import (
+    Splatter_OT_Classify_Base,
+    Splatter_OT_Generate_Base,
+    Splatter_OT_Segment_Scene,
+)
 from .ui import Splatter_PT_Main_Panel
 
 bl_info = {
@@ -78,7 +82,8 @@ bl_info = {
 
 classesToRegister = (
     Splatter_OT_Segment_Scene,
-    Splatter_OT_Generate_Room,
+    Splatter_OT_Generate_Base,
+    Splatter_OT_Classify_Base,
     Splatter_PT_Main_Panel,
 )
 

@@ -1,5 +1,6 @@
 import bpy
 import random
+import bmesh
 from .utils import link_node_group
 from mathutils import Vector
 from .constants import PRE, ROOM_BASE_NG
@@ -16,9 +17,9 @@ class Splatter_OT_Segment_Scene(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class Splatter_OT_Generate_Room(bpy.types.Operator):
-    bl_idname = PRE.lower() + ".generate_room"
-    bl_label = "Generate Room"
+class Splatter_OT_Generate_Base(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".generate_base"
+    bl_label = "Generate Base"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -62,3 +63,71 @@ class Splatter_OT_Generate_Room(bpy.types.Operator):
                 bpy.data.meshes.remove(mesh_data)
             self.report({"ERROR"}, f"Failed to generate room: {e}")
             return {"CANCELLED"}
+
+
+class Splatter_OT_Classify_Base(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".classify_base"
+    bl_label = "Classify Base"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+
+        # Separate walls into a separate collection
+        obj = bpy.context.object
+        # Enter Edit Mode
+        bpy.ops.object.mode_set(mode="EDIT")
+
+        # Deselect all faces first
+        bpy.ops.mesh.select_all(action="DESELECT")
+
+        # Select faces that are vertical (walls) by checking their normal vectors
+        bpy.ops.mesh.select_face_by_sides(number=4, type="EQUAL")  # Select quads
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        # Get selected faces and check if they're vertical
+
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bm.faces.ensure_lookup_table()
+
+        # Select vertical faces (walls)
+        vertical_faces = []
+        for face in bm.faces:
+            # Check if face normal is mostly horizontal (wall)
+            if abs(face.normal.z) < 0.1:  # Adjust threshold as needed
+                face.select = True
+                vertical_faces.append(face)
+            else:
+                face.select = False
+
+        # Update the mesh
+        bm.to_mesh(obj.data)
+        obj.data.update()
+        bm.free()
+
+        # Enter Edit Mode and separate selected faces
+        bpy.ops.object.mode_set(mode="EDIT")
+        if vertical_faces:
+            bpy.ops.mesh.separate(type="SELECTED")
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        # Create or get the walls collection
+        walls_collection_name = "Walls"
+        if walls_collection_name not in bpy.data.collections:
+            walls_collection = bpy.data.collections.new(walls_collection_name)
+            bpy.context.scene.collection.children.link(walls_collection)
+        else:
+            walls_collection = bpy.data.collections[walls_collection_name]
+
+        # Move the separated wall object to the walls collection
+        for obj_item in bpy.context.selected_objects:
+            if obj_item != obj:  # This is the separated walls object
+                # Remove from current collections
+                for collection in obj_item.users_collection:
+                    collection.objects.unlink(obj_item)
+                # Add to walls collection
+                walls_collection.objects.link(obj_item)
+                obj_item.name = "Room_Walls"
+
+        return {"FINISHED"}

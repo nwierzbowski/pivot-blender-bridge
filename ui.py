@@ -1,5 +1,10 @@
+from re import S
 import bpy
-from .operators import Splatter_OT_Generate_Room, Splatter_OT_Segment_Scene
+from .operators import (
+    Splatter_OT_Generate_Base,
+    Splatter_OT_Segment_Scene,
+    Splatter_OT_Classify_Base,
+)
 
 from .constants import PRE, CATEGORY
 
@@ -20,4 +25,9 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
         # Add more operators here later
         layout.separator()
         layout.label(text="Room Generation:")
-        layout.operator(Splatter_OT_Generate_Room.bl_idname, text="Generate Base")
+        layout.operator(
+            Splatter_OT_Generate_Base.bl_idname, text=Splatter_OT_Generate_Base.bl_label
+        )
+        layout.operator(
+            Splatter_OT_Classify_Base.bl_idname, text=Splatter_OT_Classify_Base.bl_label
+        )
