@@ -174,68 +174,6 @@ class Splatter_OT_Classify_Object(bpy.types.Operator):
     select_found = True
 
     def execute(self, context):
-
-        # Separate walls into a separate collection
-        obj = bpy.context.object
-        # Enter Edit Mode
-        bpy.ops.object.mode_set(mode="EDIT")
-
-        # Deselect all faces first
-        bpy.ops.mesh.select_all(action="DESELECT")
-
-        # Select faces that are vertical (walls) by checking their normal vectors
-        bpy.ops.mesh.select_face_by_sides(number=4, type="EQUAL")  # Select quads
-        bpy.ops.object.mode_set(mode="OBJECT")
-
-        # Get selected faces and check if they're vertical
-
-        bm = bmesh.new()
-        bm.from_mesh(obj.data)
-        bm.faces.ensure_lookup_table()
-
-        # Select vertical faces (walls)
-        vertical_faces = []
-        for face in bm.faces:
-            # Check if face normal is mostly horizontal (wall)
-            if abs(face.normal.z) < 0.1:  # Adjust threshold as needed
-                face.select = True
-                vertical_faces.append(face)
-            else:
-                face.select = False
-
-        # Update the mesh
-        bm.to_mesh(obj.data)
-        obj.data.update()
-        bm.free()
-
-        # Enter Edit Mode and separate selected faces
-        bpy.ops.object.mode_set(mode="EDIT")
-        if vertical_faces:
-            bpy.ops.mesh.separate(type="SELECTED")
-
-        bpy.ops.object.mode_set(mode="OBJECT")
-
-        # Create or get the walls collection
-        walls_collection_name = "Walls"
-        if walls_collection_name not in bpy.data.collections:
-            walls_collection = bpy.data.collections.new(walls_collection_name)
-            bpy.context.scene.collection.children.link(walls_collection)
-        else:
-            walls_collection = bpy.data.collections[walls_collection_name]
-
-        # Move the separated wall object to the walls collection
-        for obj_item in bpy.context.selected_objects:
-            if obj_item != obj:  # This is the separated walls object
-                # Remove from current collections
-                for collection in obj_item.users_collection:
-                    collection.objects.unlink(obj_item)
-                # Add to walls collection
-                walls_collection.objects.link(obj_item)
-                obj_item.name = "Room_Walls"
-
-        return {"FINISHED"}
-
-    def execute(self, context):
         obj = context.active_object
 
         # Get bmesh representation
