@@ -1,10 +1,17 @@
 import math
+from os import link
 import bpy
 import random
 import bmesh
 from .utils import link_node_group
 from mathutils import Vector
-from .constants import GET_SURFACES_NG, PRE, ROOM_BASE_NG
+from .constants import (
+    GET_SURFACES_NG,
+    PRE,
+    ROOM_BASE_NG,
+    SELECT_SURFACES,
+    WRITE_SURFACES,
+)
 from bpy.props import FloatProperty, StringProperty
 
 # Internal data storage for volume calculations
@@ -161,19 +168,13 @@ class Splatter_OT_Classify_Base(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class Splatter_OT_Classify_Object(bpy.types.Operator):
-    bl_idname = PRE.lower() + ".classify_object"
-    bl_label = "Classify Object"
+class Splatter_OT_Generate_Surfaces(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".generate_surfaces"
+    bl_label = "Generate Surfaces"
     bl_options = {"REGISTER", "UNDO"}
 
-    min_area = 0.03  # Minimum area of flat surface to consider
-    angle_threshold = 5
-    max_angle_threshold = 60
-    size_scale_factor = 1
-
-    select_found = True
-
     def execute(self, context):
+        bpy.ops.object.mode_set(mode="OBJECT")
         obj = context.active_object
 
         ng = link_node_group(self, GET_SURFACES_NG)
@@ -190,5 +191,41 @@ class Splatter_OT_Classify_Object(bpy.types.Operator):
         )  # Convert degrees to radians
 
         bpy.ops.object.modifier_apply(modifier=GET_SURFACES_NG)
+
+        bpy.ops.object.mode_set(mode="EDIT")
+        getattr(bpy.ops, PRE.lower()).select_current_surfaces()
+
+        return {"FINISHED"}
+
+
+class Splatter_OT_Select_Current_Surfaces(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".select_current_surfaces"
+    bl_label = "Select Current Surfaces"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        bpy.ops.object.mode_set(mode="EDIT")
+        link_node_group(self, SELECT_SURFACES)
+
+        bpy.ops.geometry.execute_node_group(name=SELECT_SURFACES)
+
+        return {"FINISHED"}
+
+
+class Splatter_OT_Current_Selection_To_Surfaces(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".current_selection_to_surfaces"
+    bl_label = "Current Selection to Surfaces"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        obj = context.active_object
+
+        # Ensure the object is in object mode
+        if obj.mode != "EDIT":
+            self.report({"WARNING"}, "Object must be in Edit Mode")
+        else:
+            link_node_group(self, WRITE_SURFACES)
+
+            bpy.ops.geometry.execute_node_group(name=WRITE_SURFACES)
 
         return {"FINISHED"}

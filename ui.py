@@ -1,10 +1,12 @@
 from re import S
 import bpy
 from .operators import (
-    Splatter_OT_Classify_Object,
+    Splatter_OT_Current_Selection_To_Surfaces,
+    Splatter_OT_Generate_Surfaces,
     Splatter_OT_Generate_Base,
     Splatter_OT_Segment_Scene,
     Splatter_OT_Classify_Base,
+    Splatter_OT_Select_Current_Surfaces,
 )
 
 from .constants import PRE, CATEGORY
@@ -35,10 +37,18 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
             Splatter_OT_Classify_Base.bl_idname, text=Splatter_OT_Classify_Base.bl_label
         )
         layout.separator()
-        layout.label(text="Object Classification:")
+        layout.label(text="Surface Classification:")
         layout.operator(
-            Splatter_OT_Classify_Object.bl_idname,
-            text=Splatter_OT_Classify_Object.bl_label,
+            Splatter_OT_Generate_Surfaces.bl_idname,
+            text=Splatter_OT_Generate_Surfaces.bl_label,
+        )
+        layout.operator(
+            Splatter_OT_Select_Current_Surfaces.bl_idname,
+            text=Splatter_OT_Select_Current_Surfaces.bl_label,
+        )
+        layout.operator(
+            Splatter_OT_Current_Selection_To_Surfaces.bl_idname,
+            text=Splatter_OT_Current_Selection_To_Surfaces.bl_label,
         )
         layout.separator()
         layout.label(text="Object Analysis:")
