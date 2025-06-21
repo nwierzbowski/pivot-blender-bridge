@@ -1,12 +1,15 @@
 from re import S
 import bpy
 from .operators import (
+    Splatter_OT_Classify_Object,
+    Splatter_OT_Current_Selection_To_Seating,
     Splatter_OT_Current_Selection_To_Surfaces,
-    Splatter_OT_Generate_Surfaces,
+    Splatter_OT_Classify_Faces,
     Splatter_OT_Generate_Base,
     Splatter_OT_Segment_Scene,
     Splatter_OT_Classify_Base,
     Splatter_OT_Select_Current_Surfaces,
+    Splatter_OT_Select_Current_Seating,
 )
 
 from .constants import PRE, CATEGORY
@@ -39,9 +42,10 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
         layout.separator()
         layout.label(text="Surface Classification:")
         layout.operator(
-            Splatter_OT_Generate_Surfaces.bl_idname,
-            text=Splatter_OT_Generate_Surfaces.bl_label,
+            Splatter_OT_Classify_Faces.bl_idname,
+            text=Splatter_OT_Classify_Faces.bl_label,
         )
+        layout.separator()
         layout.operator(
             Splatter_OT_Select_Current_Surfaces.bl_idname,
             text=Splatter_OT_Select_Current_Surfaces.bl_label,
@@ -51,6 +55,20 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
             text=Splatter_OT_Current_Selection_To_Surfaces.bl_label,
         )
         layout.separator()
+        layout.operator(
+            Splatter_OT_Select_Current_Seating.bl_idname,
+            text=Splatter_OT_Select_Current_Seating.bl_label,
+        )
+        layout.operator(
+            Splatter_OT_Current_Selection_To_Seating.bl_idname,
+            text=Splatter_OT_Current_Selection_To_Seating.bl_label,
+        )
+        layout.separator()
+        layout.operator(
+            Splatter_OT_Classify_Object.bl_idname,
+            text=Splatter_OT_Classify_Object.bl_label,
+        )
+
         layout.label(text="Object Analysis:")
 
         if obj:

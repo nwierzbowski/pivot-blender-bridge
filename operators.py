@@ -9,36 +9,12 @@ from .constants import (
     GET_SURFACES_NG,
     PRE,
     ROOM_BASE_NG,
+    SELECT_SEATING,
     SELECT_SURFACES,
+    WRITE_SEATING,
     WRITE_SURFACES,
 )
 from bpy.props import FloatProperty, StringProperty
-
-# Internal data storage for volume calculations
-_volume_data = {
-    "object_name": "",
-    "width": 0.0,
-    "height": 0.0,
-    "depth": 0.0,
-    "volume": 0.0,
-}
-
-
-def get_volume_data():
-    """Get the current volume data"""
-    return _volume_data.copy()
-
-
-def clear_volume_data():
-    """Clear the volume data"""
-    global _volume_data
-    _volume_data = {
-        "object_name": "",
-        "width": 0.0,
-        "height": 0.0,
-        "depth": 0.0,
-        "volume": 0.0,
-    }
 
 
 class Splatter_OT_Segment_Scene(bpy.types.Operator):
@@ -168,9 +144,9 @@ class Splatter_OT_Classify_Base(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class Splatter_OT_Generate_Surfaces(bpy.types.Operator):
-    bl_idname = PRE.lower() + ".generate_surfaces"
-    bl_label = "Generate Surfaces"
+class Splatter_OT_Classify_Faces(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".classify_faces"
+    bl_label = "Classify Faces"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -227,5 +203,52 @@ class Splatter_OT_Current_Selection_To_Surfaces(bpy.types.Operator):
             link_node_group(self, WRITE_SURFACES)
 
             bpy.ops.geometry.execute_node_group(name=WRITE_SURFACES)
+
+        return {"FINISHED"}
+
+
+class Splatter_OT_Select_Current_Seating(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".select_current_seating"
+    bl_label = "Select Current Seating"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        bpy.ops.object.mode_set(mode="EDIT")
+        link_node_group(self, SELECT_SEATING)
+
+        bpy.ops.geometry.execute_node_group(name=SELECT_SEATING)
+
+        return {"FINISHED"}
+
+
+class Splatter_OT_Current_Selection_To_Seating(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".current_selection_to_seating"
+    bl_label = "Current Selection to Seating"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        obj = context.active_object
+
+        # Ensure the object is in object mode
+        if obj.mode != "EDIT":
+            self.report({"WARNING"}, "Object must be in Edit Mode")
+        else:
+            link_node_group(self, WRITE_SEATING)
+
+            bpy.ops.geometry.execute_node_group(name=WRITE_SEATING)
+
+        return {"FINISHED"}
+
+
+class Splatter_OT_Classify_Object(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".classify_object"
+    bl_label = "Classify Object"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        obj = bpy.context.active_object
+        if not obj:
+            self.report({"ERROR"}, "No active object to classify")
+            return {"CANCELLED"}
 
         return {"FINISHED"}

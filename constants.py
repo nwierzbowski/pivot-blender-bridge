@@ -1,6 +1,3 @@
-from gzip import WRITE
-
-
 PRE = "LBO_SPLATTER"
 CATEGORY = "Splatter"
 
@@ -9,3 +6,5 @@ ROOM_BASE_NG = "GenRoomBase"
 GET_SURFACES_NG = "getSurfaces"
 SELECT_SURFACES = "selectSurfaces"
 WRITE_SURFACES = "writeSurfaces"
+SELECT_SEATING = "selectSeating"
+WRITE_SEATING = "writeSeating"

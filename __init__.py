@@ -5,11 +5,14 @@ from bpy.props import PointerProperty
 
 from .operators import (
     Splatter_OT_Classify_Base,
+    Splatter_OT_Classify_Object,
+    Splatter_OT_Current_Selection_To_Seating,
     Splatter_OT_Current_Selection_To_Surfaces,
-    Splatter_OT_Generate_Surfaces,
+    Splatter_OT_Classify_Faces,
     Splatter_OT_Generate_Base,
     Splatter_OT_Segment_Scene,
     Splatter_OT_Select_Current_Surfaces,
+    Splatter_OT_Select_Current_Seating,
 )
 from .ui import Splatter_PT_Main_Panel
 
@@ -31,9 +34,12 @@ classesToRegister = (
     Splatter_OT_Generate_Base,
     Splatter_OT_Classify_Base,
     Splatter_PT_Main_Panel,
-    Splatter_OT_Generate_Surfaces,
+    Splatter_OT_Classify_Faces,
     Splatter_OT_Select_Current_Surfaces,
     Splatter_OT_Current_Selection_To_Surfaces,
+    Splatter_OT_Select_Current_Seating,
+    Splatter_OT_Current_Selection_To_Seating,
+    Splatter_OT_Classify_Object,
 )
 
 
