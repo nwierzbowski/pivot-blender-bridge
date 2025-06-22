@@ -264,17 +264,17 @@ class Splatter_OT_Classify_Object(bpy.types.Operator):
             )
             return {"CANCELLED"}
 
-        if isSeating.data_type != "INT" or isSurface.data_type != "INT":
+        if isSeating.data_type != "BOOLEAN" or isSurface.data_type != "BOOLEAN":
             self.report(
                 {"ERROR"},
-                "Classification attributes must be integer type, please run classify faces",
+                "Classification attributes must be boolean type, please run classify faces",
             )
             return {"CANCELLED"}
 
-        if isSeating.domain != "POINT" or isSurface.domain != "POINT":
+        if isSeating.domain != "FACE" or isSurface.domain != "FACE":
             self.report(
                 {"ERROR"},
-                "Classification attributes must be point domain, please run classify faces",
+                "Classification attributes must be face domain, please run classify faces",
             )
             return {"CANCELLED"}
 
