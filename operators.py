@@ -63,6 +63,11 @@ class Splatter_OT_Generate_Base(bpy.types.Operator):
             bpy.context.scene.cursor.location = Vector((0.0, 0.0, 0.0))
             bpy.ops.object.origin_set(type="ORIGIN_CURSOR", center="MEDIAN")
 
+            bpy.ops.object.mode_set(mode="EDIT")
+            bpy.ops.mesh.select_all(action="SELECT")
+            bpy.ops.mesh.flip_normals()
+            bpy.ops.object.mode_set(mode="OBJECT")
+
             return {"FINISHED"}
         except Exception as e:
             if obj:
@@ -75,71 +80,98 @@ class Splatter_OT_Generate_Base(bpy.types.Operator):
 
 
 class Splatter_OT_Classify_Base(bpy.types.Operator):
+    """Classify and separate room base into walls, floors, and ceilings"""
+
     bl_idname = PRE.lower() + ".classify_base"
     bl_label = "Classify Base"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
+        obj = context.object
+        if not obj or obj.type != "MESH":
+            self.report({"ERROR"}, "No active mesh object selected")
+            return {"CANCELLED"}
 
-        # Separate walls into a separate collection
-        obj = bpy.context.object
-        # Enter Edit Mode
-        bpy.ops.object.mode_set(mode="EDIT")
+        try:
+            # Ensure we're in object mode
+            bpy.ops.object.mode_set(mode="OBJECT")
 
-        # Deselect all faces first
-        bpy.ops.mesh.select_all(action="DESELECT")
+            # Track existing objects before any operations
+            existing_objects = set(bpy.data.objects)
 
-        # Select faces that are vertical (walls) by checking their normal vectors
-        bpy.ops.mesh.select_face_by_sides(number=4, type="EQUAL")  # Select quads
-        bpy.ops.object.mode_set(mode="OBJECT")
+            # Enter edit mode and deselect all
+            bpy.ops.object.mode_set(mode="EDIT")
+            bpy.ops.mesh.select_all(action="DESELECT")
+            bpy.ops.object.mode_set(mode="OBJECT")
 
-        # Get selected faces and check if they're vertical
+            # Select floor faces (faces pointing upward)
+            floor_faces_selected = False
+            for face in obj.data.polygons:
+                if face.normal.z > 0.5:  # Faces pointing upward
+                    face.select = True
+                    floor_faces_selected = True
 
-        bm = bmesh.new()
-        bm.from_mesh(obj.data)
-        bm.faces.ensure_lookup_table()
+            print(f"Selected floor faces: {floor_faces_selected}")
 
-        # Select vertical faces (walls)
-        vertical_faces = []
-        for face in bm.faces:
-            # Check if face normal is mostly horizontal (wall)
-            if abs(face.normal.z) < 0.1:  # Adjust threshold as needed
-                face.select = True
-                vertical_faces.append(face)
-            else:
-                face.select = False
+            # Separate floor faces if any were selected
+            if floor_faces_selected:
+                bpy.ops.object.mode_set(mode="EDIT")
+                bpy.ops.mesh.separate(type="SELECTED")
+                bpy.ops.object.mode_set(mode="OBJECT")
 
-        # Update the mesh
-        bm.to_mesh(obj.data)
-        obj.data.update()
-        bm.free()
+                # Find the new floor object by comparing with existing objects
+                new_objects = set(bpy.data.objects) - existing_objects
+                for new_obj in new_objects:
+                    if new_obj.type == "MESH":
+                        new_obj.name = "Room_Floor"
+                        print(f"Created and named floor object: {new_obj.name}")
+                        break
 
-        # Enter Edit Mode and separate selected faces
-        bpy.ops.object.mode_set(mode="EDIT")
-        if vertical_faces:
-            bpy.ops.mesh.separate(type="SELECTED")
+            # Update existing objects list for ceiling separation
+            existing_objects = set(bpy.data.objects)
 
-        bpy.ops.object.mode_set(mode="OBJECT")
+            # Deselect all faces for ceiling selection
+            bpy.ops.object.mode_set(mode="EDIT")
+            bpy.ops.mesh.select_all(action="DESELECT")
+            bpy.ops.object.mode_set(mode="OBJECT")
 
-        # Create or get the walls collection
-        walls_collection_name = "Walls"
-        if walls_collection_name not in bpy.data.collections:
-            walls_collection = bpy.data.collections.new(walls_collection_name)
-            bpy.context.scene.collection.children.link(walls_collection)
-        else:
-            walls_collection = bpy.data.collections[walls_collection_name]
+            # Select ceiling faces (faces pointing downward)
+            ceiling_faces_selected = False
+            for face in obj.data.polygons:
+                if face.normal.z < -0.5:  # Faces pointing downward
+                    face.select = True
+                    ceiling_faces_selected = True
 
-        # Move the separated wall object to the walls collection
-        for obj_item in bpy.context.selected_objects:
-            if obj_item != obj:  # This is the separated walls object
-                # Remove from current collections
-                for collection in obj_item.users_collection:
-                    collection.objects.unlink(obj_item)
-                # Add to walls collection
-                walls_collection.objects.link(obj_item)
-                obj_item.name = "Room_Walls"
+            print(f"Selected ceiling faces: {ceiling_faces_selected}")
 
-        return {"FINISHED"}
+            # Separate ceiling faces if any were selected
+            if ceiling_faces_selected:
+                bpy.ops.object.mode_set(mode="EDIT")
+                bpy.ops.mesh.separate(type="SELECTED")
+                bpy.ops.object.mode_set(mode="OBJECT")
+
+                # Find the new ceiling object by comparing with existing objects
+                new_objects = set(bpy.data.objects) - existing_objects
+                for new_obj in new_objects:
+                    if new_obj.type == "MESH":
+                        new_obj.name = "Room_Ceiling"
+                        print(f"Created and named ceiling object: {new_obj.name}")
+                        break
+
+            # Rename the remaining original object to walls
+            obj.name = "Room_Walls"
+            print(f"Renamed original object to: {obj.name}")
+
+            # Force scene update
+            bpy.context.view_layer.update()
+
+            self.report({"INFO"}, "Base classified successfully")
+            return {"FINISHED"}
+
+        except Exception as e:
+            self.report({"ERROR"}, f"Failed to classify base: {str(e)}")
+            print(f"Error in classify_base: {str(e)}")
+            return {"CANCELLED"}
 
 
 class Splatter_OT_Classify_Faces(bpy.types.Operator):
