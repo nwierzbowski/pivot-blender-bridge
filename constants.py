@@ -3,6 +3,7 @@ CATEGORY = "Splatter"
 
 ASSETS_FILENAME = "assets.blend"
 ROOM_BASE_NG = "GenRoomBase"
+CLASSIFY_ROOM = "classifyRoom"
 GET_SURFACES_NG = "getSurfaces"
 SELECT_SURFACES = "selectSurfaces"
 WRITE_SURFACES = "writeSurfaces"

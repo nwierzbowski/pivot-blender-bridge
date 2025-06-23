@@ -5,6 +5,7 @@ import bmesh
 from .utils import link_node_group
 from mathutils import Vector
 from .constants import (
+    CLASSIFY_ROOM,
     GET_SURFACES_NG,
     PRE,
     ROOM_BASE_NG,
@@ -92,86 +93,12 @@ class Splatter_OT_Classify_Base(bpy.types.Operator):
             self.report({"ERROR"}, "No active mesh object selected")
             return {"CANCELLED"}
 
-        try:
-            # Ensure we're in object mode
-            bpy.ops.object.mode_set(mode="OBJECT")
+        ng = link_node_group(self, CLASSIFY_ROOM)
+        modifier = obj.modifiers.new(name=CLASSIFY_ROOM, type="NODES")
+        modifier.node_group = ng
+        bpy.ops.object.modifier_apply(modifier=CLASSIFY_ROOM)
 
-            # Track existing objects before any operations
-            existing_objects = set(bpy.data.objects)
-
-            # Enter edit mode and deselect all
-            bpy.ops.object.mode_set(mode="EDIT")
-            bpy.ops.mesh.select_all(action="DESELECT")
-            bpy.ops.object.mode_set(mode="OBJECT")
-
-            # Select floor faces (faces pointing upward)
-            floor_faces_selected = False
-            for face in obj.data.polygons:
-                if face.normal.z > 0.5:  # Faces pointing upward
-                    face.select = True
-                    floor_faces_selected = True
-
-            print(f"Selected floor faces: {floor_faces_selected}")
-
-            # Separate floor faces if any were selected
-            if floor_faces_selected:
-                bpy.ops.object.mode_set(mode="EDIT")
-                bpy.ops.mesh.separate(type="SELECTED")
-                bpy.ops.object.mode_set(mode="OBJECT")
-
-                # Find the new floor object by comparing with existing objects
-                new_objects = set(bpy.data.objects) - existing_objects
-                for new_obj in new_objects:
-                    if new_obj.type == "MESH":
-                        new_obj.name = "Room_Floor"
-                        print(f"Created and named floor object: {new_obj.name}")
-                        break
-
-            # Update existing objects list for ceiling separation
-            existing_objects = set(bpy.data.objects)
-
-            # Deselect all faces for ceiling selection
-            bpy.ops.object.mode_set(mode="EDIT")
-            bpy.ops.mesh.select_all(action="DESELECT")
-            bpy.ops.object.mode_set(mode="OBJECT")
-
-            # Select ceiling faces (faces pointing downward)
-            ceiling_faces_selected = False
-            for face in obj.data.polygons:
-                if face.normal.z < -0.5:  # Faces pointing downward
-                    face.select = True
-                    ceiling_faces_selected = True
-
-            print(f"Selected ceiling faces: {ceiling_faces_selected}")
-
-            # Separate ceiling faces if any were selected
-            if ceiling_faces_selected:
-                bpy.ops.object.mode_set(mode="EDIT")
-                bpy.ops.mesh.separate(type="SELECTED")
-                bpy.ops.object.mode_set(mode="OBJECT")
-
-                # Find the new ceiling object by comparing with existing objects
-                new_objects = set(bpy.data.objects) - existing_objects
-                for new_obj in new_objects:
-                    if new_obj.type == "MESH":
-                        new_obj.name = "Room_Ceiling"
-                        print(f"Created and named ceiling object: {new_obj.name}")
-                        break
-
-            # Rename the remaining original object to walls
-            obj.name = "Room_Walls"
-            print(f"Renamed original object to: {obj.name}")
-
-            # Force scene update
-            bpy.context.view_layer.update()
-
-            self.report({"INFO"}, "Base classified successfully")
-            return {"FINISHED"}
-
-        except Exception as e:
-            self.report({"ERROR"}, f"Failed to classify base: {str(e)}")
-            print(f"Error in classify_base: {str(e)}")
-            return {"CANCELLED"}
+        return {"FINISHED"}
 
 
 class Splatter_OT_Classify_Faces(bpy.types.Operator):
