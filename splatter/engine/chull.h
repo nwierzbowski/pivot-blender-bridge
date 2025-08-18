@@ -1,4 +1,8 @@
-#pragma once // Prevents the header from being included multiple times
+#pragma once
 
-// This is the function we want to expose to Python via Cython.
+#include "util.h"
+
+#include <cstdint>
+
 void say_hello_from_cpp();
+void convex_hull_2D(const Vec3* verts, uint32_t vertCount);

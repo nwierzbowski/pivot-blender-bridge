@@ -4,6 +4,8 @@ import random
 import bmesh
 import time
 
+import numpy as np
+
 
 from .logic.context import edit_bmesh, object_bmesh, object_mode
 from .utils import link_node_group
@@ -14,6 +16,7 @@ from .constants import (
     CLASSIFY_ROOM,
     EDIT,
     ERROR,
+    INFO,
     FACE,
     FACE_ATTR_IS_SEATING,
     FACE_ATTR_IS_SURFACE,
@@ -29,6 +32,8 @@ from .constants import (
     WRITE_SEATING,
     WRITE_SURFACES,
 )
+
+from . import bridge
 
 
 class Splatter_OT_Segment_Scene(bpy.types.Operator):
@@ -271,19 +276,31 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
             return {CANCELLED}
 
         
-        with object_bmesh(obj) as bm:
+        # with object_bmesh(obj) as bm:
 
-            mesh = obj.data
-            bm_tmp = bmesh.new()
-            bm_tmp.from_mesh(mesh)
-            bm.verts.ensure_lookup_table()
-            bm.edges.ensure_lookup_table()
-            bm.faces.ensure_lookup_table()
-            verts = list(bm_tmp.verts)
-            start = time.perf_counter()
-            bmesh.ops.convex_hull(bm_tmp, input=verts)
-            elapsed = time.perf_counter() - start
-            bm_tmp.free()
+        mesh = obj.data
+        # bm_tmp = bmesh.new()
+        # bm_tmp.from_mesh(mesh)
+        # bm.verts.ensure_lookup_table()
+        # bm.edges.ensure_lookup_table()
+        # bm.faces.ensure_lookup_table()
+        # verts = list(bm_tmp.verts)
+        vert_count = len(mesh.vertices)
+        if vert_count == 0:
+            self.report({INFO}, "Mesh has no vertices")
+            return {FINISHED}
+        
+
+        verts_np = np.empty(vert_count * 3, dtype=np.float32)
+
+        mesh.vertices.foreach_get("co", verts_np)
+        verts_np.shape = (vert_count, 3)
+
+        start = time.perf_counter()
+        bridge.convex_hull_2D(verts_np)
+        # bmesh.ops.convex_hull(bm_tmp, input=verts)
+        elapsed = time.perf_counter() - start
+        # bm_tmp.free()
 
         
         print(f"Align to axes elapsed: {elapsed:.6f}s")

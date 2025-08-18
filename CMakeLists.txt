@@ -34,6 +34,7 @@ add_custom_command(
     OUTPUT ${CYTHON_GENERATED_CPP}
     COMMAND ${CYTHON_EXECUTABLE}
         --cplus
+        -I ${CMAKE_CURRENT_SOURCE_DIR}
         -o ${CYTHON_GENERATED_CPP}
         ${CYTHON_SOURCE}
     DEPENDS ${CYTHON_SOURCE}
