@@ -7,33 +7,73 @@ struct Vec3 {
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;
+
+    bool operator<(const Vec3 &other) const {
+            return x < other.x || (x == other.x && y < other.y) || (x == other.x && y == other.y && z < other.z);
+        }
+
+        Vec3 operator-(const Vec3& other) const {
+        return {x - other.x, y - other.y, z - other.z};
+        }
+
+        Vec3 operator+(const Vec3& other) const {
+            return {x + other.x, y + other.y, z + other.z};
+        }
+        
+        Vec3 operator*(float scale) const {
+            return {x * scale, y * scale, z * scale};
+        }
+        
+        float dot(const Vec3& other) const {
+            return x * other.x + y * other.y + z * other.z;
+        }
+        
+        Vec3 cross(const Vec3& other) const {
+            return Vec3{
+                y * other.z - z * other.y,
+                z * other.x - x * other.z,
+                x * other.y - y * other.x
+            };
+        }
+        
+        float length_squared() const {
+            return x * x + y * y + z * z;
+        }
+        
+        float length() const {
+            return std::sqrt(length_squared());
+        }
+        
+        Vec3 normalized() const {
+            float len = length();
+            return len > 0 ? Vec3{x / len, y / len, z / len} : Vec3{0, 0, 0};
+        }
 };
 
-struct PT { 
-        float x, y; 
-        // uint32_t idx;
+struct Vec2 { 
+        float x = 0.0f, y = 0.0f; 
         
-        bool operator<(const PT &other) const {
+        bool operator<(const Vec2 &other) const {
             return x < other.x || (x == other.x && y < other.y);
         }
 
-        PT operator-(const PT& other) const {
+        Vec2 operator-(const Vec2& other) const {
         return {x - other.x, y - other.y};
         }
         
-        PT operator+(const PT& other) const {
+        Vec2 operator+(const Vec2& other) const {
             return {x + other.x, y + other.y};
         }
         
-        PT operator*(float scale) const {
+        Vec2 operator*(float scale) const {
             return {x * scale, y * scale};
         }
         
-        float dot(const PT& other) const {
+        float dot(const Vec2& other) const {
             return x * other.x + y * other.y;
         }
         
-        float cross(const PT& other) const {
+        float cross(const Vec2& other) const {
             return x * other.y - y * other.x;
         }
         
@@ -45,18 +85,17 @@ struct PT {
             return std::sqrt(length_squared());
         }
         
-        PT normalized() const {
+        Vec2 normalized() const {
             float len = length();
-            return len > 0 ? PT{x / len, y / len} : PT{0, 0};
+            return len > 0 ? Vec2{x / len, y / len} : Vec2{0, 0};
         }
     };
 
 struct BoundingBox {
-    PT min_corner;
-    PT max_corner;
-    float area;
-    PT center;
+    Vec3 min_corner;
+    Vec3 max_corner;
+    float volume;
     float rotation_angle;  // Radians
-    
-    BoundingBox() : area(std::numeric_limits<float>::max()), rotation_angle(0) {}
+
+    BoundingBox() : volume(std::numeric_limits<float>::max()), rotation_angle(0) {}
 };
