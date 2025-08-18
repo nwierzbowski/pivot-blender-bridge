@@ -11,6 +11,7 @@ find_program(CYTHON_EXECUTABLE cython REQUIRED)
 
 set(ENGINE_SOURCES
     splatter/engine/chull.cpp
+    splatter/engine/bounds.cpp
 )
 
 add_library(splatter_engine SHARED ${ENGINE_SOURCES})

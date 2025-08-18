@@ -1,11 +1,11 @@
 from libc.stdint cimport uint32_t
 
-from splatter.cython_api.chull_api cimport convex_hull_2D as convex_hull_2D_cpp
+from splatter.cython_api.bounds_api cimport align_min_bounds as align_min_bounds_cpp
 from splatter.cython_api.util_api cimport Vec3
 
 import numpy as np
 
-def convex_hull_2D(float[:, ::1] verts):
+def align_min_bounds(float[:, ::1] verts):
     """Calls the C++ function to compute the convex hull in 2D."""
 
     if verts.shape[0] == 0:
@@ -16,11 +16,8 @@ def convex_hull_2D(float[:, ::1] verts):
     cdef Vec3* verts_ptr = <Vec3*> &verts[0, 0]
     cdef uint32_t vertCount = verts.shape[0]
 
-    cdef uint32_t[:] out_idx = np.empty(verts.shape[0], dtype=np.uint32)
-    cdef uint32_t* out_ptr = &out_idx[0]
-    cdef uint32_t out_count = 0
-
+    cdef Vec3 out_rot, out_trans
     with nogil:
-        convex_hull_2D_cpp(verts_ptr, vertCount, out_ptr, &out_count)
+        align_min_bounds_cpp(verts_ptr, vertCount, &out_rot, &out_trans)
 
-    return out_idx.base[:out_count]
+    return out_rot, out_trans

@@ -1,36 +1,23 @@
 #include "chull.h"
 #include "util.h"
-#include <iostream>
 #include <cstdint>
 #include <vector>
 #include <algorithm>
 
-void convex_hull_2D(const Vec3* verts, uint32_t vertCount, uint32_t* out_indices, uint32_t* out_count) {
-    *out_count = 0;
-    if (!verts || vertCount == 0 || !out_indices || !out_count) return;
-    
-    if (vertCount <= 3) {
-        for (uint32_t i = 0; i < vertCount; ++i) {
-            out_indices[i] = i;
-        }
-        *out_count = vertCount;
-        return;
-    }
-
-    // Single, clean Andrew's monotone chain implementation
-    struct PT { 
-        float x, y; 
-        uint32_t idx; 
-        
-        bool operator<(const PT &other) const {
-            return x < other.x || (x == other.x && y < other.y);
-        }
-    };
-    
+std::vector<PT> convex_hull_2D(const Vec3* verts, uint32_t vertCount) {
+    // *out_count = 0;
+    // if (!verts || vertCount == 0 || !out_indices || !out_count) return;
     std::vector<PT> points;
     points.reserve(vertCount);
+
+    if (!verts || vertCount == 0) return points;
+
     for (uint32_t i = 0; i < vertCount; ++i) {
-        points.emplace_back(PT{verts[i].x, verts[i].y, i});
+        points.emplace_back(PT{verts[i].x, verts[i].y});
+    }
+
+    if (vertCount <= 3) {
+        return points;
     }
 
     // Sort once
@@ -65,9 +52,5 @@ void convex_hull_2D(const Vec3* verts, uint32_t vertCount, uint32_t* out_indices
     // Remove duplicate last point
     if (hull.size() > 1) hull.pop_back();
 
-    // Copy results
-    *out_count = static_cast<uint32_t>(hull.size());
-    for (uint32_t i = 0; i < *out_count; ++i) {
-        out_indices[i] = hull[i].idx;
-    }
+    return hull;
 }

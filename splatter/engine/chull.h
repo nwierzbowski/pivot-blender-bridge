@@ -3,6 +3,6 @@
 #include "util.h"
 
 #include <cstdint>
+#include <vector>
 
-void convex_hull_2D(const Vec3* verts, uint32_t vertCount,
-                    uint32_t* out_indices, uint32_t* out_count);
+std::vector<PT> convex_hull_2D(const Vec3* verts, uint32_t vertCount);
