@@ -3,8 +3,6 @@ from libc.stdint cimport uint32_t
 from splatter.cython_api.bounds_api cimport align_min_bounds as align_min_bounds_cpp
 from splatter.cython_api.util_api cimport Vec3
 
-import numpy as np
-
 def align_min_bounds(float[:, ::1] verts):
     """Calls the C++ function to compute the convex hull in 2D."""
 
@@ -20,4 +18,4 @@ def align_min_bounds(float[:, ::1] verts):
     with nogil:
         align_min_bounds_cpp(verts_ptr, vertCount, &out_rot, &out_trans)
 
-    return out_rot, out_trans
+    return (out_rot.x, out_rot.y, out_rot.z), (out_trans.x, out_trans.y, out_trans.z)

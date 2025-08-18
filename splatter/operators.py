@@ -275,21 +275,8 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
             self.report({ERROR}, "No active object to align")
             return {CANCELLED}
 
-        
-        # with object_bmesh(obj) as bm:
-
         mesh = obj.data
-        # bm_tmp = bmesh.new()
-        # bm_tmp.from_mesh(mesh)
-        # bm.verts.ensure_lookup_table()
-        # bm.edges.ensure_lookup_table()
-        # bm.faces.ensure_lookup_table()
-        # verts = list(bm_tmp.verts)
         vert_count = len(mesh.vertices)
-        if vert_count == 0:
-            self.report({INFO}, "Mesh has no vertices")
-            return {FINISHED}
-        
 
         verts_np = np.empty(vert_count * 3, dtype=np.float32)
 
@@ -297,36 +284,9 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
         verts_np.shape = (vert_count, 3)
 
         start = time.perf_counter()
-        # hull_idx = bridge.align_min_bounds(verts_np)
         rot, trans = bridge.align_min_bounds(verts_np)
-        # print(rot)
-        obj.rotation_euler[2] = rot["z"]
-        # bmesh.ops.convex_hull(bm_tmp, input=verts)
+        obj.rotation_euler = rot
         elapsed = time.perf_counter() - start
-        # bm_tmp.free()
         print(f"Align to axes elapsed: {elapsed:.6f}s")
-
-        # if hull_idx.size < 3:
-        #     self.report({INFO}, "Hull has fewer than 3 points")
-        #     return {FINISHED}
-
-        # hull_coords = verts_np[hull_idx]
-
-        # mesh_data = bpy.data.meshes.new(f"{obj.name}_HullMesh")
-        # verts_list = [tuple(v) for v in hull_coords]
-        # edges_list = [(i, (i + 1) % len(verts_list)) for i in range(len(verts_list))]
-        # faces_list = [list(range(len(verts_list)))]  # one ngon face
-
-        # mesh_data.from_pydata(verts_list, edges_list, faces_list)
-        # mesh_data.update()
-
-        # hull_obj = bpy.data.objects.new(f"{obj.name}_Hull", mesh_data)
-        # Place the hull object in the same world transform as the source object
-        # hull_obj.matrix_world = obj.matrix_world.copy()
-
-        # context.collection.objects.link(hull_obj)
-        # # Optionally select it
-        # hull_obj.select_set(True)
-        # context.view_layer.objects.active = hull_obj
 
         return {FINISHED}

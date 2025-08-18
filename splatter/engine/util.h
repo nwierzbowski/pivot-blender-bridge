@@ -3,6 +3,50 @@
 #include <cmath>
 // #include <cstdint>
 
+struct Vec2 { 
+    float x = 0.0f, y = 0.0f;
+
+    Vec2() = default;
+    Vec2(float x_val, float y_val) : x(x_val), y(y_val) {}
+
+    bool operator<(const Vec2 &other) const {
+        return x < other.x || (x == other.x && y < other.y);
+    }
+
+    Vec2 operator-(const Vec2& other) const {
+    return {x - other.x, y - other.y};
+    }
+    
+    Vec2 operator+(const Vec2& other) const {
+        return {x + other.x, y + other.y};
+    }
+    
+    Vec2 operator*(float scale) const {
+        return {x * scale, y * scale};
+    }
+    
+    float dot(const Vec2& other) const {
+        return x * other.x + y * other.y;
+    }
+    
+    float cross(const Vec2& other) const {
+        return x * other.y - y * other.x;
+    }
+    
+    float length_squared() const {
+        return x * x + y * y;
+    }
+    
+    float length() const {
+        return std::sqrt(length_squared());
+    }
+    
+    Vec2 normalized() const {
+        float len = length();
+        return len > 0 ? Vec2{x / len, y / len} : Vec2{0, 0};
+    }
+};
+
 struct Vec3 {
     float x = 0.0f;
     float y = 0.0f;
@@ -51,50 +95,6 @@ struct Vec3 {
     Vec3 normalized() const {
         float len = length();
         return len > 0 ? Vec3{x / len, y / len, z / len} : Vec3{0, 0, 0};
-    }
-};
-
-struct Vec2 { 
-    float x = 0.0f, y = 0.0f;
-
-    Vec2() = default;
-    Vec2(float x_val, float y_val) : x(x_val), y(y_val) {}
-
-    bool operator<(const Vec2 &other) const {
-        return x < other.x || (x == other.x && y < other.y);
-    }
-
-    Vec2 operator-(const Vec2& other) const {
-    return {x - other.x, y - other.y};
-    }
-    
-    Vec2 operator+(const Vec2& other) const {
-        return {x + other.x, y + other.y};
-    }
-    
-    Vec2 operator*(float scale) const {
-        return {x * scale, y * scale};
-    }
-    
-    float dot(const Vec2& other) const {
-        return x * other.x + y * other.y;
-    }
-    
-    float cross(const Vec2& other) const {
-        return x * other.y - y * other.x;
-    }
-    
-    float length_squared() const {
-        return x * x + y * y;
-    }
-    
-    float length() const {
-        return std::sqrt(length_squared());
-    }
-    
-    Vec2 normalized() const {
-        float len = length();
-        return len > 0 ? Vec2{x / len, y / len} : Vec2{0, 0};
     }
 };
 
