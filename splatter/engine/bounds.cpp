@@ -26,7 +26,7 @@ std::vector<Vec2> rotate_points(const std::vector<Vec2>& points, float angle) {
 }
 
 // Compute axis-aligned bounding box of points
-BoundingBox compute_aabb(const std::vector<Vec2>& points, float rotation_angle) {
+BoundingBox compute_aabb_2D(const std::vector<Vec2>& points, float rotation_angle) {
     if (points.empty()) return {};
     
     float min_x = points[0].x, max_x = points[0].x;
@@ -40,8 +40,8 @@ BoundingBox compute_aabb(const std::vector<Vec2>& points, float rotation_angle) 
     }
     
     BoundingBox box;
-    box.min_corner = {min_x, min_y};
-    box.max_corner = {max_x, max_y};
+    box.min_corner = {min_x, min_y, 0};
+    box.max_corner = {max_x, max_y, 0};
     box.volume = (max_x - min_x) * (max_y - min_y);
     box.rotation_angle = rotation_angle;
     
@@ -93,7 +93,7 @@ void align_min_bounds(const Vec3* verts, uint32_t vertCount, Vec3* out_rot, Vec3
 
     for (float angle : angles) {
         auto rotated_hull = rotate_points(hull, angle);
-        BoundingBox box = compute_aabb(rotated_hull, angle);
+        BoundingBox box = compute_aabb_2D(rotated_hull, angle);
 
         if (box.volume < best_box.volume) {
             best_box = box;
