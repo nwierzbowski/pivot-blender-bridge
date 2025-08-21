@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default Config",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "Python_ROOT_DIR": "/home/nwier/.local/share/flatpak/app/org.blender.Blender/current/active/files/blender/4.5/python"
+      }
+    }
+  ]
+}
