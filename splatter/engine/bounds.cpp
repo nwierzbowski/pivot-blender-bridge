@@ -73,8 +73,8 @@ std::vector<float> get_edge_angles_2D(const std::vector<Vec2>& hull) {
     return angles;
 }
 
-void align_min_bounds(const Vec3* verts, uint32_t vertCount, Vec3* out_rot, Vec3* out_trans) {
-    if (!verts || vertCount == 0 || !out_rot || !out_trans) return;
+void align_min_bounds(const Vec3* verts, uint32_t vertCount, const Vec3i* faces, uint32_t faceCount, Vec3* out_rot, Vec3* out_trans) {
+    if (!verts || vertCount == 0 || !faces || faceCount == 0 || !out_rot || !out_trans) return;
 
     if (vertCount == 1) {
         *out_rot = {0, 0, 0};
