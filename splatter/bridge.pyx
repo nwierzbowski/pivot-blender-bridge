@@ -22,6 +22,6 @@ def align_min_bounds(float[:, ::1] verts, int[:, ::1] faces):
 
     cdef Vec3 out_rot, out_trans
     with nogil:
-        align_min_bounds_cpp(verts_ptr, vertCount, &out_rot, &out_trans)
+        align_min_bounds_cpp(verts_ptr, vertCount, faces_ptr, faceCount, &out_rot, &out_trans)
 
     return (out_rot.x, out_rot.y, out_rot.z), (out_trans.x, out_trans.y, out_trans.z)
