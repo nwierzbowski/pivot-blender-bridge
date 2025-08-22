@@ -232,7 +232,7 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
         return std::vector<bool>(vertCount, false);
 
     // Parameters
-    const uint32_t K = std::min<uint32_t>(100, vertCount); // neighborhood size
+    const uint32_t K = std::min<uint32_t>(50, vertCount); // neighborhood size
     const float LINEARITY_THRESHOLD = 0.9f;
     const uint8_t MIN_WIRE_GROUP_SIZE = 10;
 
@@ -299,8 +299,9 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
     // scratch buffers reused per-query
     std::vector<uint32_t> out_idx(K);
     std::vector<float> out_dist2(K);
+    const float ann_eps = 0.8f;
 
-    // uint32_t durationTop = 0, durationBottom = 0;
+    uint32_t durationTop = 0, durationBottom = 0;
 
     auto start = std::chrono::high_resolution_clock::now();
     for (uint32_t i = 0; i < vertCount; ++i)
@@ -308,21 +309,32 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
 
         const Vec3 &pi = verts[i];
         float query_pt[3] = {(pi.x), (pi.y), (pi.z)};
-        size_t found = index.knnSearch(&query_pt[0], K, out_idx.data(), out_dist2.data());
-        // auto startInner = std::chrono::high_resolution_clock::now();
+        // size_t found = index.knnSearch(&query_pt[0], K, out_idx.data(), out_dist2.data());
+        
+        nanoflann::KNNResultSet<float, uint32_t> resultSet(K);
+        resultSet.init(out_idx.data(), out_dist2.data());
+        nanoflann::SearchParameters params;
+        params.eps = ann_eps;     // higher = faster but less exact
+        params.sorted = false;    // set to true if you need sorted neighbors
+
+        auto startInner = std::chrono::high_resolution_clock::now();
+        index.findNeighbors(resultSet, query_pt, params);
+        auto endInner = std::chrono::high_resolution_clock::now();
+        auto durationInner = std::chrono::duration_cast<std::chrono::nanoseconds>(endInner - startInner);
+        durationTop += durationInner.count();
+
+        size_t found = resultSet.size();
         neighbor_idxs.clear();
         neighbor_idxs.reserve(found);
 
-        for (size_t k = 0; k < found; ++k)
+        for (size_t k = 0; k < found && neighbor_idxs.size() < K; ++k)
         {
-            uint32_t idx = static_cast<uint32_t>(out_idx[k]);
+            uint32_t idx = (out_idx[k]);
             if (idx == i)
                 continue; // skip self
             neighbor_idxs.push_back(idx);
         }
-        // auto endInner = std::chrono::high_resolution_clock::now();
-        // auto durationInner = std::chrono::duration_cast<std::chrono::nanoseconds>(endInner - startInner);
-        // durationTop += durationInner.count();
+        
 
         // startInner = std::chrono::high_resolution_clock::now();
         // ensure we have at least one index (avoid empty neighborhood)
@@ -348,7 +360,7 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
         // durationInner = std::chrono::duration_cast<std::chrono::nanoseconds>(endInner - startInner);
         // durationBottom += durationInner.count();
     }
-    // std::cout << "Linearity top total time: " << durationTop / 1e6 << " ms" << std::endl;
+    std::cout << "KNN search total time: " << durationTop / 1e6 << " ms" << std::endl;
     // std::cout << "Linearity bottom total time: " << durationBottom / 1e6 << " ms" << std::endl;
 
     auto end = std::chrono::high_resolution_clock::now();
