@@ -23,7 +23,21 @@ target_compile_options(splatter_engine PRIVATE
 )
 
 target_compile_features(splatter_engine PRIVATE cxx_std_17)
-target_include_directories(splatter_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/splatter/engine)
+target_include_directories(splatter_engine PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/splatter/engine
+    # ${CMAKE_CURRENT_SOURCE_DIR}/splatter
+)
+
+include(FetchContent)
+FetchContent_Declare(
+    Eigen
+    GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+    GIT_TAG 3.4.0  # Use latest stable version
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(Eigen)
+
+target_link_libraries(splatter_engine PUBLIC Eigen3::Eigen)
 target_compile_definitions(splatter_engine PRIVATE
     $<$<CONFIG:Release>:NDEBUG>
 )

@@ -2,6 +2,8 @@
 #include "util.h"
 #include "chull.h"
 
+#include <Eigen/Eigenvalues>
+
 #include <iostream>
 #include <cstdint>
 #include <vector>
