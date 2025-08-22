@@ -23,7 +23,10 @@ target_compile_options(splatter_engine PRIVATE
 )
 
 target_compile_features(splatter_engine PRIVATE cxx_std_17)
-
+target_include_directories(splatter_engine PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/splatter/engine
+    ${CMAKE_CURRENT_SOURCE_DIR}/splatter/nanoflann
+)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -33,19 +36,6 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(Eigen)
-
-FetchContent_Declare(
-    nanoflann
-    GIT_REPOSITORY https://github.com/jlblancoc/nanoflann.git
-    GIT_TAG v1.7.1
-    GIT_SHALLOW TRUE
-)
-FetchContent_Populate(nanoflann)
-
-target_include_directories(splatter_engine PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/splatter/engine
-    ${nanoflann_SOURCE_DIR/include}
-)
 
 target_link_libraries(splatter_engine PUBLIC Eigen3::Eigen)
 target_compile_definitions(splatter_engine PRIVATE
