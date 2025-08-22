@@ -86,8 +86,148 @@ std::vector<float> get_edge_angles_2D(const std::vector<Vec2> &hull)
     return angles;
 }
 
+struct PointCloudAdaptor
+{
+    const Vec3 *pts;
+    const uint32_t N;
+    PointCloudAdaptor(const Vec3 *p = nullptr, uint32_t n = 0) : pts(p), N(n) {}
+    inline uint32_t kdtree_get_point_count() const { return N; }
+    inline float kdtree_get_pt(const uint32_t idx, const uint32_t dim) const
+    {
+        const Vec3 &v = pts[idx];
+        if (dim == 0)
+            return (v.x);
+        if (dim == 1)
+            return (v.y);
+        return (v.z);
+    }
+    // nanoflann requires this method, but we do not use bounding boxes
+    template <class BBOX>
+    bool kdtree_get_bbox(BBOX &bb) const { return false; }
+};
+// file-scope, inlinable helper: compute top-2 eigenvalues of a 3x3 symmetric matrix.
+// Replaces the lambda in elim_wires so the compiler can inline and optimize it.
+static inline void eig3(const float A[3][3], float &lambda1, float &lambda2)
+{
+    // Fast power-iteration for largest eigenvalue + deflation for second.
+    // Fall back to Eigen if something goes wrong.
+    auto dot3 = [](const float a[3], const float b[3])
+    {
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    };
+    auto mat_vec = [&](const float M[3][3], const float v[3], float out[3])
+    {
+        for (int r = 0; r < 3; ++r)
+            out[r] = M[r][0] * v[0] + M[r][1] * v[1] + M[r][2] * v[2];
+    };
+
+    float M[3][3];
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c)
+            M[r][c] = A[r][c];
+
+    const int MAX_IT = 40;
+    const float TOL = 1e-10f;
+
+    // First eigenpair
+    float v[3] = {1.0f, 1.0f, 1.0f};
+    float tmp[3];
+    float nrm = std::sqrt(dot3(v, v));
+    if (nrm == 0.0f)
+    {
+        v[0] = 1;
+        v[1] = 0;
+        v[2] = 0;
+        nrm = 1.0f;
+    }
+    v[0] /= nrm;
+    v[1] /= nrm;
+    v[2] /= nrm;
+    float lambda_prev = 0.0f;
+    for (int it = 0; it < MAX_IT; ++it)
+    {
+        mat_vec(M, v, tmp);
+        float tmpn = std::sqrt(dot3(tmp, tmp));
+        if (tmpn == 0.0f)
+            break;
+        v[0] = tmp[0] / tmpn;
+        v[1] = tmp[1] / tmpn;
+        v[2] = tmp[2] / tmpn;
+        mat_vec(M, v, tmp);
+        float lambda = dot3(v, tmp);
+        if (std::abs(lambda - lambda_prev) < TOL * std::max(1.0f, std::abs(lambda)))
+        {
+            lambda_prev = lambda;
+            break;
+        }
+        lambda_prev = lambda;
+    }
+    lambda1 = lambda_prev;
+
+    // Deflate and find second eigenvector (use original M to compute Rayleigh quotient)
+    float M2[3][3];
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c)
+            M2[r][c] = M[r][c] - lambda1 * v[r] * v[c];
+
+    float u[3] = {v[1] - v[2] + 1e-1f, v[2] - v[0] + 1e-1f, v[0] - v[1] + 1e-1f};
+    nrm = std::sqrt(dot3(u, u));
+    if (nrm == 0.0f)
+    {
+        u[0] = 1;
+        u[1] = 0;
+        u[2] = 0;
+        nrm = 1.0f;
+    }
+    u[0] /= nrm;
+    u[1] /= nrm;
+    u[2] /= nrm;
+    float lambda2_prev = 0.0f;
+    for (int it = 0; it < MAX_IT; ++it)
+    {
+        mat_vec(M2, u, tmp);
+        float tmpn = std::sqrt(dot3(tmp, tmp));
+        if (tmpn == 0.0f)
+            break;
+        u[0] = tmp[0] / tmpn;
+        u[1] = tmp[1] / tmpn;
+        u[2] = tmp[2] / tmpn;
+        mat_vec(M, u, tmp); // original matrix for Rayleigh
+        float lambda = dot3(u, tmp);
+        if (std::abs(lambda - lambda2_prev) < TOL * std::max(1.0f, std::abs(lambda)))
+        {
+            lambda2_prev = lambda;
+            break;
+        }
+        lambda2_prev = lambda;
+    }
+    lambda2 = lambda2_prev;
+
+    // Ordering and safety
+    if (!std::isfinite(lambda1) || !std::isfinite(lambda2) || lambda2 > lambda1 + 1e-12)
+    {
+        // fallback to robust Eigen solver
+        Eigen::Matrix3d E;
+        E << A[0][0], A[0][1], A[0][2],
+            A[1][0], A[1][1], A[1][2],
+            A[2][0], A[2][1], A[2][2];
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> es;
+        es.compute(E);
+        if (es.info() == Eigen::Success)
+        {
+            Eigen::Vector3d w = es.eigenvalues(); // ascending
+            lambda1 = w[2];
+            lambda2 = w[1];
+        }
+        else
+        {
+            lambda1 = lambda2 = 0.0;
+        }
+    }
+};
+
 std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::vector<std::vector<uint32_t>> &adj_verts)
-{   
+{
     if (!verts || vertCount == 0)
         return std::vector<bool>(vertCount, false);
 
@@ -97,10 +237,10 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
     const uint8_t MIN_WIRE_GROUP_SIZE = 10;
 
     // Helper: compute covariance matrix (3x3) for a set of points given their indices
-    auto compute_cov = [&](const std::vector<uint32_t> &idxs, double cov[3][3])
+    auto compute_cov = [&](const std::vector<uint32_t> &idxs, float cov[3][3])
     {
         const size_t n = idxs.size();
-        double mean[3] = {0.0, 0.0, 0.0};
+        float mean[3] = {0.0f, 0.0f, 0.0f};
         for (uint32_t id : idxs)
         {
             const Vec3 &p = verts[id];
@@ -118,9 +258,9 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
         for (uint32_t id : idxs)
         {
             const Vec3 &p = verts[id];
-            double d0 = p.x - mean[0];
-            double d1 = p.y - mean[1];
-            double d2 = p.z - mean[2];
+            float d0 = p.x - mean[0];
+            float d1 = p.y - mean[1];
+            float d2 = p.z - mean[2];
             cov[0][0] += d0 * d0;
             cov[0][1] += d0 * d1;
             cov[0][2] += d0 * d2;
@@ -137,163 +277,80 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
                 cov[r][c] /= static_cast<double>(n);
     };
 
-    // Helper: use Eigen's SelfAdjointEigenSolver for 3x3 symmetric matrices.
-    // Produces eigenvalues (ascending) and eigenvectors (columns).
-    auto eig3 = [&](const double A[3][3], double &lambda1, double &lambda2)
-    {
-        // Fast power-iteration for largest eigenvalue + deflation for second.
-        // Fall back to Eigen if something goes wrong.
-        auto dot3 = [](const double a[3], const double b[3]) {
-            return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
-        };
-        auto mat_vec = [&](const double M[3][3], const double v[3], double out[3]) {
-            for (int r = 0; r < 3; ++r)
-                out[r] = M[r][0]*v[0] + M[r][1]*v[1] + M[r][2]*v[2];
-        };
-
-        double M[3][3];
-        for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) M[r][c] = A[r][c];
-
-        const int MAX_IT = 40;
-        const double TOL = 1e-10;
-
-        // First eigenpair
-        double v[3] = {1.0, 1.0, 1.0};
-        double tmp[3];
-        double nrm = std::sqrt(dot3(v, v));
-        if (nrm == 0.0) { v[0]=1; v[1]=0; v[2]=0; nrm = 1.0; }
-        v[0]/=nrm; v[1]/=nrm; v[2]/=nrm;
-        double lambda_prev = 0.0;
-        for (int it = 0; it < MAX_IT; ++it)
-        {
-            mat_vec(M, v, tmp);
-            double tmpn = std::sqrt(dot3(tmp, tmp));
-            if (tmpn == 0.0) break;
-            v[0] = tmp[0] / tmpn; v[1] = tmp[1] / tmpn; v[2] = tmp[2] / tmpn;
-            mat_vec(M, v, tmp);
-            double lambda = dot3(v, tmp);
-            if (std::abs(lambda - lambda_prev) < TOL * std::max(1.0, std::abs(lambda))) { lambda_prev = lambda; break; }
-            lambda_prev = lambda;
-        }
-        lambda1 = lambda_prev;
-
-        // Deflate and find second eigenvector (use original M to compute Rayleigh quotient)
-        double M2[3][3];
-        for (int r = 0; r < 3; ++r)
-            for (int c = 0; c < 3; ++c)
-                M2[r][c] = M[r][c] - lambda1 * v[r] * v[c];
-
-        double u[3] = { v[1] - v[2] + 1e-1, v[2] - v[0] + 1e-1, v[0] - v[1] + 1e-1 };
-        nrm = std::sqrt(dot3(u, u));
-        if (nrm == 0.0) { u[0]=1; u[1]=0; u[2]=0; nrm = 1.0; }
-        u[0]/=nrm; u[1]/=nrm; u[2]/=nrm;
-        double lambda2_prev = 0.0;
-        for (int it = 0; it < MAX_IT; ++it)
-        {
-            mat_vec(M2, u, tmp);
-            double tmpn = std::sqrt(dot3(tmp, tmp));
-            if (tmpn == 0.0) break;
-            u[0] = tmp[0] / tmpn; u[1] = tmp[1] / tmpn; u[2] = tmp[2] / tmpn;
-            mat_vec(M, u, tmp); // original matrix for Rayleigh
-            double lambda = dot3(u, tmp);
-            if (std::abs(lambda - lambda2_prev) < TOL * std::max(1.0, std::abs(lambda))) { lambda2_prev = lambda; break; }
-            lambda2_prev = lambda;
-        }
-        lambda2 = lambda2_prev;
-
-        // Ordering and safety
-        if (!std::isfinite(lambda1) || !std::isfinite(lambda2) || lambda2 > lambda1 + 1e-12)
-        {
-            // fallback to robust Eigen solver
-            Eigen::Matrix3d E;
-            E << A[0][0], A[0][1], A[0][2],
-                 A[1][0], A[1][1], A[1][2],
-                 A[2][0], A[2][1], A[2][2];
-            Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> es;
-            es.compute(E);
-            if (es.info() == Eigen::Success)
-            {
-                Eigen::Vector3d w = es.eigenvalues(); // ascending
-                lambda1 = w[2];
-                lambda2 = w[1];
-            }
-            else
-            {
-                lambda1 = lambda2 = 0.0;
-            }
-        }
-    };
-
     std::vector<uint32_t> neighbor_idxs;
     neighbor_idxs.reserve(K);
 
     std::vector<int> is_wire(vertCount, 0);
     std::vector<float> linearity_scores(vertCount, 0.0f);
 
+    // Build KD-tree (point cloud adapter)
+    using namespace nanoflann;
+    PointCloudAdaptor cloud(verts, vertCount);
+    typedef KDTreeSingleIndexAdaptor<
+        L2_Simple_Adaptor<float, PointCloudAdaptor>,
+        PointCloudAdaptor,
+        3, /* dim */
+        uint32_t>
+        KDTree;
+
+    KDTree index(3 /*dim*/, cloud, KDTreeSingleIndexAdaptorParams(32 /*leaf_max_size*/));
+    index.buildIndex();
+
+    // scratch buffers reused per-query
+    std::vector<uint32_t> out_idx(K);
+    std::vector<float> out_dist2(K);
+
+    // uint32_t durationTop = 0, durationBottom = 0;
+
     auto start = std::chrono::high_resolution_clock::now();
     for (uint32_t i = 0; i < vertCount; ++i)
     {
+
         const Vec3 &pi = verts[i];
-
-        // Use a min-heap of (squared distance, index). Track which nodes were pushed to avoid duplicates.
-        std::priority_queue<std::pair<double, uint32_t>,
-                            std::vector<std::pair<double, uint32_t>>,
-                            std::greater<std::pair<double, uint32_t>>> pq2;
-
-        std::vector<char> pushed(vertCount, 0);
-        auto push_if = [&](uint32_t idx) {
-            if (idx == i || pushed[idx]) return;
-            double dx = verts[idx].x - pi.x;
-            double dy = verts[idx].y - pi.y;
-            double dz = verts[idx].z - pi.z;
-            double d2 = dx*dx + dy*dy + dz*dz;
-            pq2.emplace(d2, idx);
-            pushed[idx] = 1;
-        };
-
-        // seed with immediate neighbors
-        for (uint32_t neighbor_idx : adj_verts[i]) {
-            push_if(neighbor_idx);
-        }
-
+        float query_pt[3] = {(pi.x), (pi.y), (pi.z)};
+        size_t found = index.knnSearch(&query_pt[0], K, out_idx.data(), out_dist2.data());
+        // auto startInner = std::chrono::high_resolution_clock::now();
         neighbor_idxs.clear();
+        neighbor_idxs.reserve(found);
 
-        // collect up to K unique closest indices (graph-expanded)
-        while (neighbor_idxs.size() < K && !pq2.empty())
+        for (size_t k = 0; k < found; ++k)
         {
-            auto top = pq2.top();
-            pq2.pop();
-            uint32_t current_idx = top.second;
-
-            // add to result
-            neighbor_idxs.push_back(current_idx);
-
-            // expand from this node
-            for (uint32_t neighbor_idx : adj_verts[current_idx])
-            {
-                push_if(neighbor_idx);
-            }
+            uint32_t idx = static_cast<uint32_t>(out_idx[k]);
+            if (idx == i)
+                continue; // skip self
+            neighbor_idxs.push_back(idx);
         }
+        // auto endInner = std::chrono::high_resolution_clock::now();
+        // auto durationInner = std::chrono::duration_cast<std::chrono::nanoseconds>(endInner - startInner);
+        // durationTop += durationInner.count();
 
+        // startInner = std::chrono::high_resolution_clock::now();
         // ensure we have at least one index (avoid empty neighborhood)
         if (neighbor_idxs.empty())
             neighbor_idxs.push_back(i);
 
         // compute covariance
-        double cov[3][3];
+        float cov[3][3];
         compute_cov(neighbor_idxs, cov);
 
         // compute eigenvalues: largest via power iteration
-        double lambda1, lambda2;
+        float lambda1, lambda2;
         eig3(cov, lambda1, lambda2);
 
-        double lin = 0.0;
-        if (lambda1 > 0.0)
-            lin = static_cast<double>(lambda1 - lambda2) / static_cast<double>(lambda1);
-        linearity_scores[i] = static_cast<float>(lin);
+        float lin = 0.0f;
+        if (lambda1 > 0.0f)
+            lin = (lambda1 - lambda2) / lambda1;
+        linearity_scores[i] = lin;
         if (lin > LINEARITY_THRESHOLD)
             is_wire[i] = 1;
+
+        // endInner = std::chrono::high_resolution_clock::now();
+        // durationInner = std::chrono::duration_cast<std::chrono::nanoseconds>(endInner - startInner);
+        // durationBottom += durationInner.count();
     }
+    // std::cout << "Linearity top total time: " << durationTop / 1e6 << " ms" << std::endl;
+    // std::cout << "Linearity bottom total time: " << durationBottom / 1e6 << " ms" << std::endl;
+
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Time to compute linearity: " << duration.count() << " ms" << std::endl;
@@ -382,6 +439,14 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Time to grow wire selection: " << duration.count() << " ms" << std::endl;
 
+    // for (uint32_t i = 0; i < final_is_wire.size(); ++i)
+    // {
+    //     if (final_is_wire[i])
+    //     {
+    //         printf("%i ", i);
+    //     }
+    // }
+
     return final_is_wire;
 }
 
@@ -434,15 +499,15 @@ void align_min_bounds(const Vec3 *verts, uint32_t vertCount, const uVec3i *faces
     // Calculate vertex adjacency lists
     std::vector<std::vector<uint32_t>> adj_verts(vertCount);
     build_adj_vertices(verts, vertCount, faces, faceCount, adj_verts);
-    
+
     auto start = std::chrono::high_resolution_clock::now();
 
     auto is_wire = elim_wires(verts, vertCount, adj_verts);
-    
+
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Time: " << duration.count() << " ms" << std::endl;
-    
+
     // auto is_wire = std::vector<bool>(vertCount, false);
     // timeFunction([&]() { is_wire = elim_wires(verts, vertCount, adj_verts); });
 
