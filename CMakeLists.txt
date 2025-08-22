@@ -32,12 +32,20 @@ include(FetchContent)
 FetchContent_Declare(
     Eigen
     GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-    GIT_TAG 3.4.0  # Use latest stable version
+    GIT_TAG 3.4.0 
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(Eigen)
 
-target_link_libraries(splatter_engine PUBLIC Eigen3::Eigen)
+FetchContent_Declare(
+    nanoflann
+    GIT_REPOSITORY https://github.com/jlblancoc/nanoflann.git
+    GIT_TAG v1.7.1
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(nanoflann)
+
+target_link_libraries(splatter_engine PUBLIC Eigen3::Eigen nanoflann::nanoflann)
 target_compile_definitions(splatter_engine PRIVATE
     $<$<CONFIG:Release>:NDEBUG>
 )
