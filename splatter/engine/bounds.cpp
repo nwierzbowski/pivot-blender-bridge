@@ -3,6 +3,7 @@
 #include "chull.h"
 
 #include <Eigen/Eigenvalues>
+#include <nanoflann.hpp>
 
 #include <iostream>
 #include <cstdint>
