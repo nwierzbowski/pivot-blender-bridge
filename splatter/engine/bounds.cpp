@@ -92,11 +92,7 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
     // Parameters
     const uint32_t K = std::min<uint32_t>(100, vertCount); // neighborhood size
     const float LINEARITY_THRESHOLD = 0.9f;
-    // const int MAX_POWER_ITERS = 50;
-    // const float POWER_TOL = 1e-6f;
     const uint8_t MIN_WIRE_GROUP_SIZE = 10;
-
-    // auto sq = [](float x){ return x*x; };
 
     // Helper: compute covariance matrix (3x3) for a set of points given their indices
     auto compute_cov = [&](const std::vector<uint32_t> &idxs, double cov[3][3])
@@ -141,7 +137,7 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
 
     // Helper: use Eigen's SelfAdjointEigenSolver for 3x3 symmetric matrices.
     // Produces eigenvalues (ascending) and eigenvectors (columns).
-    auto eig3 = [&](const double A[3][3], double &lambda1, double &lambda2, double &lambda3, double v1[3], double v2[3])
+    auto eig3 = [&](const double A[3][3], double &lambda1, double &lambda2, double &lambda3)
     {
         Eigen::Matrix3d M;
         M << A[0][0], A[0][1], A[0][2],
@@ -153,7 +149,6 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
         if (es.info() != Eigen::Success)
         {
             lambda1 = lambda2 = lambda3 = 0.0;
-            v1[0]=v1[1]=v1[2]=v2[0]=v2[1]=v2[2]=0.0;
             return;
         }
 
@@ -163,8 +158,6 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
         lambda1 = w[2];
         lambda2 = w[1];
         lambda3 = w[0];
-        v1[0] = V(0,2); v1[1] = V(1,2); v1[2] = V(2,2);
-        v2[0] = V(0,1); v2[1] = V(1,1); v2[2] = V(2,1);
     };
 
     std::vector<uint32_t> neighbor_idxs;
@@ -227,8 +220,7 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
 
         // compute eigenvalues: largest via power iteration
         double lambda1, lambda2, lambda3;
-        double v1[3], v2[3];
-        eig3(cov, lambda1, lambda2, lambda3, v1, v2);
+        eig3(cov, lambda1, lambda2, lambda3);
 
         double lin = 0.0;
         if (lambda1 > 0.0)
