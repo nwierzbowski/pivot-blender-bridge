@@ -207,34 +207,6 @@ static inline void eig3(const float A[3][3], float &lambda1, float &lambda2)
     }
 };
 
-void fillArrayWithRandomInts(std::vector<uint32_t> &arr, uint32_t minVal, uint32_t maxVal)
-{
-    // handle empty target
-    if (arr.empty())
-        return;
-
-    // ensure valid range
-    if (minVal > maxVal)
-        std::swap(minVal, maxVal);
-
-    // Reuse RNG; thread_local is safe for later multithreading
-    thread_local std::mt19937 gen((std::random_device())());
-
-    // Use uint32_t distribution to match types and avoid overflow/UB
-    std::uniform_int_distribution<uint32_t> distrib(minVal, maxVal);
-    // std::cout << "Filling array with random integers between " << minVal << " and " << maxVal << std::endl;
-    // std::cout << "Array size: " << arr.size() << std::endl;
-
-    // Generate random numbers
-    for (size_t i = 0; i < arr.size(); ++i)
-    {
-        arr[i] = distrib(gen);
-    }
-
-    // Sort the array
-    std::sort(arr.begin(), arr.end());
-}
-
 std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::vector<std::vector<uint32_t>> &adj_verts)
 {
     if (!verts || vertCount == 0)
@@ -301,7 +273,7 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
     neighbor_idxs.reserve(K);
     // ------------------------------------------------------------
 
-    for (uint32_t i = 0; i < vertCount; i += 32)
+    for (uint32_t i = 0; i < vertCount; i += 24)
     {
         // --- Dijkstra (early exit after collecting K nearest) ---
         neighbor_idxs.clear();
@@ -390,7 +362,6 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Time to compute linearity: " << duration.count() << " ms" << std::endl;
 
-    std::vector<bool> final_is_wire(vertCount, false);
     std::vector<bool> group_visited(vertCount, false);
     std::vector<int> boundary_indices;
 
@@ -427,12 +398,14 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
             }
 
             // If group is large enough or is it's whole island, mark all as wire
-            if (group.size() >= 10 || current_bounds.empty())
+            if (group.size() < 10 && !current_bounds.empty())
             {
                 for (uint32_t idx : group)
                 {
-                    final_is_wire[idx] = true;
+                    is_wire[idx] = false;
                 }
+                
+            } else {
                 for (uint32_t idx : current_bounds)
                 {
                     boundary_indices.push_back(idx);
@@ -456,14 +429,14 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
         uint32_t current = queue.front();
         queue.pop();
 
-        if (linearity_scores[current] > 0.1 && !final_is_wire[current])
+        if (linearity_scores[current] > 0.1 && !is_wire[current])
         {
 
-            final_is_wire[current] = true;
+            is_wire[current] = true;
             // Check neighbors
             for (uint32_t neighbor : adj_verts[current])
             {
-                if (!final_is_wire[neighbor])
+                if (!is_wire[neighbor])
                 {
                     queue.push(neighbor);
                 }
@@ -474,9 +447,9 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
     // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     // std::cout << "Time to grow wire selection: " << duration.count() << " ms" << std::endl;
     // uint32_t wire_count = 0;
-    // for (uint32_t i = 0; i < final_is_wire.size(); ++i)
+    // for (uint32_t i = 0; i < is_wire.size(); ++i)
     // {
-    //     if (final_is_wire[i])
+    //     if (is_wire[i])
     //     {
     //         printf("%i ", i);
     //         wire_count++;
@@ -485,7 +458,7 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
 
     // std::cout << "Number of wire vertices: " << wire_count << std::endl;
 
-    return final_is_wire;
+    return is_wire;
 }
 
 void build_adj_vertices(const Vec3 *verts, uint32_t vertCount, const uVec3i *faces, uint32_t faceCount, std::vector<std::vector<uint32_t>> &out_adj_verts)
