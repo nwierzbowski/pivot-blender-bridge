@@ -207,6 +207,27 @@ static inline void eig3(const float A[3][3], float &lambda1, float &lambda2)
     }
 };
 
+struct PointCloud
+{
+    const Vec3* pts;
+    uint32_t ptCount;
+
+    inline size_t kdtree_get_point_count() const { return ptCount; }
+
+    // Returns the dim'th component of the idx'th point in the class:
+    // Since Vec3 is {x,y,z}, this is straight-forward.
+    inline float kdtree_get_pt(const size_t idx, const size_t dim) const
+    {
+        if (dim == 0) return pts[idx].x;
+        else if (dim == 1) return pts[idx].y;
+        else return pts[idx].z;
+    }
+
+    // Optional bounding-box computation: is not essential but helps performance.
+    template <class BBOX>
+    bool kdtree_get_bbox(BBOX& /* bb */) const { return false; }
+};
+
 std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::vector<std::vector<uint32_t>> &adj_verts)
 {
     if (!verts || vertCount == 0)
@@ -267,66 +288,61 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
     std::vector<float> votes(vertCount, 0.0f);
 
     // --- Replaced BFS data structures with Dijkstra structures ---
-    std::vector<int32_t> visit_tag(vertCount, -1);          // marks last source index that touched this node
-    std::vector<float>   graph_dist(vertCount, 0.0f);       // distance from current source
+    // std::vector<int32_t> visit_tag(vertCount, -1);          // marks last source index that touched this node
+    // std::vector<float>   graph_dist(vertCount, 0.0f);       // distance from current source
+    std::vector<uint32_t> ret_indices(K);
+    std::vector<float> out_dists_sqr(K);
     std::vector<uint32_t> neighbor_idxs;
     neighbor_idxs.reserve(K);
     // ------------------------------------------------------------
 
-    for (uint32_t i = 0; i < vertCount; i += 24)
+    // --- 2. Build the k-d Tree (Do this ONCE) ---
+    PointCloud cloud = { verts, vertCount };
+    using my_kd_tree_t = nanoflann::KDTreeSingleIndexAdaptor<
+        nanoflann::L2_Simple_Adaptor<float, PointCloud>,
+        PointCloud,
+        3
+    >;
+
+    my_kd_tree_t index(3, cloud, nanoflann::KDTreeSingleIndexAdaptorParams(60));
+    index.buildIndex();
+
+    std::random_device rd;
+    std::mt19937 generator(rd());
+
+    // 2. Create a uniform integer distribution for your desired range [min, max].
+    int min = 0;
+    int max = 23;
+    std::uniform_int_distribution<int> distribution(min, max);
+
+    // 3. Generate and print a random number.
+    int random_number = distribution(generator);
+    printf("%i\n", random_number);
+
+     for (uint32_t i = random_number; i < vertCount; i += 24)
     {
-        // --- Dijkstra (early exit after collecting K nearest) ---
-        neighbor_idxs.clear();
+        const float query_pt[3] = { verts[i].x, verts[i].y, verts[i].z };
 
-        using HeapItem = std::pair<float, uint32_t>;
-        struct Cmp { bool operator()(const HeapItem& a, const HeapItem& b) const { return a.first > b.first; } };
-        std::priority_queue<HeapItem, std::vector<HeapItem>, Cmp> pq;
+        ret_indices.clear();
+        out_dists_sqr.clear();
+        
+        nanoflann::KNNResultSet<float, uint32_t> resultSet(K);
+        resultSet.init(ret_indices.data(), out_dists_sqr.data());
 
-        pq.emplace(0.0f, i);
-        visit_tag[i] = static_cast<int32_t>(i);
-        graph_dist[i] = 0.0f;
+        nanoflann::SearchParameters params;
+        params.eps = 2.5;
 
-        while (!pq.empty() && neighbor_idxs.size() < K)
-        {
-            auto [dist_u, u] = pq.top();
-            pq.pop();
+        index.findNeighbors(resultSet, query_pt, params);
+        // -----------------------
 
-            // Skip stale entries
-            if (visit_tag[u] != static_cast<int32_t>(i) || dist_u != graph_dist[u]) continue;
-
-            neighbor_idxs.push_back(u);
-
-            // Expand neighbors
-            const Vec3 &pu = verts[u];
-            for (uint32_t v : adj_verts[u])
-            {
-                const Vec3 &pv = verts[v];
-                float dx = pv.x - pu.x;
-                float dy = pv.y - pu.y;
-                float dz = pv.z - pu.z;
-                float w = std::sqrt(dx * dx + dy * dy + dz * dz); // edge weight (Euclidean)
-
-                if (w <= 0.0f) continue;
-
-                float newDist = dist_u + w;
-                if (visit_tag[v] != static_cast<int32_t>(i) || newDist < graph_dist[v])
-                {
-                    graph_dist[v] = newDist;
-                    visit_tag[v] = static_cast<int32_t>(i);
-                    pq.emplace(newDist, v);
-                }
-            }
-        }
+        neighbor_idxs.assign(ret_indices.begin(), ret_indices.begin() + resultSet.size());
 
         if (neighbor_idxs.empty())
             neighbor_idxs.push_back(i);
-        // ---------------------------------------------------------
 
-        // compute covariance
         float cov[3][3];
         compute_cov(neighbor_idxs, cov);
 
-        // compute eigenvalues
         float lambda1, lambda2;
         eig3(cov, lambda1, lambda2);
 
@@ -335,15 +351,15 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
             lin = (lambda1 - lambda2) / lambda1;
         linearity_scores[i] = lin;
 
-        // Accumulate votes for neighbors (skip source itself)
-        for (auto it = neighbor_idxs.begin() + (neighbor_idxs.size() > 1 ? 1 : 0); it != neighbor_idxs.end(); ++it)
+        for (size_t j = 0; j < resultSet.size(); ++j)
         {
-            uint32_t idx_n = *it;
-            // Only use nodes actually visited in this Dijkstra round
-            if (visit_tag[idx_n] != static_cast<int32_t>(i)) continue;
-            float d = graph_dist[idx_n];
-            if (d <= 0.0f) continue;
-            float weight = 1.0f / (d * d);
+            uint32_t idx_n = ret_indices[j];
+            if (idx_n == i) continue;
+
+            float d_sq = out_dists_sqr[j];
+            if (d_sq <= 0.0f) continue;
+            
+            float weight = 1.0f / d_sq;
             total_weights[idx_n] += weight;
             votes[idx_n] += weight * lin;
         }
