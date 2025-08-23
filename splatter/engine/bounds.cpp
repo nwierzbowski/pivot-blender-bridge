@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <queue>
 #include <chrono>
+#include <random>
+#include <limits>
 
 // Rotate points by angle (radians) around origin
 void rotate_points_2D(const std::vector<Vec2> &points, float angle, std::vector<Vec2> &out)
@@ -86,27 +88,6 @@ std::vector<float> get_edge_angles_2D(const std::vector<Vec2> &hull)
     return angles;
 }
 
-struct PointCloudAdaptor
-{
-    const Vec3 *pts;
-    const uint32_t N;
-    PointCloudAdaptor(const Vec3 *p = nullptr, uint32_t n = 0) : pts(p), N(n) {}
-    inline uint32_t kdtree_get_point_count() const { return N; }
-    inline float kdtree_get_pt(const uint32_t idx, const uint32_t dim) const
-    {
-        const Vec3 &v = pts[idx];
-        if (dim == 0)
-            return (v.x);
-        if (dim == 1)
-            return (v.y);
-        return (v.z);
-    }
-    // nanoflann requires this method, but we do not use bounding boxes
-    template <class BBOX>
-    bool kdtree_get_bbox(BBOX &bb) const { return false; }
-};
-// file-scope, inlinable helper: compute top-2 eigenvalues of a 3x3 symmetric matrix.
-// Replaces the lambda in elim_wires so the compiler can inline and optimize it.
 static inline void eig3(const float A[3][3], float &lambda1, float &lambda2)
 {
     // Fast power-iteration for largest eigenvalue + deflation for second.
@@ -226,15 +207,43 @@ static inline void eig3(const float A[3][3], float &lambda1, float &lambda2)
     }
 };
 
+void fillArrayWithRandomInts(std::vector<uint32_t> &arr, uint32_t minVal, uint32_t maxVal)
+{
+    // handle empty target
+    if (arr.empty())
+        return;
+
+    // ensure valid range
+    if (minVal > maxVal)
+        std::swap(minVal, maxVal);
+
+    // Reuse RNG; thread_local is safe for later multithreading
+    thread_local std::mt19937 gen((std::random_device())());
+
+    // Use uint32_t distribution to match types and avoid overflow/UB
+    std::uniform_int_distribution<uint32_t> distrib(minVal, maxVal);
+    // std::cout << "Filling array with random integers between " << minVal << " and " << maxVal << std::endl;
+    // std::cout << "Array size: " << arr.size() << std::endl;
+
+    // Generate random numbers
+    for (size_t i = 0; i < arr.size(); ++i)
+    {
+        arr[i] = distrib(gen);
+    }
+
+    // Sort the array
+    std::sort(arr.begin(), arr.end());
+}
+
 std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::vector<std::vector<uint32_t>> &adj_verts)
 {
     if (!verts || vertCount == 0)
         return std::vector<bool>(vertCount, false);
 
     // Parameters
-    const uint32_t K = std::min<uint32_t>(50, vertCount); // neighborhood size
+    const uint32_t K = std::min<uint32_t>(70, vertCount); // neighborhood size
     const float LINEARITY_THRESHOLD = 0.9f;
-    const uint8_t MIN_WIRE_GROUP_SIZE = 10;
+    // const uint8_t MIN_WIRE_GROUP_SIZE = 10;
 
     // Helper: compute covariance matrix (3x3) for a set of points given their indices
     auto compute_cov = [&](const std::vector<uint32_t> &idxs, float cov[3][3])
@@ -277,75 +286,75 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
                 cov[r][c] /= static_cast<double>(n);
     };
 
-    std::vector<uint32_t> neighbor_idxs;
-    neighbor_idxs.reserve(K);
+    auto start = std::chrono::high_resolution_clock::now();
 
-    std::vector<int> is_wire(vertCount, 0);
+    std::vector<bool> is_wire(vertCount, false);
     std::vector<float> linearity_scores(vertCount, 0.0f);
 
-    // Build KD-tree (point cloud adapter)
-    using namespace nanoflann;
-    PointCloudAdaptor cloud(verts, vertCount);
-    typedef KDTreeSingleIndexAdaptor<
-        L2_Simple_Adaptor<float, PointCloudAdaptor>,
-        PointCloudAdaptor,
-        3, /* dim */
-        uint32_t>
-        KDTree;
+    std::vector<float> total_weights(vertCount, 0.0f);
+    std::vector<float> votes(vertCount, 0.0f);
 
-    KDTree index(3 /*dim*/, cloud, KDTreeSingleIndexAdaptorParams(32 /*leaf_max_size*/));
-    index.buildIndex();
+    // --- Replaced BFS data structures with Dijkstra structures ---
+    std::vector<int32_t> visit_tag(vertCount, -1);          // marks last source index that touched this node
+    std::vector<float>   graph_dist(vertCount, 0.0f);       // distance from current source
+    std::vector<uint32_t> neighbor_idxs;
+    neighbor_idxs.reserve(K);
+    // ------------------------------------------------------------
 
-    // scratch buffers reused per-query
-    std::vector<uint32_t> out_idx(K);
-    std::vector<float> out_dist2(K);
-    const float ann_eps = 0.8f;
-
-    uint32_t durationTop = 0, durationBottom = 0;
-
-    auto start = std::chrono::high_resolution_clock::now();
-    for (uint32_t i = 0; i < vertCount; ++i)
+    for (uint32_t i = 0; i < vertCount; i += 32)
     {
-
-        const Vec3 &pi = verts[i];
-        float query_pt[3] = {(pi.x), (pi.y), (pi.z)};
-        // size_t found = index.knnSearch(&query_pt[0], K, out_idx.data(), out_dist2.data());
-        
-        nanoflann::KNNResultSet<float, uint32_t> resultSet(K);
-        resultSet.init(out_idx.data(), out_dist2.data());
-        nanoflann::SearchParameters params;
-        params.eps = ann_eps;     // higher = faster but less exact
-        params.sorted = false;    // set to true if you need sorted neighbors
-
-        auto startInner = std::chrono::high_resolution_clock::now();
-        index.findNeighbors(resultSet, query_pt, params);
-        auto endInner = std::chrono::high_resolution_clock::now();
-        auto durationInner = std::chrono::duration_cast<std::chrono::nanoseconds>(endInner - startInner);
-        durationTop += durationInner.count();
-
-        size_t found = resultSet.size();
+        // --- Dijkstra (early exit after collecting K nearest) ---
         neighbor_idxs.clear();
-        neighbor_idxs.reserve(found);
 
-        for (size_t k = 0; k < found && neighbor_idxs.size() < K; ++k)
+        using HeapItem = std::pair<float, uint32_t>;
+        struct Cmp { bool operator()(const HeapItem& a, const HeapItem& b) const { return a.first > b.first; } };
+        std::priority_queue<HeapItem, std::vector<HeapItem>, Cmp> pq;
+
+        pq.emplace(0.0f, i);
+        visit_tag[i] = static_cast<int32_t>(i);
+        graph_dist[i] = 0.0f;
+
+        while (!pq.empty() && neighbor_idxs.size() < K)
         {
-            uint32_t idx = (out_idx[k]);
-            if (idx == i)
-                continue; // skip self
-            neighbor_idxs.push_back(idx);
-        }
-        
+            auto [dist_u, u] = pq.top();
+            pq.pop();
 
-        // startInner = std::chrono::high_resolution_clock::now();
-        // ensure we have at least one index (avoid empty neighborhood)
+            // Skip stale entries
+            if (visit_tag[u] != static_cast<int32_t>(i) || dist_u != graph_dist[u]) continue;
+
+            neighbor_idxs.push_back(u);
+
+            // Expand neighbors
+            const Vec3 &pu = verts[u];
+            for (uint32_t v : adj_verts[u])
+            {
+                const Vec3 &pv = verts[v];
+                float dx = pv.x - pu.x;
+                float dy = pv.y - pu.y;
+                float dz = pv.z - pu.z;
+                float w = std::sqrt(dx * dx + dy * dy + dz * dz); // edge weight (Euclidean)
+
+                if (w <= 0.0f) continue;
+
+                float newDist = dist_u + w;
+                if (visit_tag[v] != static_cast<int32_t>(i) || newDist < graph_dist[v])
+                {
+                    graph_dist[v] = newDist;
+                    visit_tag[v] = static_cast<int32_t>(i);
+                    pq.emplace(newDist, v);
+                }
+            }
+        }
+
         if (neighbor_idxs.empty())
             neighbor_idxs.push_back(i);
+        // ---------------------------------------------------------
 
         // compute covariance
         float cov[3][3];
         compute_cov(neighbor_idxs, cov);
 
-        // compute eigenvalues: largest via power iteration
+        // compute eigenvalues
         float lambda1, lambda2;
         eig3(cov, lambda1, lambda2);
 
@@ -353,35 +362,49 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
         if (lambda1 > 0.0f)
             lin = (lambda1 - lambda2) / lambda1;
         linearity_scores[i] = lin;
-        if (lin > LINEARITY_THRESHOLD)
-            is_wire[i] = 1;
 
-        // endInner = std::chrono::high_resolution_clock::now();
-        // durationInner = std::chrono::duration_cast<std::chrono::nanoseconds>(endInner - startInner);
-        // durationBottom += durationInner.count();
+        // Accumulate votes for neighbors (skip source itself)
+        for (auto it = neighbor_idxs.begin() + (neighbor_idxs.size() > 1 ? 1 : 0); it != neighbor_idxs.end(); ++it)
+        {
+            uint32_t idx_n = *it;
+            // Only use nodes actually visited in this Dijkstra round
+            if (visit_tag[idx_n] != static_cast<int32_t>(i)) continue;
+            float d = graph_dist[idx_n];
+            if (d <= 0.0f) continue;
+            float weight = 1.0f / (d * d);
+            total_weights[idx_n] += weight;
+            votes[idx_n] += weight * lin;
+        }
     }
-    std::cout << "KNN search total time: " << durationTop / 1e6 << " ms" << std::endl;
-    // std::cout << "Linearity bottom total time: " << durationBottom / 1e6 << " ms" << std::endl;
+
+    for (uint32_t i = 0; i < vertCount; ++i)
+    {
+        if (linearity_scores[i] == 0.0f)
+        {
+            linearity_scores[i] = votes[i] / (total_weights[i] + 1e-6f);
+        }
+        is_wire[i] = (linearity_scores[i] > LINEARITY_THRESHOLD);
+    }
 
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Time to compute linearity: " << duration.count() << " ms" << std::endl;
 
     std::vector<bool> final_is_wire(vertCount, false);
-    std::vector<bool> visited(vertCount, false);
+    std::vector<bool> group_visited(vertCount, false);
     std::vector<int> boundary_indices;
 
     // Populate final_is_wire
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     for (uint32_t i = 0; i < vertCount; ++i)
     {
-        if (is_wire[i] && visited[i] == false)
+        if (is_wire[i] && group_visited[i] == false)
         {
             std::vector<uint32_t> group;
             std::queue<uint32_t> queue;
             std::vector<uint32_t> current_bounds;
             queue.push(i);
-            visited[i] = true;
+            group_visited[i] = true;
             while (!queue.empty())
             {
                 uint32_t idx = queue.front();
@@ -391,9 +414,9 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
                 // Check neighbors
                 for (uint32_t neighbor : adj_verts[idx])
                 {
-                    if (is_wire[neighbor] && !visited[neighbor])
+                    if (is_wire[neighbor] && !group_visited[neighbor])
                     {
-                        visited[neighbor] = true;
+                        group_visited[neighbor] = true;
                         queue.push(neighbor);
                     }
                     else if (!is_wire[neighbor] && std::find(current_bounds.begin(), current_bounds.end(), neighbor) == current_bounds.end())
@@ -404,7 +427,7 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
             }
 
             // If group is large enough or is it's whole island, mark all as wire
-            if (group.size() >= MIN_WIRE_GROUP_SIZE || group.size() == neighbor_idxs.size())
+            if (group.size() >= 10 || current_bounds.empty())
             {
                 for (uint32_t idx : group)
                 {
@@ -417,12 +440,12 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
             }
         }
     }
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cout << "Time to eliminate small wire groups: " << duration.count() << " ms" << std::endl;
+    // end = std::chrono::high_resolution_clock::now();
+    // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    // std::cout << "Time to eliminate small wire groups: " << duration.count() << " ms" << std::endl;
 
     std::queue<uint32_t> queue;
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     for (uint32_t idx : boundary_indices)
     {
         queue.push(idx);
@@ -433,7 +456,7 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
         uint32_t current = queue.front();
         queue.pop();
 
-        if (linearity_scores[current] > 0.5)
+        if (linearity_scores[current] > 0.1 && !final_is_wire[current])
         {
 
             final_is_wire[current] = true;
@@ -447,17 +470,20 @@ std::vector<bool> elim_wires(const Vec3 *verts, uint32_t vertCount, const std::v
             }
         }
     }
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cout << "Time to grow wire selection: " << duration.count() << " ms" << std::endl;
-
+    // end = std::chrono::high_resolution_clock::now();
+    // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    // std::cout << "Time to grow wire selection: " << duration.count() << " ms" << std::endl;
+    // uint32_t wire_count = 0;
     // for (uint32_t i = 0; i < final_is_wire.size(); ++i)
     // {
     //     if (final_is_wire[i])
     //     {
     //         printf("%i ", i);
+    //         wire_count++;
     //     }
     // }
+
+    // std::cout << "Number of wire vertices: " << wire_count << std::endl;
 
     return final_is_wire;
 }
