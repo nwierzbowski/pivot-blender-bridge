@@ -146,9 +146,9 @@ struct Vec3 {
     float y = 0.0f;
     float z = 0.0f;
 
-    Vec3() = default;
-    Vec3(float x_val, float y_val, float z_val) : x(x_val), y(y_val), z(z_val) {}
-    Vec3(const Vec2& v2, float z_val = 0.0f) : x(v2.x), y(v2.y), z(z_val) {}
+    constexpr Vec3() = default;
+    constexpr Vec3(float x_val, float y_val, float z_val) : x(x_val), y(y_val), z(z_val) {}
+    constexpr Vec3(const Vec2& v2, float z_val = 0.0f) : x(v2.x), y(v2.y), z(z_val) {}
 
     bool operator<(const Vec3 &other) const {
         return x < other.x || (x == other.x && y < other.y) || (x == other.x && y == other.y && z < other.z);
