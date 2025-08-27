@@ -354,14 +354,6 @@ std::vector<char> select_wire_verts(const Vec3 *verts, const Vec3 *vert_norms, u
         }
     }
 
-    // Count the number of vertices that neighbor the guesses from this voxel that are not in the guess
-    std::sort(neighbor_sizes.begin(), neighbor_sizes.end());
-    //Print neighbor sizes
-    for (const auto &size : neighbor_sizes)
-    {
-        std::cout << size << " ";
-    }
-    std::cout << std::endl;
     float density = 0;
     for (uint32_t size : exclude_outliers_iqr(neighbor_sizes))
     {
@@ -375,15 +367,6 @@ std::vector<char> select_wire_verts(const Vec3 *verts, const Vec3 *vert_norms, u
     {
         is_wire[guess] = true;
     }
-
-    // Print guessed indices
-    // std::cout << "Guessed vertex indices: ";
-    // std::sort(vertex_guess_indices.begin(), vertex_guess_indices.end());
-    // for (const auto &index : vertex_guess_indices)
-    // {
-    //     std::cout << index << " ";
-    // }
-    // std::cout << std::endl;
 
     // Build boundaries
     std::queue<uint32_t> seed;
@@ -402,20 +385,7 @@ std::vector<char> select_wire_verts(const Vec3 *verts, const Vec3 *vert_norms, u
                 boundaries.push_back(nb);
             }
         }
-
-        // if (is_boundary)
-        // {
-        //     boundaries.push_back(idx);
-        // }
     }
-
-    // Print boundaries
-    // std::cout << "Boundary vertices: ";
-    // for (const auto &boundary : boundaries)
-    // {
-    //     std::cout << boundary << " ";
-    // }
-    // std::cout << std::endl;
 
     // Split boundaries into connected groups
     std::vector<std::queue<uint32_t>> boundary_groups;
@@ -451,21 +421,8 @@ std::vector<char> select_wire_verts(const Vec3 *verts, const Vec3 *vert_norms, u
         boundary_groups.push_back(group);
     }
 
-    // Print groups
-    // for (const auto &group : boundary_groups)
-    // {
-    //     std::cout << "Group: ";
-    //     std::queue<uint32_t> temp = group;
-    //     while (!temp.empty())
-    //     {
-    //         std::cout << temp.front() << " ";
-    //         temp.pop();
-    //     }
-    //     std::cout << std::endl;
-    // }
 
     float limit = density * 0.4f;
-    std::cout << "Limit: " << limit << std::endl;
 
     std::queue<uint32_t> next_frontier;
     for (auto &curr_frontier : boundary_groups)
@@ -486,17 +443,6 @@ std::vector<char> select_wire_verts(const Vec3 *verts, const Vec3 *vert_norms, u
 
             if (next_frontier.size() > limit)
             {
-                // Print curr_frontier
-                 std::cout << "Group exceeded size limit: " << next_frontier.size() << std::endl;
-
-                std::cout << "Next frontier: ";
-                std::queue<uint32_t> temp = next_frontier;
-                while (!temp.empty())
-                {
-                    std::cout << temp.front() << " ";
-                    temp.pop();
-                }
-                std::cout << std::endl;
                 while (!next_frontier.empty()) next_frontier.pop();
                 break;
             }
@@ -507,17 +453,6 @@ std::vector<char> select_wire_verts(const Vec3 *verts, const Vec3 *vert_norms, u
             }
         }
     }
-
-    // Print final guesses
-    std::cout << "Final wire guesses: ";
-    for (uint32_t i = 0; i < is_wire.size(); ++i)
-    {
-        if (is_wire[i])
-        {
-            std::cout << i << " ";
-        }
-    }
-    std::cout << std::endl;
 
     return is_wire;
 }
@@ -604,7 +539,6 @@ build_voxel_map(const Vec3 *verts, uint32_t vertCount,
 
     Vec2 u, v;
     make_aligned_basis_2D(alignDirXY, u, v);
-    std::cout << "New axes are: (" << u.x << ", " << u.y << "), (" << v.x << ", " << v.y << ")" << std::endl;
 
     const float invSize = 1.0f / voxelSize;
     voxel_map.reserve(vertCount / 4 + 1);
@@ -695,7 +629,6 @@ void align_min_bounds(const Vec3 *verts, const Vec3 *vert_norms, uint32_t vertCo
             mostFrequentDirection = pair.first;
         }
     }
-    std::cout << "Most frequent edge direction: (" << mostFrequentDirection.x << ", " << mostFrequentDirection.y << ") with count " << maxCount << std::endl;
     auto voxel_map = build_voxel_map(verts, vertCount, 0.04f, mostFrequentDirection);
 
     std::vector<Vec3> voxel_guesses;
