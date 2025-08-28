@@ -7,6 +7,7 @@
 #include <vector>
 #include <chrono>
 #include <iostream>
+#include <algorithm>
 
 std::vector<std::vector<uint32_t>> build_adj_vertices(const uVec2i *edges, uint32_t edgeCount, uint32_t vertCount)
 {
