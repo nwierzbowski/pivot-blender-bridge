@@ -1,7 +1,7 @@
 from libc.stdint cimport uint32_t
 
-from splatter.cython_api.bounds_api cimport align_min_bounds as align_min_bounds_cpp
-from splatter.cython_api.util_api cimport Vec3, uVec2i
+from splatter.cython_api.engine_api cimport standardize_object_transform as standardize_object_transform_cpp
+from splatter.cython_api.vec_api cimport Vec3, uVec2i
 
 def align_min_bounds(float[:, ::1] verts, float[:, ::1] verts_norm, uint32_t[:, ::1] edges):
 
@@ -30,6 +30,6 @@ def align_min_bounds(float[:, ::1] verts, float[:, ::1] verts_norm, uint32_t[:, 
 
     cdef Vec3 out_rot, out_trans
     with nogil:
-        align_min_bounds_cpp(verts_ptr, verts_norm_ptr, vertCount, edges_ptr, edgeCount, &out_rot, &out_trans)
+        standardize_object_transform_cpp(verts_ptr, verts_norm_ptr, vertCount, edges_ptr, edgeCount, &out_rot, &out_trans)
 
     return (out_rot.x, out_rot.y, out_rot.z), (out_trans.x, out_trans.y, out_trans.z)

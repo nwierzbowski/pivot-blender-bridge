@@ -5,9 +5,7 @@
 #include <vector>
 #include <unordered_map>
 
-VoxelMap
-build_voxel_map(const Vec3 *verts, uint32_t vertCount,
-                float voxelSize)
+VoxelMap build_voxel_map(const Vec3 *verts, uint32_t vertCount, float voxelSize)
 {
     VoxelMap voxel_map;
     if (!verts || vertCount == 0)
@@ -23,8 +21,7 @@ build_voxel_map(const Vec3 *verts, uint32_t vertCount,
     return voxel_map;
 }
 
-void calculate_voxel_map_stats(VoxelMap &voxel_map,
-                               const Vec3 *norms, const Vec3 *verts, std::vector<VoxelKey> &wire_guesses)
+void calculate_voxel_map_stats(VoxelMap &voxel_map, const Vec3 *norms, const Vec3 *verts, std::vector<VoxelKey> &wire_guesses)
 {
     constexpr std::array<Vec3i, 6> neighbor_dirs = {{{0, 0, 1}, {0, 1, 0}, {1, 0, 0}, {0, 0, -1}, {0, -1, 0}, {-1, 0, 0}}};
     wire_guesses.reserve(wire_guesses.size() + voxel_map.size() / 16 + 4);

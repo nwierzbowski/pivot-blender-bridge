@@ -54,16 +54,16 @@ std::vector<uint32_t> exclude_outliers_iqr(std::vector<uint32_t> data)
     return filtered_data;
 }
 
-std::vector<char> select_wire_verts(const Vec3 *verts,
-                                    const Vec3 *vert_norms,
-                                    uint32_t vertCount,
-                                    const std::vector<std::vector<uint32_t>> &adj_verts,
-                                    const std::vector<VoxelKey> &voxel_guesses,
-                                    VoxelMap &voxel_map)
+void select_wire_verts(
+    uint32_t vertCount,
+    const std::vector<std::vector<uint32_t>> &adj_verts,
+    const std::vector<VoxelKey> &voxel_guesses,
+    VoxelMap &voxel_map,
+    std::vector<bool> &mask)
 {
-    if (!verts || vertCount == 0 || !vert_norms ||
+    if (vertCount == 0 ||
         adj_verts.empty() || voxel_map.empty() || voxel_guesses.empty())
-        return std::vector<char>(vertCount, false);
+        return;
 
     std::vector<uint32_t> vertex_guess_indices;
     vertex_guess_indices.reserve(voxel_guesses.size() * 4);
@@ -73,7 +73,7 @@ std::vector<char> select_wire_verts(const Vec3 *verts,
         guessed_vertex_count += voxel_map.at(vg).vertex_indices.size();
 
     std::vector<uint32_t> neighbor_sizes;
-    std::vector<char> is_wire(vertCount, false);
+    
     std::vector<char> in_guess(vertCount, false);
 
     if (guessed_vertex_count < vertCount / 6)
@@ -114,7 +114,7 @@ std::vector<char> select_wire_verts(const Vec3 *verts,
     }
 
     for (uint32_t idx : vertex_guess_indices)
-        is_wire[idx] = true;
+        mask[idx] = true;
 
     // Boundary extraction
     std::vector<uint32_t> boundaries;
@@ -123,7 +123,7 @@ std::vector<char> select_wire_verts(const Vec3 *verts,
 
     for (uint32_t idx : vertex_guess_indices)
         for (uint32_t nb : adj_verts[idx])
-            if (!is_wire[nb] && !is_boundary[nb])
+            if (!mask[nb] && !is_boundary[nb])
             {
                 is_boundary[nb] = true;
                 boundaries.push_back(nb);
@@ -169,9 +169,9 @@ std::vector<char> select_wire_verts(const Vec3 *verts,
             uint32_t cur = frontier.front();
             frontier.pop();
             for (uint32_t nb : adj_verts[cur])
-                if (!is_wire[nb])
+                if (!mask[nb])
                 {
-                    is_wire[nb] = true;
+                    mask[nb] = true;
                     next.push(nb);
                     if (next.size() > limit)
                     {
@@ -185,6 +185,4 @@ std::vector<char> select_wire_verts(const Vec3 *verts,
                 std::swap(frontier, next);
         }
     }
-
-    return is_wire;
 }

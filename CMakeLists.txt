@@ -16,6 +16,7 @@ set(ENGINE_SOURCES
     splatter/engine/wire_detect.cpp
     splatter/engine/geo2d.cpp
     splatter/engine/linalg3.cpp
+    splatter/engine/engine.cpp
 )
 
 add_library(splatter_engine SHARED ${ENGINE_SOURCES})

@@ -3,5 +3,6 @@
 #include "vec.h"
 
 #include <cstdint>
+#include <vector>
 
-void align_min_bounds(const Vec3* verts, const Vec3* vert_norms, uint32_t vertCount, const uVec2i* edges, uint32_t edgeCount, Vec3* out_rot, Vec3* out_trans);
+Vec3 calc_rot_to_forward(std::vector<Vec2> &hull);
