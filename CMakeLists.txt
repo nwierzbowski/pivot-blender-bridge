@@ -10,8 +10,6 @@ find_package(Python COMPONENTS Interpreter Development REQUIRED)
 find_program(CYTHON_EXECUTABLE cython REQUIRED)
 
 set(ENGINE_SOURCES
-    splatter/engine/chull.cpp
-    splatter/engine/bounds.cpp
     splatter/engine/voxel.cpp
     splatter/engine/wire_detect.cpp
     splatter/engine/geo2d.cpp

@@ -1,9 +1,8 @@
-
+#include "engine.h"
 #include "vec.h"
 #include "voxel.h"
-#include "bounds.h"
 #include "wire_detect.h"
-#include "chull.h"
+#include "geo2d.h"
 
 #include <vector>
 #include <chrono>
@@ -47,14 +46,31 @@ std::vector<std::vector<uint32_t>> build_adj_vertices(const uVec2i *edges, uint3
     return adj_verts;
 }
 
-std::vector<bool> calc_mask(uint32_t vertCount, const Vec3 *vert_norms, const Vec3 *verts, const std::vector<std::vector<uint32_t>> &adj_verts, VoxelMap &voxel_map)
+std::vector<bool> calc_mask(uint32_t vertCount,const std::vector<std::vector<uint32_t>> &adj_verts, VoxelMap &voxel_map)
 {
     std::vector<bool> mask(vertCount, false);
 
-    std::vector<VoxelKey> voxel_guesses;
-    calculate_voxel_map_stats(voxel_map, vert_norms, verts, voxel_guesses);
+    auto voxel_guesses = guess_wire_voxels(voxel_map);
     select_wire_verts(vertCount, adj_verts, voxel_guesses, voxel_map, mask);
     return mask;
+}
+
+Vec3 calc_rot_to_forward(std::vector<Vec2> &hull)
+{
+    std::vector<float> angles = get_edge_angles_2D(hull);
+    BoundingBox2D best_box;
+    best_box.area = std::numeric_limits<float>::infinity();
+
+    std::vector<Vec2> rot_hull(hull.size());
+    for (float angle : angles)
+    {
+        rotate_points_2D(hull, -angle, rot_hull);
+        BoundingBox2D box = compute_aabb_2D(rot_hull, -angle);
+        if (box.area < best_box.area)
+            best_box = box;
+    }
+
+    return {0, 0, best_box.rotation_angle};
 }
 
 void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uint32_t vertCount, const uVec2i *edges, uint32_t edgeCount, Vec3 *out_rot, Vec3 *out_trans)
@@ -69,16 +85,15 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
         return;
     }
     auto adj_verts = build_adj_vertices(edges, edgeCount, vertCount);
-    auto voxel_map = build_voxel_map(verts, vertCount, 0.03f);
+    auto voxel_map = build_voxel_map(verts, vert_norms, vertCount, 0.03f);
+    // auto start = std::chrono::high_resolution_clock::now();
+    auto mask = calc_mask(vertCount, adj_verts, voxel_map);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    // std::cout << "Time: " << (float) duration.count() / 1000000 << " ms" << std::endl;
 
-    auto start = std::chrono::high_resolution_clock::now();
-    auto mask = calc_mask(vertCount, vert_norms, verts, adj_verts, voxel_map);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-    std::cout << "Time: " << (float) duration.count() / 1000000 << " ms" << std::endl;
+    auto hull2D = convex_hull_2D(verts, vertCount, mask);
 
-    auto hull = convex_hull_2D(verts, vertCount, mask);
-
-    *out_rot = calc_rot_to_forward(hull); // Rotation to align object front with +Y axis
+    *out_rot = calc_rot_to_forward(hull2D); // Rotation to align object front with +Y axis
     *out_trans = {0, 0, 0};               // Vector from object origin to calculated point of contact
 }

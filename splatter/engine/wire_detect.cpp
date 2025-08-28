@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <queue>
+#include <iostream>
 
 // Function to find the median of a vector
 double find_median(std::vector<uint32_t> &data)
@@ -54,6 +55,33 @@ std::vector<uint32_t> exclude_outliers_iqr(std::vector<uint32_t> data)
     return filtered_data;
 }
 
+std::vector<VoxelKey> guess_wire_voxels(VoxelMap &voxel_map)
+{
+    constexpr std::array<Vec3i, 6> neighbor_dirs = {{{0, 0, 1}, {0, 1, 0}, {1, 0, 0}, {0, 0, -1}, {0, -1, 0}, {-1, 0, 0}}};
+
+    std::vector<VoxelKey> wire_guesses;
+
+    for (auto &[voxel_coord, voxel_data] : voxel_map)
+    {
+
+        uint8_t neighbors = 0;
+        for (const auto &d : neighbor_dirs)
+            if (voxel_map.find(voxel_coord + d) != voxel_map.end())
+                neighbors++;
+
+        float sum_lambda = voxel_data.lambda1 + voxel_data.lambda2;
+        if (voxel_data.avg_normal.length_squared() < 0.25f * 0.25f &&
+            sum_lambda > 0.f &&
+            voxel_data.lambda1 > 0.9f * sum_lambda &&
+            neighbors <= 3)
+        {
+            wire_guesses.push_back(voxel_coord);
+        }
+    }
+
+    return wire_guesses;
+}
+
 void select_wire_verts(
     uint32_t vertCount,
     const std::vector<std::vector<uint32_t>> &adj_verts,
@@ -67,18 +95,17 @@ void select_wire_verts(
 
     std::vector<uint32_t> vertex_guess_indices;
     vertex_guess_indices.reserve(voxel_guesses.size() * 4);
-
     uint32_t guessed_vertex_count = 0;
     for (const VoxelKey &vg : voxel_guesses)
         guessed_vertex_count += voxel_map.at(vg).vertex_indices.size();
 
     std::vector<uint32_t> neighbor_sizes;
     
-    std::vector<char> in_guess(vertCount, false);
+    std::vector<bool> in_guess(vertCount, false);
 
     if (guessed_vertex_count < vertCount / 6)
     {
-        std::vector<char> neighbor_mark(vertCount, false);
+        std::vector<bool> neighbor_mark(vertCount, false);
         for (const VoxelKey &vg : voxel_guesses)
         {
             uint32_t neighbor_count = 0;
