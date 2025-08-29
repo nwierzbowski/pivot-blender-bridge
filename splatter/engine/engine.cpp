@@ -56,7 +56,7 @@ std::vector<bool> calc_mask(uint32_t vertCount,const std::vector<std::vector<uin
     return mask;
 }
 
-Vec3 calc_rot_to_forward(std::vector<Vec2> &hull)
+float calc_rot_to_forward(std::vector<Vec2> &hull)
 {
     std::vector<float> angles = get_edge_angles_2D(hull);
     BoundingBox2D best_box;
@@ -66,12 +66,22 @@ Vec3 calc_rot_to_forward(std::vector<Vec2> &hull)
     for (float angle : angles)
     {
         rotate_points_2D(hull, -angle, rot_hull);
-        BoundingBox2D box = compute_aabb_2D(rot_hull, -angle);
+        BoundingBox2D box = compute_aabb_2D(rot_hull);
+        box.rotation_angle = -angle;
         if (box.area < best_box.area)
             best_box = box;
     }
 
-    return {0, 0, best_box.rotation_angle};
+    return best_box.rotation_angle;
+}
+
+void rotate_vector(Vec2& v, float angle) {
+    float cos_angle = std::cos(angle);
+    float sin_angle = std::sin(angle);
+    float x_new = v.x * cos_angle - v.y * sin_angle;
+    float y_new = v.x * sin_angle + v.y * cos_angle;
+    v.x = x_new;
+    v.y = y_new;
 }
 
 void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uint32_t vertCount, const uVec2i *edges, uint32_t edgeCount, Vec3 *out_rot, Vec3 *out_trans)
@@ -85,6 +95,9 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
         *out_trans = {verts[0].x, verts[0].y, verts[0].z};
         return;
     }
+
+    
+
     auto adj_verts = build_adj_vertices(edges, edgeCount, vertCount);
     auto voxel_map = build_voxel_map(verts, vert_norms, vertCount, 0.03f);
     // auto start = std::chrono::high_resolution_clock::now();
@@ -93,8 +106,22 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
     // auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     // std::cout << "Time: " << (float) duration.count() / 1000000 << " ms" << std::endl;
 
-    auto hull2D = convex_hull_2D(verts, vertCount, mask);
+    //Create a copy of the original vertices, mask, and sort them
+    std::vector<Vec3> working_verts;
+    working_verts.reserve(vertCount);
 
-    *out_rot = calc_rot_to_forward(hull2D); // Rotation to align object front with +Y axis
-    *out_trans = {0, 0, 0};               // Vector from object origin to calculated point of contact
+    for (uint32_t i = 0; i < vertCount; ++i)
+        if (!mask[i])
+            working_verts.push_back(verts[i]);
+    std::sort(working_verts.begin(), working_verts.end());
+
+    auto hull2D = convex_hull_2D(working_verts.data(), working_verts.size());
+    float angle = calc_rot_to_forward(hull2D) * -1;
+
+    auto base_aabb = compute_aabb_2D(hull2D);
+    auto base_center = (base_aabb.max_corner + base_aabb.min_corner) * 0.5f;
+    rotate_vector(base_center, -angle);
+
+    *out_rot = {0, 0, -angle}; // Rotation to align object front with +Y axis
+    *out_trans = {base_center.x, base_center.y, 0.0f};               // Vector from object origin to calculated point of contact
 }
