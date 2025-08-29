@@ -5,14 +5,20 @@
 #include <cmath>
 #include <algorithm>
 
-std::vector<Vec2> convex_hull_2D(const Vec3* verts, uint32_t vertCount, const std::vector<bool>& selection) {
+std::vector<Vec2> convex_hull_2D(const Vec3* verts, uint32_t vertCount)
+{
+    return convex_hull_2D(verts, vertCount, [](Vec3 v) { return true; });
+}
+
+template<typename Selector>
+std::vector<Vec2> convex_hull_2D(const Vec3* verts, uint32_t vertCount, Selector select_func) {
     std::vector<Vec2> points;
     points.reserve(vertCount);
 
     if (!verts || vertCount == 0) return points;
 
     for (uint32_t i = 0; i < vertCount; ++i) {
-        if (!selection.empty() && !selection[i]) {
+        if (select_func(verts[i])) {
             points.emplace_back(Vec2{verts[i].x, verts[i].y});
         }
     }
@@ -20,9 +26,6 @@ std::vector<Vec2> convex_hull_2D(const Vec3* verts, uint32_t vertCount, const st
     if (vertCount <= 3) {
         return points;
     }
-
-    // Sort once
-    std::sort(points.begin(), points.end());
 
     // Inline cross product for speed
     auto cross = [](const Vec2& O, const Vec2& A, const Vec2& B) -> float {
@@ -72,7 +75,7 @@ void rotate_points_2D(const std::vector<Vec2> &points, float angle, std::vector<
 }
 
 // Compute axis-aligned bounding box of points
-BoundingBox2D compute_aabb_2D(const std::vector<Vec2> &points, float rotation_angle)
+BoundingBox2D compute_aabb_2D(const std::vector<Vec2> &points)
 {
     if (points.empty())
         return {};
@@ -92,7 +95,6 @@ BoundingBox2D compute_aabb_2D(const std::vector<Vec2> &points, float rotation_an
     box.min_corner = {min_x, min_y};
     box.max_corner = {max_x, max_y};
     box.area = (max_x - min_x) * (max_y - min_y);
-    box.rotation_angle = rotation_angle;
 
     return box;
 }
