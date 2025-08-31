@@ -139,7 +139,7 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
     // Compute the center of the base 2D bounding box
     auto base_center = (base_2DBB.max_corner + base_2DBB.min_corner) * 0.5f;
     auto start = std::chrono::high_resolution_clock::now();
-    Vec3 cog = calc_cog_volume(verts, vertCount, adj_verts, full_3DBB);
+    Vec3 cog = calc_cog_volume_edges_intersections(verts, vertCount, edges, edgeCount, full_3DBB, 0.01f);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     std::cout << "COG Full Calc Time: " << (float) duration.count() / 1000000 << " ms" << std::endl;
