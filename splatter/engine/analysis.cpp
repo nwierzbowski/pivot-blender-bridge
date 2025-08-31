@@ -18,12 +18,6 @@ float calc_ratio_full_to_base(const BoundingBox2D &full_box, const BoundingBox2D
     return full_box.area / base_box.area;
 }
 
-// Removed heavy per-slice storage; we now aggregate on the fly.
-
-
-// Removed PolyData + calc_cog_area (replaced by direct centroid/area computation in build_slice_islands)
-
-
 // Build per-slice edge buckets: slice_edges[si] contains indices of edges overlapping slice si.
 static inline void bucket_edges_per_slice(
     std::vector<std::vector<uint32_t>>& slice_edges,
