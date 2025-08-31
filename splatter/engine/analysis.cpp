@@ -206,7 +206,11 @@ Vec3 calc_cog_volume(const Vec3* verts, uint32_t vertCount, const std::vector<st
     for (uint32_t i = 0; i < vertCount; i++)
     {
         const Vec3 &v = verts[i];
-        const uint8_t slice_index = static_cast<uint8_t>((v.z - full_box.min_corner.z) / slice_height);
+        float rel = (v.z - full_box.min_corner.z) / slice_height;
+        // Clamp to last slice to avoid out-of-range when v.z == max_corner.z
+        uint32_t idx = static_cast<uint32_t>(rel);
+        if (idx >= slice_count) idx = slice_count - 1;
+        uint8_t slice_index = static_cast<uint8_t>(idx);
         slices[slice_index].vert_indices.push_back(i);
     }
 
