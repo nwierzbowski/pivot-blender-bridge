@@ -4,11 +4,6 @@
 
 #include <vector>
 #include <cstdint>
-#include <unordered_map>
-#include <unordered_set>
-#include <set>
-
-#include <iostream>
 #include <iostream>
 
 std::vector<Vec2> calc_base_convex_hull(const std::vector<Vec3> &verts, BoundingBox3D full_box)
@@ -23,69 +18,10 @@ float calc_ratio_full_to_base(const BoundingBox2D &full_box, const BoundingBox2D
     return full_box.area / base_box.area;
 }
 
-struct Slice
-{
-    std::vector<uint32_t> vert_indices;
-    std::vector<std::vector<Vec2>> chulls;
-    float z_upper;
-    float z_lower;
-    Vec2 cog;
-    float area;
-};
+// Removed heavy per-slice storage; we now aggregate on the fly.
 
 
-struct PolyData {
-    Vec2 cog;
-    float area;
-};
-
-PolyData calc_cog_area(const std::vector<Vec2>& vertices) {
-    Vec2 centroid = {0.0, 0.0};
-    float signedArea = 0.0;
-
-    // A polygon must have at least 3 vertices
-    if (vertices.size() < 3) {
-        // Handle degenerate cases, e.g., return {0,0} or throw an exception
-        return {{0,0}, 0.0};
-    }
-
-    for (size_t i = 0; i < vertices.size(); ++i) {
-        Vec2 p0 = vertices[i];
-        // The next point wraps around to the first for the last vertex
-        Vec2 p1 = vertices[(i + 1) % vertices.size()];
-
-        double crossProductTerm = (p0.x * p1.y) - (p1.x * p0.y);
-        signedArea += crossProductTerm;
-        centroid.x += (p0.x + p1.x) * crossProductTerm;
-        centroid.y += (p0.y + p1.y) * crossProductTerm;
-    }
-
-    signedArea *= 0.5;
-
-    // Handle cases where the polygon has zero area (e.g., collinear points)
-    if (std::fabs(signedArea) < 1e-9) { // Use a small epsilon for float comparison
-        // Polygon is degenerate (e.g., a line segment).
-        // The centroid is ill-defined by area.
-        // A common approach is to return the average of the vertices
-        // or a specific error indicator.
-        if (!vertices.empty()) {
-            Vec2 avg_centroid = {0.0, 0.0};
-            for (const auto& p : vertices) {
-                avg_centroid.x += p.x;
-                avg_centroid.y += p.y;
-            }
-            avg_centroid.x /= vertices.size();
-            avg_centroid.y /= vertices.size();
-            return {avg_centroid, std::fabs(signedArea)};
-        }
-        return {{0,0}, 0.0}; // Default for empty or degenerate
-    }
-
-    centroid.x /= (6.0 * signedArea);
-    centroid.y /= (6.0 * signedArea);
-
-    return {centroid, std::fabs(signedArea)};
-}
+// Removed PolyData + calc_cog_area (replaced by direct centroid/area computation in build_slice_islands)
 
 
 // Build per-slice edge buckets: slice_edges[si] contains indices of edges overlapping slice si.
@@ -96,6 +32,7 @@ static inline void bucket_edges_per_slice(
     const std::vector<float>& vert_z,
     float z0,
     float slice_height,
+    float inv_slice_height,
     uint8_t slice_count)
 {
     slice_edges.assign(slice_count, {});
@@ -103,27 +40,46 @@ static inline void bucket_edges_per_slice(
         const uVec2i &e = edges[ei];
         float zA = vert_z[e.x];
         float zB = vert_z[e.y];
-        float zmin = std::min(zA, zB);
-        float zmax = std::max(zA, zB);
-        if (zmax <= z0 || zmin >= z0 + slice_height * slice_count)
-            continue; // Completely outside vertical span
-        // Compute inclusive slice index range this edge overlaps.
-        int first = (int)std::ceil((zmin - z0) / slice_height);
-        int last = (int)std::floor((zmax - z0) / slice_height);
+        float zmin = zA < zB ? zA : zB;
+        float zmax = zA > zB ? zA : zB;
+        float span_top = z0 + slice_height * slice_count;
+        if (zmax <= z0 || zmin >= span_top) continue;
+        int first = (int)std::ceil((zmin - z0) * inv_slice_height);
+        int last  = (int)std::floor((zmax - z0) * inv_slice_height);
         if (first > last) continue;
         if (last < 0 || first >= slice_count) continue;
         if (first < 0) first = 0;
         if (last >= slice_count) last = slice_count - 1;
-        // Refine: An edge overlaps slice si if (zmax > zl && zmin < zu). Since we used floor bounds,
-        // some slices at the extremities may not actually overlap (e.g. zmax == zl). We check again later.
-        for (int si = first; si <= last; ++si)
-            slice_edges[si].push_back(ei);
+        for (int si = first; si <= last; ++si) slice_edges[si].push_back(ei);
     }
 }
 
-// Build slice islands using global connectivity
+// Local monotonic chain hull (returns hull in CCW, no duplicate last point)
+static inline void monotonic_chain(std::vector<Vec2>& pts, std::vector<Vec2>& hull) {
+    if (pts.size() < 3) { hull.clear(); return; }
+    auto cmp = [](const Vec2& a, const Vec2& b){ return (a.x < b.x) || (a.x == b.x && a.y < b.y); };
+    std::sort(pts.begin(), pts.end(), cmp);
+    pts.erase(std::unique(pts.begin(), pts.end(), [](const Vec2& a,const Vec2& b){ return a.x==b.x && a.y==b.y; }), pts.end());
+    if (pts.size() < 3) { hull.clear(); return; }
+    hull.resize(0); hull.reserve(pts.size()*2);
+    auto cross = [](const Vec2& a,const Vec2& b,const Vec2& c){ return (b.x - a.x)*(c.y - a.y) - (b.y - a.y)*(c.x - a.x); };
+    // Lower
+    for (const auto &p : pts) {
+        while (hull.size() >= 2 && cross(hull[hull.size()-2], hull[hull.size()-1], p) <= 0.f) hull.pop_back();
+        hull.push_back(p);
+    }
+    // Upper
+    size_t lower_sz = hull.size();
+    for (int i = (int)pts.size() - 2; i >= 0; --i) {
+        const auto &p = pts[i];
+        while (hull.size() > lower_sz && cross(hull[hull.size()-2], hull[hull.size()-1], p) <= 0.f) hull.pop_back();
+        hull.push_back(p);
+    }
+    if (!hull.empty()) hull.pop_back(); // remove duplicate start
+}
+
+// Build slice islands and directly compute aggregated area and COG (avoids storing hulls)
 static inline void build_slice_islands(
-    Slice& s,
     const std::vector<Vec2>& vert_xy,
     const std::vector<float>& vert_z,
     const uVec2i* edges,
@@ -133,125 +89,87 @@ static inline void build_slice_islands(
     const std::vector<uint32_t>& slice_verts,
     const std::vector<uint32_t>& vertex_comp,
     const std::vector<uint32_t>& cid_to_index,
-    uint32_t num_components)
+    uint32_t num_components,
+    Vec2 &out_cog,
+    float &out_area)
 {
-    s.chulls.clear();
+    out_cog = {0.f, 0.f};
+    out_area = 0.f;
     if (slice_edge_indices.empty()) return;
-
     const float EPS = 1e-8f;
 
-    // Count points per component for sizing
-    std::vector<size_t> component_sizes(num_components, 0);
-    for (uint32_t vid : slice_verts) {
-        uint32_t cid = vertex_comp[vid];
-        uint32_t idx = cid_to_index[cid];
-        component_sizes[idx]++;
+    // Generation-based reuse (static, not thread-safe)
+    static std::vector<std::vector<Vec2>> comp_points;
+    static std::vector<uint32_t> comp_gen;
+    static uint32_t global_gen = 1;
+    if (comp_points.size() < num_components) {
+        comp_points.resize(num_components);
+        comp_gen.resize(num_components, 0);
     }
+    global_gen++; if (global_gen == 0) { // wraparound safeguard
+        std::fill(comp_gen.begin(), comp_gen.end(), 0);
+        global_gen = 1;
+    }
+    std::vector<uint32_t> active; active.reserve(32);
+
+    auto ensure_active = [&](uint32_t idx){
+        if (comp_gen[idx] != global_gen) {
+            comp_points[idx].clear();
+            comp_gen[idx] = global_gen;
+            active.push_back(idx);
+        }
+    };
+
+    // Add vertex points
+    for (uint32_t vid : slice_verts) {
+        uint32_t idx = cid_to_index[vertex_comp[vid]];
+        ensure_active(idx);
+        comp_points[idx].push_back(vert_xy[vid]);
+    }
+    // Edge intersection points
     for (uint32_t ei : slice_edge_indices) {
         const uVec2i &e = edges[ei];
-        uint32_t gidA = e.x;
-        uint32_t gidB = e.y;
-        float zA = vert_z[gidA];
-        float zB = vert_z[gidB];
-        float d = zB - zA;
-        if (std::abs(d) < 1e-8f) continue;
-        uint32_t cid = vertex_comp[gidA];
-        uint32_t idx = cid_to_index[cid];
-
+        float zA = vert_z[e.x];
+        float zB = vert_z[e.y];
+        float d = zB - zA; if (std::abs(d) < 1e-8f) continue;
+        uint32_t idx = cid_to_index[vertex_comp[e.x]];
         bool A_inside = (zA >= z_lower - EPS && zA <= z_upper + EPS);
         bool B_inside = (zB >= z_lower - EPS && zB <= z_upper + EPS);
-
+        auto add_interp = [&](float t){ ensure_active(idx); const Vec2 &A_xy = vert_xy[e.x]; const Vec2 &B_xy = vert_xy[e.y]; comp_points[idx].push_back({A_xy.x + (B_xy.x - A_xy.x)*t, A_xy.y + (B_xy.y - A_xy.y)*t}); };
         if (!A_inside && !B_inside) {
-            if ((zA - z_lower) * (zB - z_lower) < 0.0f) component_sizes[idx]++;
-            if ((zA - z_upper) * (zB - z_upper) < 0.0f) component_sizes[idx]++;
+            if ((zA - z_lower) * (zB - z_lower) < 0.0f) add_interp((z_lower - zA)/d);
+            if ((zA - z_upper) * (zB - z_upper) < 0.0f) add_interp((z_upper - zA)/d);
         } else if (A_inside ^ B_inside) {
-            if ((zA - z_lower) * (zB - z_lower) < 0.0f) component_sizes[idx]++;
-            else if ((zA - z_upper) * (zB - z_upper) < 0.0f) component_sizes[idx]++;
+            if ((zA - z_lower) * (zB - z_lower) < 0.0f) add_interp((z_lower - zA)/d);
+            else if ((zA - z_upper) * (zB - z_upper) < 0.0f) add_interp((z_upper - zA)/d);
         }
     }
 
-    // Allocate contiguous storage
-    std::vector<size_t> component_starts(num_components + 1, 0);
-    size_t total_points = 0;
-    for (size_t i = 0; i < num_components; ++i) {
-        component_starts[i] = total_points;
-        total_points += component_sizes[i];
-    }
-    component_starts[num_components] = total_points;
-    std::vector<Vec2> all_points(total_points);
-
-    // Place points in contiguous array
-    std::vector<size_t> current_pos = component_starts;
-    for (uint32_t vid : slice_verts) {
-        uint32_t cid = vertex_comp[vid];
-        uint32_t idx = cid_to_index[cid];
-        all_points[current_pos[idx]] = {vert_xy[vid].x, vert_xy[vid].y};
-        current_pos[idx]++;
-    }
-    for (uint32_t ei : slice_edge_indices) {
-        const uVec2i &e = edges[ei];
-        uint32_t gidA = e.x;
-        uint32_t gidB = e.y;
-        const Vec2 &A_xy = vert_xy[gidA];
-        const Vec2 &B_xy = vert_xy[gidB];
-        float zA = vert_z[gidA];
-        float zB = vert_z[gidB];
-        float d = zB - zA;
-        if (std::abs(d) < 1e-8f) continue;
-        uint32_t cid = vertex_comp[gidA];
-        uint32_t idx = cid_to_index[cid];
-
-        bool A_inside = (zA >= z_lower - EPS && zA <= z_upper + EPS);
-        bool B_inside = (zB >= z_lower - EPS && zB <= z_upper + EPS);
-
-        if (!A_inside && !B_inside) {
-            if ((zA - z_lower) * (zB - z_lower) < 0.0f) {
-                float t = (z_lower - zA) / d;
-                all_points[current_pos[idx]] = {A_xy.x + (B_xy.x - A_xy.x) * t, A_xy.y + (B_xy.y - A_xy.y) * t};
-                current_pos[idx]++;
-            }
-            if ((zA - z_upper) * (zB - z_upper) < 0.0f) {
-                float t = (z_upper - zA) / d;
-                all_points[current_pos[idx]] = {A_xy.x + (B_xy.x - A_xy.x) * t, A_xy.y + (B_xy.y - A_xy.y) * t};
-                current_pos[idx]++;
-            }
-        } else if (A_inside ^ B_inside) {
-            if ((zA - z_lower) * (zB - z_lower) < 0.0f) {
-                float t = (z_lower - zA) / d;
-                all_points[current_pos[idx]] = {A_xy.x + (B_xy.x - A_xy.x) * t, A_xy.y + (B_xy.y - A_xy.y) * t};
-                current_pos[idx]++;
-            } else if ((zA - z_upper) * (zB - z_upper) < 0.0f) {
-                float t = (z_upper - zA) / d;
-                all_points[current_pos[idx]] = {A_xy.x + (B_xy.x - A_xy.x) * t, A_xy.y + (B_xy.y - A_xy.y) * t};
-                current_pos[idx]++;
-            }
+    std::vector<Vec2> hull; hull.reserve(64);
+    double weighted_cx = 0.0, weighted_cy = 0.0;
+    for (uint32_t idx : active) {
+        auto &pts = comp_points[idx];
+        if (pts.size() < 3) continue;
+        monotonic_chain(pts, hull);
+        size_t hsz = hull.size(); if (hsz < 3) continue;
+        double A = 0.0, Cx = 0.0, Cy = 0.0;
+        for (size_t k = 0; k < hsz; ++k) {
+            const Vec2 &p0 = hull[k];
+            const Vec2 &p1 = hull[(k+1)%hsz];
+            double cross = (double)p0.x * p1.y - (double)p1.x * p0.y;
+            A += cross; Cx += (p0.x + p1.x) * cross; Cy += (p0.y + p1.y) * cross;
         }
+        A *= 0.5; if (A == 0.0) continue;
+        double area_abs = std::fabs(A);
+        double inv6A = 1.0 / (6.0 * A);
+        weighted_cx += (Cx * inv6A) * area_abs;
+        weighted_cy += (Cy * inv6A) * area_abs;
+        out_area += (float)area_abs;
     }
-
-    // Process each component's contiguous range
-    auto cmp = [](const Vec2& a, const Vec2& b) {
-        return (a.x < b.x) || (a.x == b.x && a.y < b.y);
-    };
-    auto eq = [](const Vec2& a, const Vec2& b) {
-        return a.x == b.x && a.y == b.y;
-    };
-    for (size_t i = 0; i < num_components; ++i) {
-        size_t start = component_starts[i];
-        size_t end = component_starts[i + 1];
-        if (end - start < 3) continue;
-
-        auto pts_begin = all_points.begin() + start;
-        auto pts_end = all_points.begin() + end;
-        std::sort(pts_begin, pts_end, cmp);
-        auto new_end = std::unique(pts_begin, pts_end, eq);
-        size_t new_size = new_end - pts_begin;
-        if (new_size < 3) continue;
-
-        std::vector<Vec2> hull_input(pts_begin, new_end);
-        auto ch = convex_hull_2D(hull_input);
-        if (!ch.empty()) {
-            s.chulls.push_back(std::move(ch));
-        }
+    if (out_area > 0.f) {
+        double inv = 1.0 / out_area;
+        out_cog.x = (float)(weighted_cx * inv);
+        out_cog.y = (float)(weighted_cy * inv);
     }
 }
 
@@ -277,40 +195,37 @@ Vec3 calc_cog_volume_edges_intersections(const Vec3* verts,
         vert_xy[i] = {verts[i].x, verts[i].y};
     }
 
-    // Precompute edge z-values for cache efficiency
-    std::vector<float> edge_zA(edgeCount);
-    std::vector<float> edge_zB(edgeCount);
-    for (uint32_t ei = 0; ei < edgeCount; ++ei) {
-        edge_zA[ei] = vert_z[edges[ei].x];
-        edge_zB[ei] = vert_z[edges[ei].y];
-    }
-
     uint32_t raw_count = (uint32_t)std::ceil(total_h / slice_height);
     uint8_t slice_count = (uint8_t)std::min<uint32_t>(raw_count, 255);
+    float inv_slice_height = 1.0f / slice_height;
 
-    std::vector<Slice> slices(slice_count);
+    // Precompute slice z-lowers & uppers
+    std::vector<float> slice_z_lower(slice_count), slice_z_upper(slice_count);
     for (uint8_t si = 0; si < slice_count; ++si) {
-        slices[si].z_lower = full_box.min_corner.z + si * slice_height;
-        slices[si].z_upper = std::min(full_box.max_corner.z, slices[si].z_lower + slice_height);
+        float zl = full_box.min_corner.z + si * slice_height;
+        slice_z_lower[si] = zl;
+        slice_z_upper[si] = std::min(full_box.max_corner.z, zl + slice_height);
     }
+
+    // No per-slice struct allocation needed.
 
     std::vector<std::vector<uint32_t>> slice_edges;
     bucket_edges_per_slice(slice_edges, edges, edgeCount, vert_z,
-                           full_box.min_corner.z, slice_height, slice_count);
+                           full_box.min_corner.z, slice_height, inv_slice_height, slice_count);
 
-    // Global union-find
+    // Global union-find (iterative find to reduce recursion overhead)
     std::vector<uint32_t> uf_parent(vertCount);
     std::vector<uint8_t> uf_rank(vertCount, 0);
     for (uint32_t i = 0; i < vertCount; ++i) uf_parent[i] = i;
-
-    auto uf_find = [&](auto& self, uint32_t x) -> uint32_t {
-        if (uf_parent[x] != x) uf_parent[x] = self(self, uf_parent[x]);
-        return uf_parent[x];
+    auto uf_find = [&](uint32_t x) {
+        while (uf_parent[x] != x) {
+            uf_parent[x] = uf_parent[uf_parent[x]]; // path halving
+            x = uf_parent[x];
+        }
+        return x;
     };
-
     auto uf_unite = [&](uint32_t a, uint32_t b) {
-        a = uf_find(uf_find, a);
-        b = uf_find(uf_find, b);
+        a = uf_find(a); b = uf_find(b);
         if (a == b) return;
         if (uf_rank[a] < uf_rank[b]) std::swap(a, b);
         uf_parent[b] = a;
@@ -321,10 +236,8 @@ Vec3 calc_cog_volume_edges_intersections(const Vec3* verts,
     for (uint32_t vid = 0; vid < vertCount; ++vid) {
         float z = vert_z[vid];
         if (z < full_box.min_corner.z || z > full_box.max_corner.z) continue;
-        int si = (int)std::floor((z - full_box.min_corner.z) / slice_height);
-        if (si >= 0 && si < slice_count) {
-            slice_vertices[si].push_back(vid);
-        }
+        int si = (int)((z - full_box.min_corner.z) * inv_slice_height);
+        if (si >= 0 && si < slice_count) slice_vertices[si].push_back(vid);
     }
 
     // Union all edges globally for connectivity
@@ -336,59 +249,37 @@ Vec3 calc_cog_volume_edges_intersections(const Vec3* verts,
     // Precompute component roots for all vertices
     std::vector<uint32_t> vertex_comp(vertCount);
     for (uint32_t i = 0; i < vertCount; ++i) {
-        vertex_comp[i] = uf_find(uf_find, i);
+        vertex_comp[i] = uf_find(i);
     }
-
-    // Collect unique component ids and map to consecutive indices
-    std::unordered_set<uint32_t> unique_cids;
-    for (uint32_t i = 0; i < vertCount; ++i) {
-        unique_cids.insert(vertex_comp[i]);
-    }
-    uint32_t max_cid = 0;
-    for (uint32_t cid : unique_cids) max_cid = std::max(max_cid, cid);
-    std::vector<uint32_t> cid_to_index(max_cid + 1, -1);
+    // Linear component id compression (avoids unordered_set)
+    std::vector<uint32_t> cid_to_index(vertCount, UINT32_MAX);
     uint32_t num_components = 0;
-    for (uint32_t cid : unique_cids) {
-        cid_to_index[cid] = num_components++;
+    for (uint32_t i = 0; i < vertCount; ++i) {
+        uint32_t cid = vertex_comp[i];
+        if (cid_to_index[cid] == UINT32_MAX) {
+            cid_to_index[cid] = num_components++;
+        }
     }
 
-    for (uint8_t si = 0; si < slice_count; ++si) {
-        if (slice_edges[si].empty()) {
-            slices[si].area = 0.f;
-            continue;
-        }
-        build_slice_islands(
-            slices[si], vert_xy, vert_z, edges, slice_edges[si],
-            slices[si].z_lower, slices[si].z_upper, slice_vertices[si],
-            vertex_comp, cid_to_index, num_components
-        );
-
-        // Slice COG & area
-        Vec2 cog_sum{0, 0};
-        float area_sum = 0.f;
-        for (auto& h : slices[si].chulls) {
-            PolyData pd = calc_cog_area(h);
-            if (pd.area <= 0.f) continue;
-            cog_sum.x += pd.cog.x * pd.area;
-            cog_sum.y += pd.cog.y * pd.area;
-            area_sum += pd.area;
-        }
-        if (area_sum > 0.f) {
-            cog_sum.x /= area_sum;
-            cog_sum.y /= area_sum;
-        }
-        slices[si].cog = cog_sum;
-        slices[si].area = area_sum;
-    }
-
-    // Aggregate
-    Vec3 overall{0, 0, 0};
+    // Aggregate on the fly
+    Vec3 overall{0,0,0};
     float total_area = 0.f;
-    for (auto& sl : slices) {
-        overall.x += sl.cog.x * sl.area;
-        overall.y += sl.cog.y * sl.area;
-        overall.z += ((sl.z_lower + sl.z_upper) * 0.5f) * sl.area;
-        total_area += sl.area;
+    for (uint8_t si = 0; si < slice_count; ++si) {
+        if (slice_edges[si].empty()) continue;
+        float z_lower = slice_z_lower[si];
+        float z_upper = slice_z_upper[si];
+        Vec2 slice_cog; float slice_area;
+        build_slice_islands(
+            vert_xy, vert_z, edges, slice_edges[si],
+            z_lower, z_upper, slice_vertices[si],
+            vertex_comp, cid_to_index, num_components,
+            slice_cog, slice_area);
+        if (slice_area <= 0.f) continue;
+        float mid_z = 0.5f*(z_lower + z_upper);
+        overall.x += slice_cog.x * slice_area;
+        overall.y += slice_cog.y * slice_area;
+        overall.z += mid_z * slice_area;
+        total_area += slice_area;
     }
     if (total_area > 0.f) {
         overall.x /= total_area;
