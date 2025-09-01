@@ -4,7 +4,8 @@
 #include "object/computation/chull.h"
 #include "object/computation/wire_detect.h"
 #include "object/util/geo2d.h"
-#include "object/analysis/analysis.h"
+#include "object/analysis/ground.h"
+#include "object/analysis/wall.h"
 #include "object/computation/cog.h"
 
 #include <vector>
@@ -50,7 +51,7 @@ std::vector<std::vector<uint32_t>> build_adj_vertices(const uVec2i *edges, uint3
     return adj_verts;
 }
 
-std::vector<bool> calc_mask(uint32_t vertCount,const std::vector<std::vector<uint32_t>> &adj_verts, VoxelMap &voxel_map)
+std::vector<bool> calc_mask(uint32_t vertCount, const std::vector<std::vector<uint32_t>> &adj_verts, VoxelMap &voxel_map)
 {
     std::vector<bool> mask(vertCount, false);
 
@@ -66,7 +67,7 @@ float calc_forward_angle(std::vector<Vec2> &hull)
     best_box.area = std::numeric_limits<float>::infinity();
 
     std::vector<Vec2> rot_hull(hull.size());
-    
+
     for (float angle : angles)
     {
         rotate_points_2D(hull, -angle, rot_hull);
@@ -75,13 +76,13 @@ float calc_forward_angle(std::vector<Vec2> &hull)
         if (box.area < best_box.area)
             best_box = box;
     }
-    
 
     return best_box.rotation_angle;
 }
 
 template <HasXY V>
-void rotate_vector(V& v, float angle) {
+void rotate_vector(V &v, float angle)
+{
     float cos_angle = std::cos(angle);
     float sin_angle = std::sin(angle);
     float x_new = v.x * cos_angle - v.y * sin_angle;
@@ -102,15 +103,12 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
         return;
     }
 
-    
-
     auto adj_verts = build_adj_vertices(edges, edgeCount, vertCount);
     auto voxel_map = build_voxel_map(verts, vert_norms, vertCount, 0.03f);
-    
+
     auto mask = calc_mask(vertCount, adj_verts, voxel_map);
 
-
-    //Create a copy of the original vertices masking for wires
+    // Create a copy of the original vertices masking for wires
     std::vector<Vec3> working_verts;
     working_verts.reserve(vertCount);
 
@@ -118,11 +116,10 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
         if (!mask[i])
             working_verts.push_back(verts[i]);
 
-
-    //Global sort for good convex hull cache locality
+    // Global sort for good convex hull cache locality
     std::sort(working_verts.begin(), working_verts.end());
 
-    //Get full 2d convex hull and calculate the angle the object is facing
+    // Get full 2d convex hull and calculate the angle the object is facing
     std::vector<Vec2> full_hull2D = monotonic_chain(working_verts);
     float angle_to_forward = calc_forward_angle(full_hull2D);
 
@@ -133,11 +130,7 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
     auto full_3DBB = compute_aabb_3D(working_verts);
     auto full_2DBB = compute_aabb_2D(full_hull2D);
 
-    auto base_hull2D = calc_base_convex_hull(working_verts, full_3DBB);
-    auto base_2DBB = compute_aabb_2D(base_hull2D);
-
-    // Compute the center of the base 2D bounding box
-    auto base_center = (base_2DBB.max_corner + base_2DBB.min_corner) * 0.5f;
+    
     auto start = std::chrono::high_resolution_clock::now();
 
     COGResult cog_result = calc_cog_volume_edges_intersections(verts, vertCount, edges, edgeCount, full_3DBB, 0.02f);
@@ -145,8 +138,29 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
 
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-    std::cout << "COG Full Calc Time: " << (float) duration.count() / 1000000 << " ms" << std::endl;
+    std::cout << "COG Full Calc Time: " << (float)duration.count() / 1000000 << " ms" << std::endl;
+
     rotate_vector(cog, angle_to_forward);
+
+    // Compute the center of the base 2D bounding box
+    // auto base_center = (base_2DBB.max_corner + base_2DBB.min_corner) * 0.5f;
+
+    uint8_t curr_front_axis = 0;
+
+    if (is_ground(working_verts, cog, full_3DBB, cog_result.slices))
+    {
+        std::cout << "Classified as Ground" << std::endl;
+    }
+    else if (is_wall(working_verts, full_3DBB, curr_front_axis))
+    {
+        std::cout << "Classified as Wall" << std::endl;
+    }
+    else
+    {
+        std::cout << "Classified as Ceiling" << std::endl;
+    }
+
+    angle_to_forward += static_cast<float>(curr_front_axis) * M_PI_2;
 
     *out_rot = {0, 0, angle_to_forward}; // Rotation to align object front with +Y axis
     // *out_trans = {base_center.x, base_center.y, 0.0f};               // Vector from object origin to calculated point of contact

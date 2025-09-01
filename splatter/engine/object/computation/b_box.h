@@ -118,3 +118,7 @@ BoundingBox3D compute_aabb_3D(const std::vector<V> &points)
 {
     return compute_aabb_3D_impl(points, [](const V&) { return true; });
 }
+
+
+Vec3 factor_to_coord(float factor, BoundingBox3D box);
+Vec2 factor_to_coord(float factor, BoundingBox2D box);

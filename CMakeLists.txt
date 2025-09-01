@@ -14,9 +14,11 @@ set(ENGINE_SOURCES
     splatter/engine/share/stats.cpp
     splatter/engine/object/computation/voxel.cpp
     splatter/engine/object/computation/wire_detect.cpp
-    splatter/engine/object/util/linalg3.cpp
     splatter/engine/object/computation/cog.cpp
+    splatter/engine/object/computation/b_box.cpp
     splatter/engine/object/analysis/ground.cpp
+    splatter/engine/object/analysis/wall.cpp
+    splatter/engine/object/util/linalg3.cpp
 )
 
 add_library(splatter_engine SHARED ${ENGINE_SOURCES})

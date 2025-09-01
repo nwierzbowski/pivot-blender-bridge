@@ -19,7 +19,7 @@ static inline float calc_ratio_full_to_base(const BoundingBox3D &full_box, const
 {
     if (base_box.area == 0)
         return 0;
-    return full_box.volume / (full_box.max_corner.z - full_box.min_corner.z) / base_box.area;
+    return (full_box.volume / (full_box.max_corner.z - full_box.min_corner.z)) / base_box.area;
 }
 
 static inline float get_min_cross_section(std::vector<SliceData> slices)
@@ -34,20 +34,20 @@ static inline float get_min_cross_section(std::vector<SliceData> slices)
     return min_section;
 }
 
-bool is_ground(const std::vector<Vec3> &verts, Vec3 cog, BoundingBox3D full_box, BoundingBox2D base_box, std::vector<SliceData> slices)
+bool is_ground(const std::vector<Vec3> &verts, Vec3 cog, BoundingBox3D full_box, std::vector<SliceData> slices)
 {
     if (slices.empty())
         return false;
 
     float min_cross_section = get_min_cross_section(slices);
-    float ratio = calc_ratio_full_to_base(full_box, base_box);
     auto base_chull = calc_base_convex_hull(verts, full_box);
+    float ratio = calc_ratio_full_to_base(full_box, compute_aabb_2D(base_chull));
 
-    bool base_too_small = ratio < 4.0f;
-    bool is_too_thin = min_cross_section < 25e-5f;
+    bool base_large_enough = ratio < 4.0f;
+    bool is_thick_enough = min_cross_section > 25e-5f;
     bool cog_over_base = is_point_inside_polygon_2D(cog, base_chull);
 
-    return !base_too_small && !is_too_thin && cog_over_base;
+    return base_large_enough && cog_over_base && is_thick_enough;
 }
 
 

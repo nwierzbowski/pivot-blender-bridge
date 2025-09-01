@@ -6,5 +6,5 @@
 
 #include <vector>
 
-bool is_ground(const std::vector<Vec3> &verts, Vec3 cog, BoundingBox3D full_box, BoundingBox2D base_box, std::vector<SliceData> slices);
+bool is_ground(const std::vector<Vec3> &verts, Vec3 cog, BoundingBox3D full_box, std::vector<SliceData> slices);
 
