@@ -6,11 +6,13 @@
 #include <cstdint>
 #include <iostream>
 
+// Calculate the base convex hull from vertices projected onto the XY plane at a specific Z level
 std::vector<Vec2> calc_base_convex_hull(const std::vector<Vec3> &verts, BoundingBox3D full_box)
 {
     return monotonic_chain(verts, &Vec3::z, full_box.min_corner.z, full_box.min_corner.z + 0.001);
 }
 
+// Compute the ratio of the full bounding box area to the base bounding box area
 float calc_ratio_full_to_base(const BoundingBox2D &full_box, const BoundingBox2D &base_box)
 {
     if (base_box.area == 0)
@@ -18,7 +20,7 @@ float calc_ratio_full_to_base(const BoundingBox2D &full_box, const BoundingBox2D
     return full_box.area / base_box.area;
 }
 
-// Build per-slice edge buckets: slice_edges[si] contains indices of edges overlapping slice si.
+// Build per-slice edge buckets: slice_edges[slice_index] contains indices of edges overlapping slice slice_index.
 static inline void bucket_edges_per_slice(
     std::vector<std::vector<uint32_t>> &slice_edges,
     const uVec2i *edges,
@@ -30,28 +32,28 @@ static inline void bucket_edges_per_slice(
     uint8_t slice_count)
 {
     slice_edges.assign(slice_count, {});
-    for (uint32_t ei = 0; ei < edgeCount; ++ei)
+    for (uint32_t edge_index = 0; edge_index < edgeCount; ++edge_index)
     {
-        const uVec2i &e = edges[ei];
-        float zA = vert_z[e.x];
-        float zB = vert_z[e.y];
-        float zmin = zA < zB ? zA : zB;
-        float zmax = zA > zB ? zA : zB;
-        float span_top = z0 + slice_height * slice_count;
-        if (zmax <= z0 || zmin >= span_top)
+        const uVec2i &edge = edges[edge_index];
+        float z1 = vert_z[edge.x];
+        float z2 = vert_z[edge.y];
+        float edge_z_min = z1 < z2 ? z1 : z2;
+        float edge_z_max = z1 > z2 ? z1 : z2;
+        float slice_span_top = z0 + slice_height * slice_count;
+        if (edge_z_max <= z0 || edge_z_min >= slice_span_top)
             continue;
-        int first = (int)std::ceil((zmin - z0) * inv_slice_height);
-        int last = (int)std::floor((zmax - z0) * inv_slice_height);
-        if (first > last)
+        int first_slice = (int)std::ceil((edge_z_min - z0) * inv_slice_height);
+        int last_slice = (int)std::floor((edge_z_max - z0) * inv_slice_height);
+        if (first_slice > last_slice)
             continue;
-        if (last < 0 || first >= slice_count)
+        if (last_slice < 0 || first_slice >= slice_count)
             continue;
-        if (first < 0)
-            first = 0;
-        if (last >= slice_count)
-            last = slice_count - 1;
-        for (int si = first; si <= last; ++si)
-            slice_edges[si].push_back(ei);
+        if (first_slice < 0)
+            first_slice = 0;
+        if (last_slice >= slice_count)
+            last_slice = slice_count - 1;
+        for (int slice_index = first_slice; slice_index <= last_slice; ++slice_index)
+            slice_edges[slice_index].push_back(edge_index);
     }
 }
 
@@ -94,102 +96,107 @@ static inline void build_slice_islands(
     std::vector<uint32_t> active;
     active.reserve(32);
 
-    auto ensure_active = [&](uint32_t idx)
+    auto ensure_active = [&](uint32_t component_index)
     {
-        if (comp_gen[idx] != global_gen)
+        if (comp_gen[component_index] != global_gen)
         {
-            comp_points[idx].clear();
-            comp_gen[idx] = global_gen;
-            active.push_back(idx);
+            comp_points[component_index].clear();
+            comp_gen[component_index] = global_gen;
+            active.push_back(component_index);
         }
     };
 
-    // Add vertex points
-    for (uint32_t vid : slice_verts)
+    // Add vertex points within the slice
+    for (uint32_t vertex_id : slice_verts)
     {
-        uint32_t idx = cid_to_index[vertex_comp[vid]];
-        ensure_active(idx);
-        comp_points[idx].push_back(vert_xy[vid]);
+        uint32_t component_index = cid_to_index[vertex_comp[vertex_id]];
+        ensure_active(component_index);
+        comp_points[component_index].push_back(vert_xy[vertex_id]);
     }
-    // Edge intersection points
-    for (uint32_t ei : slice_edge_indices)
+    // Add edge intersection points with the slice planes
+    for (uint32_t edge_index : slice_edge_indices)
     {
-        const uVec2i &e = edges[ei];
-        float zA = vert_z[e.x];
-        float zB = vert_z[e.y];
-        float d = zB - zA;
-        if (std::abs(d) < 1e-8f)
+        const uVec2i &edge = edges[edge_index];
+        float z1 = vert_z[edge.x];
+        float z2 = vert_z[edge.y];
+        float z_diff = z2 - z1;
+        if (std::abs(z_diff) < 1e-8f)
             continue;
-        uint32_t idx = cid_to_index[vertex_comp[e.x]];
-        bool A_inside = (zA >= z_lower - EPS && zA <= z_upper + EPS);
-        bool B_inside = (zB >= z_lower - EPS && zB <= z_upper + EPS);
+        uint32_t component_index = cid_to_index[vertex_comp[edge.x]];
+        bool z1_inside = (z1 >= z_lower - EPS && z1 <= z_upper + EPS);
+        bool z2_inside = (z2 >= z_lower - EPS && z2 <= z_upper + EPS);
         auto add_interp = [&](float t)
-        { ensure_active(idx); const Vec2 &A_xy = vert_xy[e.x]; const Vec2 &B_xy = vert_xy[e.y]; comp_points[idx].push_back({A_xy.x + (B_xy.x - A_xy.x)*t, A_xy.y + (B_xy.y - A_xy.y)*t}); };
-        if (!A_inside && !B_inside)
         {
-            if ((zA - z_lower) * (zB - z_lower) < 0.0f)
-                add_interp((z_lower - zA) / d);
-            if ((zA - z_upper) * (zB - z_upper) < 0.0f)
-                add_interp((z_upper - zA) / d);
+            ensure_active(component_index);
+            const Vec2 &A_xy = vert_xy[edge.x];
+            const Vec2 &B_xy = vert_xy[edge.y];
+            comp_points[component_index].push_back({A_xy.x + (B_xy.x - A_xy.x) * t, A_xy.y + (B_xy.y - A_xy.y) * t});
+        };
+        if (!z1_inside && !z2_inside)
+        {
+            if ((z1 - z_lower) * (z2 - z_lower) < 0.0f)
+                add_interp((z_lower - z1) / z_diff);
+            if ((z1 - z_upper) * (z2 - z_upper) < 0.0f)
+                add_interp((z_upper - z1) / z_diff);
         }
-        else if (A_inside ^ B_inside)
+        else if (z1_inside ^ z2_inside)
         {
-            if ((zA - z_lower) * (zB - z_lower) < 0.0f)
-                add_interp((z_lower - zA) / d);
-            else if ((zA - z_upper) * (zB - z_upper) < 0.0f)
-                add_interp((z_upper - zA) / d);
+            if ((z1 - z_lower) * (z2 - z_lower) < 0.0f)
+                add_interp((z_lower - z1) / z_diff);
+            else if ((z1 - z_upper) * (z2 - z_upper) < 0.0f)
+                add_interp((z_upper - z1) / z_diff);
         }
     }
 
     std::vector<Vec2> hull;
     hull.reserve(64);
-    double weighted_cx = 0.0, weighted_cy = 0.0;
-    for (uint32_t idx : active)
+    double weighted_centroid_x = 0.0, weighted_centroid_y = 0.0;
+    for (uint32_t component_index : active)
     {
-        auto &pts = comp_points[idx];
-        if (pts.size() < 3)
+        auto &points = comp_points[component_index];
+        if (points.size() < 3)
             continue;
-        // Sort and dedup pts
-        auto cmp = [](const Vec2 &a, const Vec2 &b)
+        // Sort and deduplicate points
+        auto point_compare = [](const Vec2 &a, const Vec2 &b)
         { return (a.x < b.x) || (a.x == b.x && a.y < b.y); };
-        std::sort(pts.begin(), pts.end(), cmp);
-        pts.erase(std::unique(pts.begin(), pts.end(), [](const Vec2 &a, const Vec2 &b)
-                              { return a.x == b.x && a.y == b.y; }),
-                  pts.end());
-        if (pts.size() < 3)
+        std::sort(points.begin(), points.end(), point_compare);
+        points.erase(std::unique(points.begin(), points.end(), [](const Vec2 &a, const Vec2 &b)
+                                 { return a.x == b.x && a.y == b.y; }),
+                     points.end());
+        if (points.size() < 3)
             continue;
-        hull = monotonic_chain(pts);
-        size_t hsz = hull.size();
-        if (hsz < 3)
+        hull = monotonic_chain(points);
+        size_t hull_size = hull.size();
+        if (hull_size < 3)
             continue;
-        double A = 0.0, Cx = 0.0, Cy = 0.0;
-        for (size_t k = 0; k < hsz; ++k)
+        double area = 0.0, centroid_x = 0.0, centroid_y = 0.0;
+        for (size_t k = 0; k < hull_size; ++k)
         {
             const Vec2 &p0 = hull[k];
-            const Vec2 &p1 = hull[(k + 1) % hsz];
+            const Vec2 &p1 = hull[(k + 1) % hull_size];
             double cross = (double)p0.x * p1.y - (double)p1.x * p0.y;
-            A += cross;
-            Cx += (p0.x + p1.x) * cross;
-            Cy += (p0.y + p1.y) * cross;
+            area += cross;
+            centroid_x += (p0.x + p1.x) * cross;
+            centroid_y += (p0.y + p1.y) * cross;
         }
-        A *= 0.5;
-        if (A == 0.0)
+        area *= 0.5;
+        if (area == 0.0)
             continue;
-        double area_abs = std::fabs(A);
-        double inv6A = 1.0 / (6.0 * A);
-        weighted_cx += (Cx * inv6A) * area_abs;
-        weighted_cy += (Cy * inv6A) * area_abs;
+        double area_abs = std::fabs(area);
+        double inv_6_area = 1.0 / (6.0 * area);
+        weighted_centroid_x += (centroid_x * inv_6_area) * area_abs;
+        weighted_centroid_y += (centroid_y * inv_6_area) * area_abs;
         out_area += (float)area_abs;
     }
     if (out_area > 0.f)
     {
         double inv = 1.0 / out_area;
-        out_cog.x = (float)(weighted_cx * inv);
-        out_cog.y = (float)(weighted_cy * inv);
+        out_cog.x = (float)(weighted_centroid_x * inv);
+        out_cog.y = (float)(weighted_centroid_y * inv);
     }
 }
 
-// Driver function
+// Driver function to calculate center of gravity using volume slicing and edge intersections
 COGResult calc_cog_volume_edges_intersections(const Vec3 *verts,
                                               uint32_t vertCount,
                                               const uVec2i *edges,
@@ -201,8 +208,8 @@ COGResult calc_cog_volume_edges_intersections(const Vec3 *verts,
     if (!verts || !edges || vertCount == 0 || edgeCount == 0 || slice_height <= 0.f)
         return result;
 
-    float total_h = full_box.max_corner.z - full_box.min_corner.z;
-    if (total_h <= 0.f)
+    float total_height = full_box.max_corner.z - full_box.min_corner.z;
+    if (total_height <= 0.f)
         return result;
 
     // Precompute vertex data for cache efficiency
@@ -214,17 +221,17 @@ COGResult calc_cog_volume_edges_intersections(const Vec3 *verts,
         vert_xy[i] = {verts[i].x, verts[i].y};
     }
 
-    uint32_t raw_count = (uint32_t)std::ceil(total_h / slice_height);
-    uint8_t slice_count = (uint8_t)std::min<uint32_t>(raw_count, 255);
+    uint32_t raw_slice_count = (uint32_t)std::ceil(total_height / slice_height);
+    uint8_t slice_count = (uint8_t)std::min<uint32_t>(raw_slice_count, 255);
     float inv_slice_height = 1.0f / slice_height;
 
     // Precompute slice z-lowers & uppers
     std::vector<float> slice_z_lower(slice_count), slice_z_upper(slice_count);
-    for (uint8_t si = 0; si < slice_count; ++si)
+    for (uint8_t slice_index = 0; slice_index < slice_count; ++slice_index)
     {
-        float zl = full_box.min_corner.z + si * slice_height;
-        slice_z_lower[si] = zl;
-        slice_z_upper[si] = std::min(full_box.max_corner.z, zl + slice_height);
+        float z_lower = full_box.min_corner.z + slice_index * slice_height;
+        slice_z_lower[slice_index] = z_lower;
+        slice_z_upper[slice_index] = std::min(full_box.max_corner.z, z_lower + slice_height);
     }
 
     // No per-slice struct allocation needed.
@@ -261,21 +268,21 @@ COGResult calc_cog_volume_edges_intersections(const Vec3 *verts,
     };
 
     std::vector<std::vector<uint32_t>> slice_vertices(slice_count);
-    for (uint32_t vid = 0; vid < vertCount; ++vid)
+    for (uint32_t vertex_id = 0; vertex_id < vertCount; ++vertex_id)
     {
-        float z = vert_z[vid];
+        float z = vert_z[vertex_id];
         if (z < full_box.min_corner.z || z > full_box.max_corner.z)
             continue;
-        int si = (int)((z - full_box.min_corner.z) * inv_slice_height);
-        if (si >= 0 && si < slice_count)
-            slice_vertices[si].push_back(vid);
+        int slice_index = (int)((z - full_box.min_corner.z) * inv_slice_height);
+        if (slice_index >= 0 && slice_index < slice_count)
+            slice_vertices[slice_index].push_back(vertex_id);
     }
 
     // Union all edges globally for connectivity
-    for (uint32_t ei = 0; ei < edgeCount; ++ei)
+    for (uint32_t edge_index = 0; edge_index < edgeCount; ++edge_index)
     {
-        const uVec2i &e = edges[ei];
-        uf_unite(e.x, e.y);
+        const uVec2i &edge = edges[edge_index];
+        uf_unite(edge.x, edge.y);
     }
 
     // Precompute component roots for all vertices
@@ -289,10 +296,10 @@ COGResult calc_cog_volume_edges_intersections(const Vec3 *verts,
     uint32_t num_components = 0;
     for (uint32_t i = 0; i < vertCount; ++i)
     {
-        uint32_t cid = vertex_comp[i];
-        if (cid_to_index[cid] == UINT32_MAX)
+        uint32_t component_id = vertex_comp[i];
+        if (cid_to_index[component_id] == UINT32_MAX)
         {
-            cid_to_index[cid] = num_components++;
+            cid_to_index[component_id] = num_components++;
         }
     }
 
@@ -300,22 +307,22 @@ COGResult calc_cog_volume_edges_intersections(const Vec3 *verts,
     result.slices.reserve(slice_count);
     Vec3 overall{0, 0, 0};
     float total_area = 0.f;
-    for (uint8_t si = 0; si < slice_count; ++si)
+    for (uint8_t slice_index = 0; slice_index < slice_count; ++slice_index)
     {
-        if (slice_edges[si].empty())
+        if (slice_edges[slice_index].empty())
         {
             // Even if empty, add a slice with zero area
-            float mid_z = 0.5f * (slice_z_lower[si] + slice_z_upper[si]);
+            float mid_z = 0.5f * (slice_z_lower[slice_index] + slice_z_upper[slice_index]);
             result.slices.push_back({0.f, {0.f, 0.f}, mid_z});
             continue;
         }
-        float z_lower = slice_z_lower[si];
-        float z_upper = slice_z_upper[si];
+        float z_lower = slice_z_lower[slice_index];
+        float z_upper = slice_z_upper[slice_index];
         Vec2 slice_cog;
         float slice_area;
         build_slice_islands(
-            vert_xy, vert_z, edges, slice_edges[si],
-            z_lower, z_upper, slice_vertices[si],
+            vert_xy, vert_z, edges, slice_edges[slice_index],
+            z_lower, z_upper, slice_vertices[slice_index],
             vertex_comp, cid_to_index, num_components,
             slice_cog, slice_area);
         float mid_z = 0.5f * (z_lower + z_upper);
