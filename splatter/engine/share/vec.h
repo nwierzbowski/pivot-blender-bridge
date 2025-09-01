@@ -9,6 +9,10 @@
 template <typename T>
 inline constexpr bool TVecIsFloat = std::is_floating_point_v<T>;
 
+// Forward declarations to allow cross-references (no defaults to avoid redefinition)
+template <typename T, bool IsFloat> struct TVec2;
+template <typename T, bool IsFloat> struct TVec3;
+
 // ---------------- 2D ----------------
 template <typename T, bool IsFloat = TVecIsFloat<T>>
 struct TVec2
@@ -23,6 +27,9 @@ struct TVec2
     constexpr TVec2 operator-(const TVec2 &o) const { return {T(x - o.x), T(y - o.y)}; }
     constexpr TVec2 operator+(const TVec2 &o) const { return {T(x + o.x), T(y + o.y)}; }
     constexpr TVec2 operator*(T s) const { return {T(x * s), T(y * s)}; }
+    constexpr TVec2 operator+=(const TVec2 &o) { x += o.x; y += o.y; return *this; }
+    constexpr TVec2 operator-=(const TVec2 &o) { x -= o.x; y -= o.y; return *this; }
+    constexpr TVec2 operator-=(const TVec3<T, IsFloat> &o) { x -= o.x; y -= o.y; return *this; }
     // dot/cross kept for all types (remove if you want them float-only)
     constexpr auto dot(const TVec2 &o) const { return x * o.x + y * o.y; }
     constexpr auto cross(const TVec2 &o) const { return x * o.y - y * o.x; }
@@ -42,6 +49,10 @@ struct TVec2<T, true>
     constexpr TVec2 operator-(const TVec2 &o) const { return {T(x - o.x), T(y - o.y)}; }
     constexpr TVec2 operator+(const TVec2 &o) const { return {T(x + o.x), T(y + o.y)}; }
     constexpr TVec2 operator*(T s) const { return {T(x * s), T(y * s)}; }
+    constexpr TVec2 operator+=(const TVec2 &o) { x += o.x; y += o.y; return *this; }
+    constexpr TVec2 operator-=(const TVec2 &o) { x -= o.x; y -= o.y; return *this; }
+    constexpr TVec2 operator-=(const TVec3<T, true> &o) { x -= o.x; y -= o.y; return *this; }
+    constexpr TVec2 operator/=(const T s) { x /= s; y /= s; return *this; }
     constexpr T dot(const TVec2 &o) const { return x * o.x + y * o.y; }
     constexpr T cross(const TVec2 &o) const { return x * o.y - y * o.x; }
     constexpr T length_squared() const { return x * x + y * y; }
@@ -60,7 +71,7 @@ struct TVec3
     T x{}, y{}, z{};
     constexpr TVec3() = default;
     constexpr TVec3(T x_val, T y_val, T z_val) : x(x_val), y(y_val), z(z_val) {}
-    constexpr TVec3(const TVec2<T> &v2, T z_val = T{}) : x(v2.x), y(v2.y), z(z_val) {}
+    constexpr TVec3(const TVec2<T, IsFloat> &v2, T z_val = T{}) : x(v2.x), y(v2.y), z(z_val) {}
     constexpr bool operator<(const TVec3 &o) const
     {
         return x < o.x || (x == o.x && (y < o.y || (y == o.y && z < o.z)));
@@ -68,7 +79,10 @@ struct TVec3
     constexpr bool operator==(const TVec3 &o) const { return x == o.x && y == o.y && z == o.z; }
     constexpr TVec3 operator-(const TVec3 &o) const { return {T(x - o.x), T(y - o.y), T(z - o.z)}; }
     constexpr TVec3 operator+(const TVec3 &o) const { return {T(x + o.x), T(y + o.y), T(z + o.z)}; }
-    TVec3 operator/(uint32_t s) const { return {T(x / s), T(y / s), T(z / s)}; }
+    constexpr TVec3 operator/(uint32_t s) const { return {T(x / s), T(y / s), T(z / s)}; }
+    constexpr TVec3 operator+=(const TVec3 &o) { x += o.x; y += o.y; z += o.z; return *this; }
+    constexpr TVec3 operator-=(const TVec3 &o) { x -= o.x; y -= o.y; z -= o.z; return *this; }
+    constexpr TVec3 operator-=(const TVec2<T, IsFloat> &o) { x -= o.x; y -= o.y; return *this; }
     constexpr TVec3 operator*(float s) const { return {T(x * s), T(y * s), T(z * s)}; }
     constexpr auto dot(const TVec3 &o) const { return x * o.x + y * o.y + z * o.z; }
     constexpr TVec3 cross(const TVec3 &o) const
@@ -87,7 +101,7 @@ struct TVec3<T, true>
     T x{}, y{}, z{};
     constexpr TVec3() = default;
     constexpr TVec3(T x_val, T y_val, T z_val) : x(x_val), y(y_val), z(z_val) {}
-    constexpr TVec3(const TVec2<T> &v2, T z_val = T{}) : x(v2.x), y(v2.y), z(z_val) {}
+    constexpr TVec3(const TVec2<T, true> &v2, T z_val = T{}) : x(v2.x), y(v2.y), z(z_val) {}
     constexpr bool operator<(const TVec3 &o) const
     {
         return x < o.x || (x == o.x && (y < o.y || (y == o.y && z < o.z)));
@@ -95,8 +109,13 @@ struct TVec3<T, true>
     constexpr bool operator==(const TVec3 &o) const { return x == o.x && y == o.y && z == o.z; }
     constexpr TVec3 operator-(const TVec3 &o) const { return {T(x - o.x), T(y - o.y), T(z - o.z)}; }
     constexpr TVec3 operator+(const TVec3 &o) const { return {T(x + o.x), T(y + o.y), T(z + o.z)}; }
-    TVec3 operator/(uint32_t s) const { return {T(x / s), T(y / s), T(z / s)}; }
     constexpr TVec3 operator*(float s) const { return {T(x * s), T(y * s), T(z * s)}; }
+    constexpr TVec3 operator/(uint32_t s) const { return {T(x / s), T(y / s), T(z / s)}; }
+    constexpr TVec3 operator+=(const TVec3 &o) { x += o.x; y += o.y; z += o.z; return *this; }
+    constexpr TVec3 operator-=(const TVec3 &o) { x -= o.x; y -= o.y; z -= o.z; return *this; }
+    constexpr TVec3 operator-=(const TVec2<T, true> &o) { x -= o.x; y -= o.y; return *this; }
+    constexpr TVec3 operator/=(const T s) { x /= s; y /= s; z /= s; return *this; }
+
     constexpr T dot(const TVec3 &o) const { return x * o.x + y * o.y + z * o.z; }
     constexpr TVec3 cross(const TVec3 &o) const
     {
