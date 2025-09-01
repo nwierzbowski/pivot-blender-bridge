@@ -129,15 +129,15 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
 
     auto full_3DBB = compute_aabb_3D(working_verts);
 
-    auto start = std::chrono::high_resolution_clock::now();
+    // auto start = std::chrono::high_resolution_clock::now();
 
     COGResult cog_result = calc_cog_volume_edges_intersections(verts, vertCount, edges, edgeCount, full_3DBB, 0.02f);
+    
+
+    // auto end = std::chrono::high_resolution_clock::now();
+    // auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    // std::cout << "COG Full Calc Time: " << (float)duration.count() / 1000000 << " ms" << std::endl;
     Vec3 working_cog = cog_result.overall_cog;
-
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-    std::cout << "COG Full Calc Time: " << (float)duration.count() / 1000000 << " ms" << std::endl;
-
     rotate_vector(working_cog, angle_to_forward);
 
     // Compute the center of the base 2D bounding box
@@ -158,7 +158,7 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
         std::cout << "Classified as Ceiling" << std::endl;
     }
 
-    angle_to_forward += static_cast<float>(curr_front_axis) * M_PI_2;
+    angle_to_forward += static_cast<float>(curr_front_axis % 4) * M_PI_2;
 
     *out_rot = {0, 0, angle_to_forward}; // Rotation to align object front with +Y axis
     // *out_trans = {base_center.x, base_center.y, 0.0f};               // Vector from object origin to calculated point of contact
