@@ -52,6 +52,64 @@ void compute_cov(const std::vector<uint32_t> &idxs, const Vec3 *verts, float cov
 }
 
 /**
+ * @brief Compute covariance matrix for 3D vertices
+ * @param idxs Indices of vertices to include in computation
+ * @param verts Vector of 3D vertices
+ * @param cov Output 3x3 covariance matrix
+ */
+void compute_cov(const std::vector<uint32_t> &idxs, const std::vector<Vec3> &verts, float cov[3][3])
+{
+    compute_cov(idxs, verts.data(), cov);
+}
+
+/**
+ * @brief Compute covariance matrix for 3D vertices (using all vertices)
+ * @param verts Array of 3D vertices
+ * @param size Number of vertices
+ * @param cov Output 3x3 covariance matrix
+ */
+void compute_cov(const Vec3 *verts, size_t size, float cov[3][3])
+{
+    if (size == 0) {
+        std::fill(&cov[0][0], &cov[0][0] + 9, 0.0f);
+        return;
+    }
+
+    // Collect points into Eigen matrix
+    Eigen::Matrix<float, 3, Eigen::Dynamic> data(3, size);
+    for (size_t i = 0; i < size; ++i) {
+        const Vec3& v = verts[i];
+        data(0, i) = v.x;
+        data(1, i) = v.y;
+        data(2, i) = v.z;
+    }
+
+    // Compute mean
+    Eigen::Vector3f mean = data.rowwise().mean();
+
+    // Center the data
+    Eigen::Matrix<float, 3, Eigen::Dynamic> centered = data.colwise() - mean;
+
+    // Compute covariance
+    Eigen::Matrix3f cov_mat = (centered * centered.transpose()) / static_cast<float>(size);
+
+    // Copy to output
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
+            cov[i][j] = cov_mat(i, j);
+}
+
+/**
+ * @brief Compute covariance matrix for 3D vertices (using all vertices)
+ * @param verts Vector of 3D vertices
+ * @param cov Output 3x3 covariance matrix
+ */
+void compute_cov(const std::vector<Vec3> &verts, float cov[3][3])
+{
+    compute_cov(verts.data(), verts.size(), cov);
+}
+
+/**
  * @brief Compute covariance matrix for 2D vertices
  * @param idxs Indices of vertices to include in computation
  * @param verts Array of 2D vertices
@@ -86,6 +144,63 @@ void compute_cov(const std::vector<uint32_t> &idxs, const Vec2 *verts, float cov
     for (int i = 0; i < 2; ++i)
         for (int j = 0; j < 2; ++j)
             cov[i][j] = cov_mat(i, j);
+}
+
+/**
+ * @brief Compute covariance matrix for 2D vertices
+ * @param idxs Indices of vertices to include in computation
+ * @param verts Vector of 2D vertices
+ * @param cov Output 2x2 covariance matrix
+ */
+void compute_cov(const std::vector<uint32_t> &idxs, const std::vector<Vec2> &verts, float cov[2][2])
+{
+    compute_cov(idxs, verts.data(), cov);
+}
+
+/**
+ * @brief Compute covariance matrix for 2D vertices (using all vertices)
+ * @param verts Array of 2D vertices
+ * @param size Number of vertices
+ * @param cov Output 2x2 covariance matrix
+ */
+void compute_cov(const Vec2 *verts, size_t size, float cov[2][2])
+{
+    if (size == 0) {
+        std::fill(&cov[0][0], &cov[0][0] + 4, 0.0f);
+        return;
+    }
+
+    // Collect points into Eigen matrix
+    Eigen::Matrix<float, 2, Eigen::Dynamic> data(2, size);
+    for (size_t i = 0; i < size; ++i) {
+        const Vec2& v = verts[i];
+        data(0, i) = v.x;
+        data(1, i) = v.y;
+    }
+
+    // Compute mean
+    Eigen::Vector2f mean = data.rowwise().mean();
+
+    // Center the data
+    Eigen::Matrix<float, 2, Eigen::Dynamic> centered = data.colwise() - mean;
+
+    // Compute covariance
+    Eigen::Matrix2f cov_mat = (centered * centered.transpose()) / static_cast<float>(size);
+
+    // Copy to output
+    for (int i = 0; i < 2; ++i)
+        for (int j = 0; j < 2; ++j)
+            cov[i][j] = cov_mat(i, j);
+}
+
+/**
+ * @brief Compute covariance matrix for 2D vertices (using all vertices)
+ * @param verts Vector of 2D vertices
+ * @param cov Output 2x2 covariance matrix
+ */
+void compute_cov(const std::vector<Vec2> &verts, float cov[2][2])
+{
+    compute_cov(verts.data(), verts.size(), cov);
 }
 
 /**

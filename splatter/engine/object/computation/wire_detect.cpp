@@ -14,6 +14,7 @@ std::vector<VoxelKey> guess_wire_voxels(VoxelMap &voxel_map)
     constexpr std::array<Vec3i, 6> neighbor_dirs = {{{0, 0, 1}, {0, 1, 0}, {1, 0, 0}, {0, 0, -1}, {0, -1, 0}, {-1, 0, 0}}};
 
     std::vector<VoxelKey> wire_guesses;
+    wire_guesses.reserve(voxel_map.size() / 2);
 
     for (auto &[voxel_coord, voxel_data] : voxel_map)
     {
@@ -22,14 +23,18 @@ std::vector<VoxelKey> guess_wire_voxels(VoxelMap &voxel_map)
         for (const auto &d : neighbor_dirs)
             if (voxel_map.find(voxel_coord + d) != voxel_map.end())
                 neighbors++;
-
+        float normal_uniformity = voxel_data.projected_lambda2 / voxel_data.projected_lambda1;
         float sum_lambda = voxel_data.lambda1 + voxel_data.lambda2;
-        if (voxel_data.avg_normal.length_squared() < 0.25f * 0.25f &&
+        if (
+            normal_uniformity > 0.9f 
+            &&
             sum_lambda > 0.0f &&
-            voxel_data.lambda1 > 0.9f * sum_lambda &&
-            neighbors <= 3)
+            voxel_data.lambda1 > 0.85f * sum_lambda
+            &&
+            neighbors <= 3
+        )
         {
-            wire_guesses.push_back(voxel_coord);
+            wire_guesses.emplace_back(voxel_coord);
         }
     }
 
@@ -57,7 +62,7 @@ void select_wire_verts(
 
     std::vector<bool> in_guess(vertCount, false);
 
-    if (guessed_vertex_count < vertCount / 6)
+    if (guessed_vertex_count < vertCount )
     {
         std::vector<bool> neighbor_mark(vertCount, false);
         for (const VoxelKey &vg : voxel_guesses)

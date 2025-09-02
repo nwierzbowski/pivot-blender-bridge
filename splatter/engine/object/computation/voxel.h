@@ -39,7 +39,11 @@ inline VoxelKey make_voxel_key(const Vec3 &p, float voxelSize)
 struct VoxelData
 {
     std::vector<uint32_t> vertex_indices;
-    Vec3 avg_normal;
+    // Vec3 avg_normal;
+    float projected_lambda1;
+    float projected_lambda2;
+    Vec2 projected_prim_vec;
+    Vec2 projected_sec_vec;
     float lambda1;
     float lambda2;
     float lambda3;
