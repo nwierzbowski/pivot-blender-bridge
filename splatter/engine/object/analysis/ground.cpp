@@ -19,8 +19,6 @@ static inline float calc_ratio_full_to_base(const BoundingBox3D &full_box, const
 {
     if (base_box.area == 0)
         return 0;
-
-    std::cout << "Full box volume: " << full_box.volume << ", Base box area: " << base_box.area << std::endl;
     return (full_box.volume / (full_box.max_corner.z - full_box.min_corner.z)) / base_box.area;
 }
 

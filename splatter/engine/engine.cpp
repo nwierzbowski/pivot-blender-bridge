@@ -113,7 +113,7 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
     working_verts.reserve(vertCount);
 
     for (uint32_t i = 0; i < vertCount; ++i)
-        if (!mask[i])
+        // if (!mask[i])
             working_verts.push_back(verts[i]);
 
     // Global sort for good convex hull cache locality
@@ -126,6 +126,9 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
     // Rotate working vertices to align object with +Y axis
     rotate_points_2D(working_verts, angle_to_forward, working_verts);
     rotate_points_2D(full_hull2D, angle_to_forward, full_hull2D);
+
+    // Re-sort after rotation to maintain order for subsequent convex hull computations
+    std::sort(working_verts.begin(), working_verts.end());
 
     auto full_3DBB = compute_aabb_3D(working_verts);
     auto full_2DBB = compute_aabb_2D(working_verts);

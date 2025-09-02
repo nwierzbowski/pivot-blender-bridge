@@ -67,7 +67,9 @@ template <HasXY V, HasXY U>
 bool is_point_inside_polygon_2D(const V &point, const std::vector<U> &verts)
 {
     if (verts.size() < 3)
+    {
         return false; // Not a polygon
+    }
 
     bool inside = false;
     size_t n = verts.size();
