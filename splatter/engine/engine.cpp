@@ -91,9 +91,9 @@ void rotate_vector(V &v, float angle)
     v.y = y_new;
 }
 
-void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uint32_t vertCount, const uVec2i *edges, uint32_t edgeCount, Vec3 *out_rot, Vec3 *out_trans)
+void standardize_object_transform(const Vec3 *verts, uint32_t vertCount, const uVec2i *edges, uint32_t edgeCount, Vec3 *out_rot, Vec3 *out_trans)
 {
-    if (!verts || vertCount == 0 || !vert_norms || vertCount == 0 || !edges || edgeCount == 0 || !out_rot || !out_trans)
+    if (!verts || vertCount == 0 || vertCount == 0 || !edges || edgeCount == 0 || !out_rot || !out_trans)
         return;
 
     if (vertCount == 1)
@@ -104,7 +104,7 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
     }
 
     auto adj_verts = build_adj_vertices(edges, edgeCount, vertCount);
-    auto voxel_map = build_voxel_map(verts, vert_norms, vertCount, 0.03f);
+    auto voxel_map = build_voxel_map(verts, vertCount, 0.03f);
 
     auto mask = calc_mask(vertCount, adj_verts, voxel_map);
 
@@ -133,7 +133,7 @@ void standardize_object_transform(const Vec3 *verts, const Vec3 *vert_norms, uin
     auto full_3DBB = compute_aabb_3D(working_verts);
     auto full_2DBB = compute_aabb_2D(working_verts);
 
-    auto start = std::chrono::high_resolution_clock::now();
+    // auto start = std::chrono::high_resolution_clock::now();
 
     COGResult cog_result = calc_cog_volume_edges_intersections(verts, vertCount, edges, edgeCount, full_3DBB, 0.02f);
 

@@ -6,7 +6,7 @@
 #include <vector>
 #include <unordered_map>
 
-VoxelMap build_voxel_map(const Vec3 *verts, const Vec3 *norms, uint32_t vertCount, float voxelSize)
+VoxelMap build_voxel_map(const Vec3 *verts, uint32_t vertCount, float voxelSize)
 {
     VoxelMap voxel_map;
     if (!verts || vertCount == 0)

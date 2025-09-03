@@ -54,4 +54,4 @@ struct VoxelData
 
 using VoxelMap = std::unordered_map<VoxelKey, VoxelData, VoxelKeyHash>;
 
-VoxelMap build_voxel_map(const Vec3 *verts, const Vec3 *norms, uint32_t vertCount, float voxelSize);
+VoxelMap build_voxel_map(const Vec3 *verts, uint32_t vertCount, float voxelSize);

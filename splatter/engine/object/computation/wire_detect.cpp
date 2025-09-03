@@ -26,7 +26,7 @@ std::vector<VoxelKey> guess_wire_voxels(VoxelMap &voxel_map)
         float normal_uniformity = voxel_data.projected_lambda2 / voxel_data.projected_lambda1;
         float sum_lambda = voxel_data.lambda1 + voxel_data.lambda2;
         if (
-            normal_uniformity > 0.8f 
+            normal_uniformity > 0.8f
             &&
             sum_lambda > 0.0f &&
             voxel_data.lambda1 > 0.85f * sum_lambda
@@ -90,11 +90,11 @@ void select_wire_verts(
     }
 
     // Print vertex_guess_indices
-    std::sort(vertex_guess_indices.begin(), vertex_guess_indices.end());
-    std::cout << "Vertex Guess Indices: ";
-    for (uint32_t idx : vertex_guess_indices)
-        std::cout << idx << " ";
-    std::cout << std::endl;
+    // std::sort(vertex_guess_indices.begin(), vertex_guess_indices.end());
+    // std::cout << "Vertex Guess Indices: ";
+    // for (uint32_t idx : vertex_guess_indices)
+    //     std::cout << idx << " ";
+    // std::cout << std::endl;
 
     float density = 0.f;
     if (!neighbor_sizes.empty())
