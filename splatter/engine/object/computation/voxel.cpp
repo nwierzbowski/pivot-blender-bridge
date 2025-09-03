@@ -33,7 +33,7 @@ VoxelMap build_voxel_map(const Vec3 *verts, const Vec3 *norms, uint32_t vertCoun
         float proj_lambda1 = 0.0f, proj_lambda2 = 0.0f;
         Vec2 proj_prim_vec{0, 0}, proj_sec_vec{0, 0};
 
-        if (count >= 8)
+        if (count >= 6)
         {
             float cov[3][3];
             compute_cov(voxel_data.vertex_indices, verts, cov);
@@ -44,7 +44,7 @@ VoxelMap build_voxel_map(const Vec3 *verts, const Vec3 *norms, uint32_t vertCoun
             proj_norms.reserve(count);
             for (uint32_t i : voxel_data.vertex_indices)
             {
-                Vec3 rel_vec = (verts[i] - voxel_data.centroid).normalized();
+                Vec3 rel_vec = (verts[i] - voxel_data.centroid);
                 Vec2 proj = project_to_basis_coeffs(sec_vec, third_vec, rel_vec);
                 proj_norms.emplace_back(proj);
             }
