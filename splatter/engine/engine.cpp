@@ -232,16 +232,7 @@ void group_objects(Vec3 *verts_flat, uVec2i *edges_flat, const uint32_t *vert_co
         
         // Rotate and offset vertices
         for (uint32_t j = 0; j < v_count; ++j) {
-            Vec3 v = verts_flat[vert_offset + j];
-            // Apply rotation (Euler XYZ)
-            float cx = cos(rotations[i].x), sx = sin(rotations[i].x);
-            float cy = cos(rotations[i].y), sy = sin(rotations[i].y);
-            float cz = cos(rotations[i].z), sz = sin(rotations[i].z);
-            Vec3 rotated;
-            rotated.x = v.x * (cy * cz) + v.y * (cx * sz + sx * sy * cz) + v.z * (sx * sz - cx * sy * cz);
-            rotated.y = v.x * (-cy * sz) + v.y * (cx * cz - sx * sy * sz) + v.z * (sx * cz + cx * sy * sz);
-            rotated.z = v.x * sy + v.y * (-sx * cy) + v.z * (cx * cy);
-            // Offset
+            Vec3 rotated = rotate_vertex_3D(verts_flat[vert_offset + j], rotations[i]);
             rotated += offsets[i];
             verts_flat[vert_offset + j] = rotated;
         }

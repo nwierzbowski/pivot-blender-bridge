@@ -6,6 +6,7 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <cmath>
 
 template <HasXY V>
 void rotate_points_2D(const std::vector<V> &points, float angle, std::vector<V> &out)
@@ -27,6 +28,17 @@ void rotate_points_2D(const std::vector<V> &points, float angle, std::vector<V> 
         if constexpr (requires { points[i].z; })
             out[i].z = points[i].z;
     }
+}
+
+inline Vec3 rotate_vertex_3D(const Vec3 &v, const Vec3 &euler) {
+    float cx = std::cos(euler.x), sx = std::sin(euler.x);
+    float cy = std::cos(euler.y), sy = std::sin(euler.y);
+    float cz = std::cos(euler.z), sz = std::sin(euler.z);
+    return {
+        v.x * (cy * cz) + v.y * (cx * sz + sx * sy * cz) + v.z * (sx * sz - cx * sy * cz),
+        v.x * (-cy * sz) + v.y * (cx * cz - sx * sy * sz) + v.z * (sx * cz + cx * sy * sz),
+        v.x * sy + v.y * (-sx * cy) + v.z * (cx * cy)
+    };
 }
 
 template <HasXY V>
@@ -116,3 +128,4 @@ uint8_t get_most_similar_axis(const V &v)
     // std::cout << "Axis: -Y" << std::endl;
     return 2; // Only if all others are less
 }
+
