@@ -91,6 +91,23 @@ void rotate_vector(V &v, float angle)
     v.y = y_new;
 }
 
+void prepare_object_batch(const Vec3 *verts_flat, const uVec2i *edges_flat, const uint32_t *vert_counts, const uint32_t *edge_counts, uint32_t num_objects, Vec3 *out_rots, Vec3 *out_trans)
+{
+    if (!verts_flat || !edges_flat || !vert_counts || !edge_counts || num_objects == 0 || !out_rots || !out_trans)
+        return;
+
+    uint32_t vert_offset = 0;
+    uint32_t edge_offset = 0;
+    for (uint32_t i = 0; i < num_objects; ++i)
+    {
+        uint32_t v_count = vert_counts[i];
+        uint32_t e_count = edge_counts[i];
+        standardize_object_transform(&verts_flat[vert_offset], v_count, &edges_flat[edge_offset], e_count, &out_rots[i], &out_trans[i]);
+        vert_offset += v_count;
+        edge_offset += e_count;
+    }
+}
+
 void standardize_object_transform(const Vec3 *verts, uint32_t vertCount, const uVec2i *edges, uint32_t edgeCount, Vec3 *out_rot, Vec3 *out_trans)
 {
     if (!verts || vertCount == 0 || vertCount == 0 || !edges || edgeCount == 0 || !out_rot || !out_trans)
