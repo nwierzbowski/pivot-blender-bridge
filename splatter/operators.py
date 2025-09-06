@@ -284,11 +284,15 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
         collections_in_selection = set()
         for obj in selected_objects:
             if obj.users_collection:
-                collections_in_selection.add(obj.users_collection[0])
+                coll = obj.users_collection[0]
+                if coll != context.scene.collection:
+                    collections_in_selection.add(coll)
         
         # Remove individual objects that are in the collected collections
         filtered_objects = []
+        print("Selected objects: ", len(selected_objects))
         for obj in selected_objects:
+            print("Collection 0: ", obj.users_collection)
             if obj.users_collection and obj.users_collection[0] in collections_in_selection:
                 continue  # Skip, will be handled as collection
             filtered_objects.append(obj)
@@ -298,7 +302,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
         all_edges = []
         all_vert_counts = []
         all_edge_counts = []
-        valid_objects = []
+        batch_items = []
         
         # Process collections
         for coll in collections_in_selection:
@@ -353,11 +357,12 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
             # Add to overall buffers
             all_verts.append(verts_coll_flat)
             all_edges.append(edges_coll_flat)
-            all_vert_counts.extend(coll_vert_counts)
-            all_edge_counts.extend(coll_edge_counts)
-            # Note: valid_objects already added in collection processing
+            all_vert_counts.append(total_coll_verts)
+            all_edge_counts.append(total_coll_edges)
+            batch_items.append(coll_objects)
         
         # Process individual objects
+        print("Filtered objects: ", len(filtered_objects))
         for obj in filtered_objects:
             mesh = obj.data
             vert_count = len(mesh.vertices)
@@ -377,7 +382,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
             
             all_vert_counts.append(vert_count)
             all_edge_counts.append(edge_count)
-            valid_objects.append(obj)
+            batch_items.append([obj])
         
         if all_verts:
             # Flatten all data (collections + individuals)
@@ -400,11 +405,15 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
             print(f"rots: {rots}")
             endCPP = time.perf_counter()
             elapsedCPP = endCPP - startCPP
-            
+            print("batch items: ", len(batch_items))
             # Apply results
-            for i, obj in enumerate(valid_objects):
-                obj.rotation_euler = rots[i]
-                bpy.context.scene.cursor.location = Vector(trans[i]) + obj.location
+            for i, item in enumerate(batch_items):
+                rot = rots[i]
+                trans_val = trans[i]
+                for obj in item:
+                    print("Applying rot: ", rot)
+                    obj.rotation_euler = rot
+                    bpy.context.scene.cursor.location = Vector(trans_val) + obj.location
         
         end = time.perf_counter()
         elapsedPython = end - startPython
