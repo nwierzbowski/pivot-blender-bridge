@@ -304,7 +304,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
         all_edge_counts = []
         batch_items = []
         all_original_rots = []  # flat list of tuples
-        is_grouped = []
+        # is_grouped = []
         
         # Process collections
         for coll in collections_in_selection:
@@ -352,10 +352,9 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
             first_obj = coll_objects[0]
             offsets = [(obj.location - first_obj.location).to_tuple() for obj in coll_objects]
             rotations = [(obj.rotation_euler.x, obj.rotation_euler.y, obj.rotation_euler.z) for obj in coll_objects]
-            print ("Object rotations: ", rotations)
 
             # Call grouped alignment for collection
-            verts_coll_flat, edges_coll_flat, coll_vert_counts, coll_edge_counts = bridge.align_grouped_min_bounds(verts_coll_flat, edges_coll_flat, coll_vert_counts, coll_edge_counts, offsets, rotations)
+            verts_coll_flat, edges_coll_flat, coll_vert_counts, coll_edge_counts = bridge.group_objects(verts_coll_flat, edges_coll_flat, coll_vert_counts, coll_edge_counts, offsets, rotations)
             
             # Add to overall buffers
             all_verts.append(verts_coll_flat)
@@ -365,7 +364,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
             batch_items.append(coll_objects)
             for obj in coll_objects:
                 all_original_rots.append((obj.rotation_euler.x, obj.rotation_euler.y, obj.rotation_euler.z))
-            is_grouped.append(True)
+            # is_grouped.append(True)
         
         # Process individual objects
         # print("Filtered objects: ", len(filtered_objects))
@@ -390,7 +389,9 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
             all_edge_counts.append(edge_count)
             batch_items.append([obj])
             all_original_rots.append((obj.rotation_euler.x, obj.rotation_euler.y, obj.rotation_euler.z))
-            is_grouped.append(False)
+
+            bridge.apply_rotation(verts_np, vert_count, (obj.rotation_euler.x, obj.rotation_euler.y, obj.rotation_euler.z))
+            # is_grouped.append(False)
         
         if all_verts:
             # Flatten all data (collections + individuals)
@@ -420,25 +421,25 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
             for i, item in enumerate(batch_items):
                 rot = rots[i]
                 trans_val = trans[i]
-                grouped = is_grouped[i]
+                # grouped = is_grouped[i]
                 delta_euler = Euler(rot, 'XYZ')
                 delta_q = delta_euler.to_quaternion()
                 for j, obj in enumerate(item):
                     orig_tuple = all_original_rots[rot_idx]
                     orig_euler = Euler(orig_tuple, 'XYZ')
                     orig_q = orig_euler.to_quaternion()
-                    if grouped:
-                        if obj.parent:
-                            parent_world = obj.parent.matrix_world.to_quaternion()
-                            transformed_delta = parent_world.inverted() @ delta_q @ parent_world
-                        else:
-                            transformed_delta = orig_q.inverted() @ delta_q @ orig_q
-                        final_q = orig_q @ transformed_delta
-                        obj.rotation_euler = final_q.to_euler('XYZ')
+                    # if grouped:
+                    if obj.parent:
+                        parent_world = obj.parent.matrix_world.to_quaternion()
+                        transformed_delta = parent_world.inverted() @ delta_q @ parent_world
                     else:
                         transformed_delta = orig_q.inverted() @ delta_q @ orig_q
-                        final_q = transformed_delta
-                        obj.rotation_euler = final_q.to_euler('XYZ')
+                    final_q = orig_q @ transformed_delta
+                    obj.rotation_euler = final_q.to_euler('XYZ')
+                    # else:
+                    #     transformed_delta = orig_q.inverted() @ delta_q @ orig_q
+                    #     final_q = transformed_delta
+                    #     obj.rotation_euler = final_q.to_euler('XYZ')
                     bpy.context.scene.cursor.location = Vector(trans_val) + obj.location
                     rot_idx += 1
         

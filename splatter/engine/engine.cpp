@@ -253,3 +253,12 @@ void group_objects(Vec3 *verts_flat, uVec2i *edges_flat, const uint32_t *vert_co
         edge_offset += e_count;
     }
 }
+
+void apply_rotation(Vec3* verts, uint32_t vertCount, const Vec3 &rotation) {
+    if (!verts || vertCount == 0)
+        return;
+
+    for (uint32_t i = 0; i < vertCount; ++i) {
+        verts[i] = rotate_vertex_3D(verts[i], rotation);
+    }
+}

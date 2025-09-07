@@ -4,6 +4,8 @@ from libc.string cimport memcpy
 
 from splatter.cython_api.engine_api cimport prepare_object_batch as prepare_object_batch_cpp
 from splatter.cython_api.engine_api cimport group_objects as group_objects_cpp
+from splatter.cython_api.engine_api cimport apply_rotation as apply_rotation_cpp
+
 from splatter.cython_api.vec_api cimport Vec3, uVec2i
 
 def align_min_bounds(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_flat, list vert_counts, list edge_counts):
@@ -25,6 +27,7 @@ def align_min_bounds(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_flat, list
     cdef Vec3 *out_trans = <Vec3 *> malloc(num_objects * sizeof(Vec3))
     
     with nogil:
+
         prepare_object_batch_cpp(verts_ptr, edges_ptr, vert_counts_ptr, edge_counts_ptr, num_objects, out_rots, out_trans)
     
     # Convert results to Python lists
@@ -38,7 +41,7 @@ def align_min_bounds(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_flat, list
     
     return rots, trans
 
-def align_grouped_min_bounds(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_flat, list vert_counts, list edge_counts, list offsets, list rotations):
+def group_objects(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_flat, list vert_counts, list edge_counts, list offsets, list rotations):
     cdef uint32_t num_objects = len(vert_counts)
     if num_objects == 0:
         return verts_flat, edges_flat, [0], [0]
@@ -83,3 +86,9 @@ def align_grouped_min_bounds(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_fl
     
     # Return modified arrays and counts for the combined object
     return verts_flat, edges_flat, [total_verts], [total_edges]
+
+def apply_rotation(float[:, ::1] verts, uint32_t vert_count, tuple rotation):
+    cdef Vec3 *verts_ptr = <Vec3 *> &verts[0, 0]
+    cdef Vec3 rot = Vec3(rotation[0], rotation[1], rotation[2])
+    with nogil:
+        apply_rotation_cpp(verts_ptr, vert_count, rot) 
