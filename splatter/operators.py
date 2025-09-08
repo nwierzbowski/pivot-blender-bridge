@@ -300,7 +300,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
                     transformed_delta = parent_world.inverted() @ delta_quat @ parent_world
                 else:
                     transformed_delta = delta_quat
-                obj.rotation_mode = 'QUATERNION'
+                
                 obj.rotation_quaternion = (transformed_delta @ local_quat).normalized()
                 bpy.context.scene.cursor.location = Vector(trans_val) + obj.location
                 obj_idx += 1

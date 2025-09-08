@@ -7,6 +7,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 find_package(Python COMPONENTS Interpreter Development REQUIRED)
+find_package(Python3 COMPONENTS NumPy REQUIRED)
 find_program(CYTHON_EXECUTABLE cython REQUIRED)
 
 set(ENGINE_SOURCES
@@ -82,6 +83,8 @@ target_link_libraries(bridge PRIVATE
     Python::Python
     splatter_engine
 )
+
+target_include_directories(bridge PRIVATE ${Python3_NumPy_INCLUDE_DIRS})
 
 set_target_properties(bridge PROPERTIES LIBRARY_OUTPUT_DIRECTORY
     "${CMAKE_CURRENT_SOURCE_DIR}/splatter"

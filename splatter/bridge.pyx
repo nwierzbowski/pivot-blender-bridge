@@ -1,7 +1,8 @@
 from libc.stdint cimport uint32_t
 from libc.stdlib cimport malloc, free
-from libc.string cimport memcpy
 from mathutils import Quaternion as MathutilsQuaternion
+
+cimport numpy as cnp
 
 import bpy
 import numpy as np
@@ -14,7 +15,7 @@ from splatter.cython_api.engine_api cimport apply_rotation as apply_rotation_cpp
 from splatter.cython_api.vec_api cimport Vec3, uVec2i
 from splatter.cython_api.quaternion_api cimport Quaternion
 
-def align_min_bounds(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_flat, list vert_counts, list edge_counts):
+def align_min_bounds(float[::1] verts_flat, uint32_t[::1] edges_flat, list vert_counts, list edge_counts):
     cdef uint32_t num_objects = len(vert_counts)
     if num_objects == 0:
         return [], []
@@ -25,10 +26,10 @@ def align_min_bounds(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_flat, list
     for i in range(num_objects):
         vert_counts_ptr[i] = vert_counts[i]
         edge_counts_ptr[i] = edge_counts[i]
-    
-    cdef Vec3 *verts_ptr = <Vec3 *> &verts_flat[0, 0]   
-    cdef uVec2i *edges_ptr = <uVec2i *> &edges_flat[0, 0]
-    
+
+    cdef Vec3 *verts_ptr = <Vec3 *> &verts_flat[0]
+    cdef uVec2i *edges_ptr = <uVec2i *> &edges_flat[0]
+
     cdef Quaternion *out_rots = <Quaternion *> malloc(num_objects * sizeof(Quaternion))
     cdef Vec3 *out_trans = <Vec3 *> malloc(num_objects * sizeof(Vec3))
     
@@ -47,222 +48,289 @@ def align_min_bounds(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_flat, list
     
     return rots, trans
 
-def group_objects(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_flat, list vert_counts, list edge_counts, list offsets, list rotations):
-    cdef uint32_t num_objects = len(vert_counts)
-    if num_objects == 0:
-        return verts_flat, edges_flat, [0], [0]
+# def group_objects(float[:, ::1] verts_flat, uint32_t[:, ::1] edges_flat, list vert_counts, list edge_counts, list offsets, list rotations):
+#     cdef uint32_t num_objects = len(vert_counts)
+#     if num_objects == 0:
+#         return
     
-    # Calculate total sizes
-    cdef uint32_t total_verts = 0
-    cdef uint32_t total_edges = 0
-    for i in range(num_objects):
-        total_verts += vert_counts[i]
-        total_edges += edge_counts[i]
-    
-    # Copy verts_flat and edges_flat to avoid modifying originals
-    cdef Vec3 *verts_copy = <Vec3 *>malloc(total_verts * sizeof(Vec3))
-    cdef uVec2i *edges_copy = <uVec2i *>malloc(total_edges * sizeof(uVec2i))
-    memcpy(verts_copy, &verts_flat[0, 0], total_verts * sizeof(Vec3))
-    memcpy(edges_copy, &edges_flat[0, 0], total_edges * sizeof(uVec2i))
-    
-    # Pre-copy Python lists to C arrays
-    cdef uint32_t *vert_counts_ptr = <uint32_t *>malloc(num_objects * sizeof(uint32_t))
-    cdef uint32_t *edge_counts_ptr = <uint32_t *>malloc(num_objects * sizeof(uint32_t))
-    cdef Vec3 *offsets_ptr = <Vec3 *>malloc(num_objects * sizeof(Vec3))
-    cdef Quaternion *rotations_ptr = <Quaternion *>malloc(num_objects * sizeof(Quaternion))
-    for i in range(num_objects):
-        vert_counts_ptr[i] = vert_counts[i]
-        edge_counts_ptr[i] = edge_counts[i]
-        offsets_ptr[i] = Vec3(offsets[i][0], offsets[i][1], offsets[i][2])
-        rotations_ptr[i] = Quaternion(rotations[i].w, rotations[i].x, rotations[i].y, rotations[i].z)
+#     # Pre-copy Python lists to C arrays
+#     cdef uint32_t *vert_counts_ptr = <uint32_t *>malloc(num_objects * sizeof(uint32_t))
+#     cdef uint32_t *edge_counts_ptr = <uint32_t *>malloc(num_objects * sizeof(uint32_t))
+#     cdef Vec3 *offsets_ptr = <Vec3 *>malloc(num_objects * sizeof(Vec3))
+#     cdef Quaternion *rotations_ptr = <Quaternion *>malloc(num_objects * sizeof(Quaternion))
+#     for i in range(num_objects):
+#         vert_counts_ptr[i] = vert_counts[i]
+#         edge_counts_ptr[i] = edge_counts[i]
+#         offsets_ptr[i] = Vec3(offsets[i][0], offsets[i][1], offsets[i][2])
+#         rotations_ptr[i] = Quaternion(rotations[i].w, rotations[i].x, rotations[i].y, rotations[i].z)
 
-    with nogil:
-        group_objects_cpp(verts_copy, edges_copy, vert_counts_ptr, edge_counts_ptr, offsets_ptr, rotations_ptr, num_objects)
+#     with nogil:
+#         group_objects_cpp(verts_flat, edges_flat, vert_counts_ptr, edge_counts_ptr, offsets_ptr, rotations_ptr, num_objects)
     
-    # Copy back to the input arrays (modify in place for the caller)
-    memcpy(&verts_flat[0, 0], verts_copy, total_verts * sizeof(Vec3))
-    memcpy(&edges_flat[0, 0], edges_copy, total_edges * sizeof(uVec2i))
-    
-    free(verts_copy)
-    free(edges_copy)
-    free(vert_counts_ptr)
-    free(edge_counts_ptr)
-    free(offsets_ptr)
-    free(rotations_ptr)
-    
-    # Return modified arrays and counts for the combined object
-    return verts_flat, edges_flat, [total_verts], [total_edges]
+#     free(vert_counts_ptr)
+#     free(edge_counts_ptr)
+#     free(offsets_ptr)
+#     free(rotations_ptr)
 
-def apply_rotation(float[:, ::1] verts, uint32_t vert_count, rotation):
-    cdef Vec3 *verts_ptr = <Vec3 *> &verts[0, 0]
+
+def apply_rotation(float[::1] verts, uint32_t vert_count, rotation):
+    cdef Vec3 *verts_ptr = <Vec3 *> &verts[0]
     cdef Quaternion rot = Quaternion(rotation.w, rotation.x, rotation.y, rotation.z)
     with nogil:
         apply_rotation_cpp(verts_ptr, vert_count, rot) 
 
 def align_to_axes_batch(list selected_objects):
     start_prep = time.perf_counter()
-    cdef list all_verts = []
-    cdef list all_edges = []
+    cdef cnp.ndarray all_verts
+    cdef cnp.ndarray all_edges
+
     cdef list all_vert_counts = []
     cdef list all_edge_counts = []
     cdef list batch_items = []
     cdef list all_original_rots = []  # flat list of tuples
     
-    cdef int total_verts
-    cdef int total_edges
-    cdef int vert_offset
-    cdef int edge_offset
     cdef list rots
     cdef list trans
     
-    cdef float[:, ::1] verts_view
+    # Helper function to get all mesh objects recursively
+    def get_all_mesh_objects(object coll):
+        cdef list objects = []
+        cdef object obj
+        cdef object child
+        for obj in coll.objects:
+            if obj.type == 'MESH':
+                objects.append(obj)
+        for child in coll.children:
+            objects.extend(get_all_mesh_objects(child))
+        return objects
     
-    # First pass: Collect unique collections from selected objects
-    cdef set collections_in_selection = set()
+    # Helper function to find top-level collection
+    def find_top_coll(object coll, object scene_coll):
+        # Since no .parent, we use a pre-built map
+        return coll_to_top.get(coll, None)
+
+    # Build map of coll to top_coll
+    cdef dict coll_to_top = {}
+    cdef object top_coll
+    for top_coll in bpy.context.scene.collection.children:
+        coll_to_top[top_coll] = top_coll
+        # Recursive function to build map
+        def build_top_map(object current_coll, object current_top):
+            for child in current_coll.children:
+                coll_to_top[child] = current_top
+                build_top_map(child, current_top)
+        build_top_map(top_coll, top_coll)
+
+    
+    # First pass: Collect groups and individuals
+    cdef object scene_coll = bpy.context.scene.collection
+    cdef dict obj_groups = {}  # top_coll -> list of all mesh objs
+    cdef dict mesh_cache = {}
+    cdef list individual_objects = []
+    cdef int total_verts = 0
+    cdef int total_edges = 0
     cdef object obj
     cdef object coll
+
+    
+
+    cdef object group_coll
     for obj in selected_objects:
+        group_coll = None
         if obj.users_collection:
             coll = obj.users_collection[0]
-            if coll != bpy.context.scene.collection:
-                collections_in_selection.add(coll)
-    
-    # Remove individual objects that are in the collected collections
-    cdef list filtered_objects = []
-    for obj in selected_objects:
-        if obj.users_collection and obj.users_collection[0] in collections_in_selection:
-            continue
-        filtered_objects.append(obj)
-    
+            if coll != scene_coll:
+                top_coll = find_top_coll(coll, scene_coll)
+                if top_coll not in mesh_cache:
+                    mesh_cache[top_coll] = get_all_mesh_objects(top_coll)
+                if len(mesh_cache[top_coll]) > 1:
+                    group_coll = top_coll
+        
+        if group_coll is None:
+            individual_objects.append(obj)
+            if obj.type == 'MESH':
+                total_verts += len(obj.data.vertices)
+                total_edges += len(obj.data.edges)
+        else:
+            if group_coll not in obj_groups:
+                obj_groups[group_coll] = mesh_cache[group_coll]
+                for o in obj_groups[group_coll]:
+                    total_verts += len(o.data.vertices)
+                    total_edges += len(o.data.edges)
+
+    all_verts = np.empty((total_verts * 3), dtype=np.float32)
+    all_edges = np.empty((total_edges * 2), dtype=np.uint32)
+
+    cdef uint32_t curr_all_verts_offset = 0
+    cdef uint32_t curr_all_edges_offset = 0
+
+    all_vert_counts = []
+    all_edge_counts = []
+
     end_prep = time.perf_counter()
     print(f"Preparation time elapsed: {(end_prep - start_prep) * 1000:.2f}ms")
 
     start_collections = time.perf_counter()
     # Process collections
-    cdef list coll_objects
-    cdef list coll_verts
-    cdef list coll_edges
-    cdef list coll_vert_counts
-    cdef list coll_edge_counts
+    cdef list group
     cdef object mesh
-    cdef int vert_count
-    cdef int edge_count
-    cdef int total_coll_verts
-    cdef int total_coll_edges
-    cdef list offsets
-    cdef list rotations
     cdef object first_obj
-    for coll in collections_in_selection:
-        coll_objects = [obj for obj in coll.objects if obj.type == 'MESH' and len(obj.data.vertices) > 0]
-        if not coll_objects:
-            continue
+
+    cdef cnp.ndarray group_vert_counts
+    cdef cnp.ndarray group_edge_counts
+    cdef uint32_t[::1] vert_counts_view
+    cdef uint32_t[::1] edge_counts_view
+    cdef uint32_t *vert_counts_ptr
+    cdef uint32_t *edge_counts_ptr
+
+    cdef uint32_t group_vert_count
+    cdef uint32_t group_edge_count
+
+    cdef cnp.ndarray offsets_array
+    cdef cnp.ndarray rotations_array
+    cdef float[::1] offsets_view
+    cdef float[::1] rotations_view
+    cdef Vec3* offsets_ptr
+    cdef Quaternion* rotations_ptr
+    
+    cdef uint32_t num_objects
+
+    cdef float[::1] group_verts_view
+    cdef uint32_t[::1] group_edges_view
+    cdef uVec2i* group_edges_slice_ptr
+    cdef Vec3* group_verts_slice_ptr
+
+    cdef uint32_t curr_group_vert_offset = 0
+    cdef uint32_t curr_group_edge_offset = 0
+
+    for group in obj_groups.values():
         
-        # Collect data for all meshes in collection
-        coll_verts = []
-        coll_edges = []
-        coll_vert_counts = []
-        coll_edge_counts = []
-        for obj in coll_objects:
+        curr_group_vert_offset = 0
+        curr_group_edge_offset = 0
+
+        num_objects = len(group)
+
+        # Collect per object data
+        group_vert_counts = np.fromiter(
+            (len(obj.data.vertices) for obj in group),
+            dtype=np.uint32,
+            count = num_objects
+        )
+        vert_counts_view = group_vert_counts
+        vert_counts_ptr = &vert_counts_view[0]
+
+        group_edge_counts = np.fromiter(
+            (len(obj.data.edges) for obj in group),
+            dtype=np.uint32,
+            count = num_objects
+        )
+        edge_counts_view = group_edge_counts
+        edge_counts_ptr = &edge_counts_view[0]
+
+
+        # Collect group aggregate data
+        group_vert_count = sum(len(obj.data.vertices) for obj in group)
+        group_edge_count = sum(len(obj.data.edges) for obj in group)
+
+        group_verts_slice = all_verts[curr_all_verts_offset:curr_all_verts_offset + group_vert_count * 3]
+        group_edges_slice = all_edges[curr_all_edges_offset:curr_all_edges_offset + group_edge_count * 2]
+
+        curr_all_verts_offset += group_vert_count * 3
+        curr_all_edges_offset += group_edge_count * 2
+
+        # Fill vertex and edge data for group
+        for obj in group:
+            obj.rotation_mode = 'QUATERNION'
+
             mesh = obj.data
-            vert_count = len(mesh.vertices)
-            verts_np = np.empty(vert_count * 3, dtype=np.float32)
-            mesh.vertices.foreach_get("co", verts_np)
-            verts_np.shape = (vert_count, 3)
-            verts_view = verts_np
-            coll_verts.append(verts_np)
-            
-            edge_count = len(mesh.edges)
-            edges_np = np.empty(edge_count * 2, dtype=np.uint32)
-            mesh.edges.foreach_get("vertices", edges_np)
-            edges_np.shape = (edge_count, 2)
-            coll_edges.append(edges_np)
-            
-            coll_vert_counts.append(vert_count)
-            coll_edge_counts.append(edge_count)
-        
-        # Flatten for collection
-        total_coll_verts = sum(coll_vert_counts)
-        total_coll_edges = sum(coll_edge_counts)
-        verts_coll_flat = np.empty((total_coll_verts, 3), dtype=np.float32)
-        edges_coll_flat = np.empty((total_coll_edges, 2), dtype=np.uint32)
-        
-        vert_offset = 0
-        edge_offset = 0
-        for verts_np, edges_np, v_count, e_count in zip(coll_verts, coll_edges, coll_vert_counts, coll_edge_counts):
-            verts_coll_flat[vert_offset:vert_offset + v_count] = verts_np
-            edges_coll_flat[edge_offset:edge_offset + e_count] = edges_np
-            vert_offset += v_count
-            edge_offset += e_count
-        
+            obj_vert_count = len(mesh.vertices)
+            verts_slice = group_verts_slice[curr_group_vert_offset:curr_group_vert_offset + obj_vert_count * 3]
+            mesh.vertices.foreach_get("co", verts_slice)
+
+            obj_edge_count = len(mesh.edges)
+            edges_slice = group_edges_slice[curr_group_edge_offset:curr_group_edge_offset + obj_edge_count * 2]
+            mesh.edges.foreach_get("vertices", edges_slice)
+
+            curr_group_vert_offset += obj_vert_count * 3
+            curr_group_edge_offset += obj_edge_count * 2
+
         # Compute offsets and rotations for collection
-        first_obj = coll_objects[0]
-        offsets = [(obj.location - first_obj.location).to_tuple() for obj in coll_objects]
-        rotations = [obj.rotation_quaternion for obj in coll_objects]
+        first_obj = group[0]
+        
+        # For rotations (flatten w, x, y, z into scalars)
+        rotations_array = np.fromiter(
+            (component for obj in group for component in (obj.rotation_quaternion.w, obj.rotation_quaternion.x, obj.rotation_quaternion.y, obj.rotation_quaternion.z)),
+            dtype=np.float32,
+            count=num_objects * 4,
+        )
+        rotations_view = rotations_array
+        rotations_ptr = <Quaternion*> &rotations_view[0]
+
+        # For offsets (flatten x, y, z into scalars)
+        offsets_array = np.fromiter(
+            (component for obj in group for component in (obj.location - first_obj.location).to_tuple()),
+            dtype=np.float32,
+            count=num_objects * 3,
+        )
+        offsets_view = offsets_array
+        offsets_ptr = <Vec3*> &offsets_view[0]
+
+        group_verts_view = group_verts_slice
+        group_edges_view = group_edges_slice
+
+        group_edges_slice_ptr = <uVec2i*>&group_edges_view[0]
+        group_verts_slice_ptr = <Vec3*> &group_verts_view[0]
 
         # Group objects in collection
-        verts_coll_flat, edges_coll_flat, coll_vert_counts, coll_edge_counts = group_objects(verts_coll_flat, edges_coll_flat, coll_vert_counts, coll_edge_counts, offsets, rotations)
-        
+        group_objects_cpp(group_verts_slice_ptr, group_edges_slice_ptr, vert_counts_ptr, edge_counts_ptr, offsets_ptr, rotations_ptr, num_objects)
+
         # Add to overall buffers
-        all_verts.append(verts_coll_flat)
-        all_edges.append(edges_coll_flat)
-        all_vert_counts.append(total_coll_verts)
-        all_edge_counts.append(total_coll_edges)
-        batch_items.append(coll_objects)
-        for obj in coll_objects:
-            all_original_rots.extend(rotations)
+        all_vert_counts.append(group_vert_count)
+        all_edge_counts.append(group_edge_count)
+
+        # Record batch items and original rotations
+        batch_items.append(group)
+        for obj in group:
+            all_original_rots.append(obj.rotation_quaternion)
 
     end_collections = time.perf_counter()
     print(f"Collection processing time elapsed: {(end_collections - start_collections) * 1000:.2f}ms")
 
     start_individual = time.perf_counter()
     # Process individual objects
-    for obj in filtered_objects:
+    for obj in individual_objects:
+        obj.rotation_mode = 'QUATERNION'
         mesh = obj.data
-        vert_count = len(mesh.vertices)
-        if vert_count == 0:
+        group_vert_count = len(mesh.vertices)
+        if group_vert_count == 0:
             continue
         
-        verts_np = np.empty(vert_count * 3, dtype=np.float32)
-        mesh.vertices.foreach_get("co", verts_np)
-        verts_np.shape = (vert_count, 3)
-        verts_view = verts_np
-        all_verts.append(verts_np)
+        group_verts_slice = all_verts[curr_all_verts_offset:curr_all_verts_offset + group_vert_count * 3]
+        mesh.vertices.foreach_get("co", group_verts_slice)
         
-        edge_count = len(mesh.edges)
-        edges_np = np.empty(edge_count * 2, dtype=np.uint32)
-        mesh.edges.foreach_get("vertices", edges_np)
-        edges_np.shape = (edge_count, 2)
-        all_edges.append(edges_np)
+        group_edge_count = len(mesh.edges)
+        group_edges_slice = all_edges[curr_all_edges_offset:curr_all_edges_offset + group_edge_count * 2]
+        mesh.edges.foreach_get("vertices", group_edges_slice)
         
-        all_vert_counts.append(vert_count)
-        all_edge_counts.append(edge_count)
+        curr_all_verts_offset += group_vert_count * 3
+        curr_all_edges_offset += group_edge_count * 2
+        
+        all_vert_counts.append(group_vert_count)
+        all_edge_counts.append(group_edge_count)
         batch_items.append([obj])
         all_original_rots.append(obj.rotation_quaternion)
 
-        apply_rotation(verts_view, vert_count, obj.rotation_quaternion)
+        apply_rotation(group_verts_slice, group_vert_count, obj.rotation_quaternion)
     
     end_individual = time.perf_counter()
     print(f"Individual processing time elapsed: {(end_individual - start_individual) * 1000:.2f}ms")
 
     start_alignment = time.perf_counter()
 
-    if all_verts:
-        # Flatten all data (collections + individuals)
-        total_verts = sum(all_vert_counts)
-        total_edges = sum(all_edge_counts)
-        verts_flat = np.empty((total_verts, 3), dtype=np.float32)
-        edges_flat = np.empty((total_edges, 2), dtype=np.uint32)
-        
-        vert_offset = 0
-        edge_offset = 0
-        for verts_np, edges_np, v_count, e_count in zip(all_verts, all_edges, all_vert_counts, all_edge_counts):
-            verts_flat[vert_offset:vert_offset + v_count] = verts_np
-            edges_flat[edge_offset:edge_offset + e_count] = edges_np
-            vert_offset += v_count
-            edge_offset += e_count
+    if all_verts.size > 0:
         
         # Call batched C++ function for all
-        rots, trans = align_min_bounds(verts_flat, edges_flat, all_vert_counts, all_edge_counts)
+        rots, trans = align_min_bounds(all_verts, all_edges, all_vert_counts, all_edge_counts)
 
         end_alignment = time.perf_counter()
         print(f"Alignment time elapsed: {(end_alignment - start_alignment) * 1000:.2f}ms")
