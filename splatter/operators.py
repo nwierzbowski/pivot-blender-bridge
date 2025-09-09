@@ -270,7 +270,53 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return any(obj for obj in context.selected_objects if obj.type == 'MESH')
+        sel = getattr(context, "selected_objects", None) or []
+        if any(obj.type == 'MESH' for obj in sel):
+            return True
+
+        scene_root = context.scene.collection if context and context.scene else None
+        if not scene_root or not sel:
+            return False
+
+        # Build a map of every nested collection to its top-level (direct child of scene_root)
+        coll_to_top = {}
+
+        def traverse(current_coll, current_top):
+            for child in current_coll.children:
+                coll_to_top[child] = current_top
+                traverse(child, current_top)
+
+        for top in scene_root.children:
+            coll_to_top[top] = top
+            traverse(top, top)
+
+        # Cache for whether a top-level collection's subtree contains any mesh
+        top_has_mesh_cache = {}
+
+        def coll_has_mesh(coll):
+            # Fast boolean check: any mesh in this collection or its children
+            for o in coll.objects:
+                if o.type == 'MESH':
+                    return True
+            for child in coll.children:
+                if coll_has_mesh(child):
+                    return True
+            return False
+
+        for obj in sel:
+            # Consider all collections the object belongs to
+            for coll in getattr(obj, 'users_collection', []) or []:
+                if coll is scene_root:
+                    continue
+                top = coll_to_top.get(coll)
+                if not top:
+                    continue
+                if top not in top_has_mesh_cache:
+                    top_has_mesh_cache[top] = coll_has_mesh(top)
+                if top_has_mesh_cache[top]:
+                    return True
+
+        return False
 
     def execute(self, context):
         startPython1 = time.perf_counter()
