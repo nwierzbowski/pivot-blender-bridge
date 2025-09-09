@@ -196,7 +196,7 @@ cdef void _fill_block_geometry(list group, float[::1] group_verts_slice, uint32_
     cdef object verts_slice
     cdef object edges_slice
     for obj in group:
-        obj.rotation_mode = 'QUATERNION'
+        # obj.rotation_mode = 'QUATERNION'
         mesh = obj.data
         obj_vert_count = len(mesh.vertices)
         if obj_vert_count:
@@ -303,6 +303,7 @@ def align_to_axes_batch(list selected_objects):
     cdef uVec2i* group_edges_slice_ptr
     cdef Quaternion* rotations_ptr
     cdef Vec3* offsets_ptr
+    cdef Vec3* scales_ptr
     cdef Vec3* offsets_group_ptr
     cdef Quaternion rot_cpp
     cdef uint32_t group_size
@@ -341,9 +342,10 @@ def align_to_axes_batch(list selected_objects):
         # Derive transform pointers
         rotations_ptr = <Quaternion*> &rotations_view[0]
         offsets_ptr = <Vec3*> &offsets_view[0]
+        scales_ptr = <Vec3*> &scales_view[0]
 
         # Apply transform/indexing in C++ for both groups and singletons
-        group_objects_cpp(group_verts_slice_ptr, group_edges_slice_ptr, obj_vert_counts_ptr, obj_edge_counts_ptr, offsets_ptr, rotations_ptr, num_objects)
+        group_objects_cpp(group_verts_slice_ptr, group_edges_slice_ptr, obj_vert_counts_ptr, obj_edge_counts_ptr, offsets_ptr, rotations_ptr, scales_ptr, num_objects)
 
         # Record counts and mapping
         vert_counts_arr[out_len] = group_vert_count

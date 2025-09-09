@@ -212,9 +212,9 @@ void prepare_object_batch(const Vec3 *verts_flat, const uVec2i *edges_flat, cons
     }
 }
 
-void group_objects(Vec3 *verts_flat, uVec2i *edges_flat, const uint32_t *vert_counts, const uint32_t *edge_counts, const Vec3 *offsets, const Quaternion *rotations, uint32_t num_objects)
+void group_objects(Vec3 *verts_flat, uVec2i *edges_flat, const uint32_t *vert_counts, const uint32_t *edge_counts, const Vec3 *offsets, const Quaternion *rotations, const Vec3 *scales, uint32_t num_objects)
 {
-    if (!verts_flat || !edges_flat || !vert_counts || !edge_counts || !offsets || !rotations || num_objects == 0)
+    if (!verts_flat || !edges_flat || !vert_counts || !edge_counts || !offsets || !rotations || !scales || num_objects == 0)
         return;
 
     // Calculate total sizes
@@ -224,12 +224,6 @@ void group_objects(Vec3 *verts_flat, uVec2i *edges_flat, const uint32_t *vert_co
         total_edges += edge_counts[i];
     }
 
-    // //Print object offsets and rotations
-    // for (uint32_t i = 0; i < num_objects; ++i) {
-    //     std::cout << "Object " << i << " Offset: (" << offsets[i].x << ", " << offsets[i].y << ", " << offsets[i].z << ") ";
-    //     std::cout << "Rotation: (" << rotations[i].x << ", " << rotations[i].y << ", " << rotations[i].z << ")" << std::endl;
-    // }
-
     // Transform vertices and edges in place
     uint32_t vert_offset = 0, edge_offset = 0;
     for (uint32_t i = 0; i < num_objects; ++i) {
@@ -238,7 +232,11 @@ void group_objects(Vec3 *verts_flat, uVec2i *edges_flat, const uint32_t *vert_co
         
         // Rotate and offset vertices
         for (uint32_t j = 0; j < v_count; ++j) {
-            Vec3 rotated = rotate_vertex_3D_quat(verts_flat[vert_offset + j], rotations[i]);
+            Vec3& v = verts_flat[vert_offset + j];
+            v.x *= scales[i].x;
+            v.y *= scales[i].y;
+            v.z *= scales[i].z;
+            Vec3 rotated = rotate_vertex_3D_quat(v, rotations[i]);
             rotated += offsets[i];
             verts_flat[vert_offset + j] = rotated;
         }
