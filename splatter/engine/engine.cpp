@@ -156,7 +156,7 @@ void standardize_object_transform(const Vec3 *verts, uint32_t vertCount, const u
 
     // auto start = std::chrono::high_resolution_clock::now();
 
-    COGResult cog_result = calc_cog_volume_edges_intersections(verts, vertCount, edges, edgeCount, full_3DBB, 0.02f);
+    COGResult cog_result = calc_cog_volume_edges_intersections(verts, vertCount, edges, edgeCount, full_3DBB, 0.01f);
 
     // auto end = std::chrono::high_resolution_clock::now();
     // auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
@@ -170,8 +170,19 @@ void standardize_object_transform(const Vec3 *verts, uint32_t vertCount, const u
     }
 
     uint8_t curr_front_axis = 0;
-
-    if (is_ground(working_verts, working_cog_result, full_3DBB))
+    if (is_display(working_cog_result, full_2DBB))
+    {
+        std::cout << "Classified as Display" << std::endl;
+        if (snapDenseToYN(working_cog_result, full_2DBB, curr_front_axis, {0, 1, 2, 3}))
+        {
+            std::cout << "Snapped display to axis" << std::endl;
+        }
+        else
+        {
+            std::cout << "Failed to snap display to axis, defaulting to +Y" << std::endl;
+        }
+    }
+    else if (is_ground(working_verts, working_cog_result, full_3DBB))
     {
         std::cout << "Classified as Ground" << std::endl;
 
@@ -186,7 +197,6 @@ void standardize_object_transform(const Vec3 *verts, uint32_t vertCount, const u
         else
         {
 
-            
             if (isSmall(full_3DBB))
             {
                 snapDenseToYN(working_cog_result, full_2DBB, curr_front_axis);

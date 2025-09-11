@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <cstdint>
+#include <cmath>
 
 // Calculate the base convex hull from vertices projected onto the XY plane at a specific Z level
 static inline std::vector<Vec2> calc_base_convex_hull(const std::vector<Vec3> &verts, BoundingBox3D full_box)
@@ -43,9 +44,9 @@ bool is_ground(const std::vector<Vec3> &verts, COGResult &cog_result, BoundingBo
 
     float min_cross_section = get_min_cross_section(cog_result.slices);
     auto base_chull = calc_base_convex_hull(verts, full_box);
-    float ratio = calc_ratio_full_to_base(full_box, compute_aabb_2D(base_chull));
+    float ratio = calc_ratio_full_to_base(full_box, cog_result.slices.front().box);
 
-    bool base_large_enough = ratio < 4.0f;
+    bool base_large_enough = ratio < 3.0f;
     bool is_thick_enough = min_cross_section > 15e-5f;
     bool cog_over_base = is_point_inside_polygon_2D(cog_result.overall_cog, base_chull);
 
@@ -112,7 +113,6 @@ bool snapHighToYN(COGResult &cog_result, BoundingBox2D full_box, uint8_t &front_
     }
 }
 
-
 bool snapDenseToYN(COGResult &cog_result, BoundingBox2D full_box, uint8_t &front_axis, const std::vector<uint8_t> &axis_options)
 {
     if (cog_result.slices.empty())
@@ -120,9 +120,16 @@ bool snapDenseToYN(COGResult &cog_result, BoundingBox2D full_box, uint8_t &front
 
     Vec3 relative_cog = cog_result.overall_cog - Vec2{(full_box.min_corner.x + full_box.max_corner.x) * 0.5f, (full_box.min_corner.y + full_box.max_corner.y) * 0.5f};
 
-    front_axis += get_most_similar_axis(relative_cog, axis_options) + 2;
+    if (relative_cog.length() < 0.01f * std::max(full_box.max_corner.x - full_box.min_corner.x, full_box.max_corner.y - full_box.min_corner.y))
+    {
+        return false;
+    }
+    else
+    {
+        front_axis += get_most_similar_axis(relative_cog, axis_options) + 2;
 
-    return true;
+        return true;
+    }
 }
 
 bool isSmall(BoundingBox3D full_box)
@@ -144,7 +151,7 @@ bool isSquarish(BoundingBox3D full_box)
     return (max_len / min_len) < 2.0f;
 }
 
-void alignLongAxisToX(BoundingBox3D &full_box,  uint8_t &front_axis)
+void alignLongAxisToX(BoundingBox3D &full_box, uint8_t &front_axis)
 {
     float len_x = full_box.max_corner.x - full_box.min_corner.x;
     float len_y = full_box.max_corner.y - full_box.min_corner.y;
@@ -153,4 +160,61 @@ void alignLongAxisToX(BoundingBox3D &full_box,  uint8_t &front_axis)
     {
         front_axis += 1; // Rotate 90 degrees to align long axis with X
     }
+}
+
+static inline Vec2 get_max_axes_middle_slices(const COGResult &cog_result)
+{
+    if (cog_result.slices.empty())
+        return {0.0f, 0.0f};
+
+    size_t total_slices = cog_result.slices.size();
+    size_t start_idx = total_slices / 4;
+    size_t end_idx = 3 * total_slices / 4;
+
+    float max_x = 0.0f;
+    float max_y = 0.0f;
+
+    for (size_t i = start_idx; i < end_idx; ++i)
+    {
+        const auto &slice = cog_result.slices[i];
+        float x_extent = slice.box.max_corner.x - slice.box.min_corner.x;
+        float y_extent = slice.box.max_corner.y - slice.box.min_corner.y;
+
+        if (x_extent > max_x)
+            max_x = x_extent;
+        if (y_extent > max_y)
+            max_y = y_extent;
+    }
+
+    return {max_x, max_y};
+}
+
+bool is_display(const COGResult &cog_result, BoundingBox2D full_box)
+{
+
+    Vec2 max_axes = get_max_axes_middle_slices(cog_result);
+
+    float min_len = std::min(max_axes.x, max_axes.y);
+    float max_len = std::max(max_axes.x, max_axes.y);
+
+    // Print Max and min as debug info
+    std::cout << "Display Box Min Len: " << min_len << " Max Len: " << max_len << std::endl;
+
+    if (min_len == 0)
+        return false;
+
+    // uint8_t dummy = 0;
+
+    std::vector<uint8_t> options;
+
+    if (max_axes.y > max_axes.x)
+    {
+        options = {0, 2};
+    }
+    else
+    {
+        options = {1, 3};
+    }
+
+    return (max_len / min_len) > 2.5f && min_len < 0.1f;
 }

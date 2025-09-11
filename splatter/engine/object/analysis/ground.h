@@ -19,3 +19,5 @@ bool isSmall(BoundingBox3D full_box);
 bool isSquarish(BoundingBox3D full_box);
 
 void alignLongAxisToX(BoundingBox3D &full_box,  uint8_t &front_axis);
+
+bool is_display(const COGResult &cog_result, BoundingBox2D full_box);
