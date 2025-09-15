@@ -95,9 +95,10 @@ cdef list get_all_root_objects(object coll):
 
 
 def aggregate_object_groups(list selected_objects):
-    """Return (mesh_groups, parent_groups, total_verts, total_edges).
-    mesh_groups is a list of lists, each sublist is a group of mesh objects.
+    """Return (mesh_groups, parent_groups, total_verts, total_edges, total_objects).
+    mesh_groups is a list of lists, each sublist is a group of mesh objects with verts > 0.
     parent_groups is a list of lists, each sublist contains objects without a parent from the corresponding group.
+    Only groups with total_verts > 0 are included.
     """
     cdef object scene_coll = bpy.context.scene.collection
     cdef dict coll_to_top = _build_coll_to_top_map(scene_coll)
@@ -108,6 +109,7 @@ def aggregate_object_groups(list selected_objects):
     cdef list parent_groups = []
     cdef int total_verts = 0
     cdef int total_edges = 0
+    cdef int total_objects = 0
     cdef object obj
     cdef object root
     cdef object coll
@@ -115,6 +117,8 @@ def aggregate_object_groups(list selected_objects):
     cdef list roots
     cdef list all_meshes
     cdef object r
+    cdef int group_verts
+    cdef int group_edges
 
     # Collect unique root parents
     for obj in selected_objects:
@@ -143,28 +147,72 @@ def aggregate_object_groups(list selected_objects):
     # Handle scene roots individually
     for root in scene_roots:
         all_meshes = get_all_mesh_descendants(root)
-        mesh_groups.append(all_meshes)
-        parent_groups.append([root])
-        for m in all_meshes:
-            total_verts += len(m.data.vertices)
-            total_edges += len(m.data.edges)
+        group_verts = sum(len(m.data.vertices) for m in all_meshes)
+        group_edges = sum(len(m.data.edges) for m in all_meshes)
+        if group_verts > 0:
+            mesh_groups.append(all_meshes)
+            parent_groups.append([root])
+            total_verts += group_verts
+            total_edges += group_edges
+            total_objects += len(all_meshes)
 
     # For each group, collect mesh descendants and build groups
     for roots in group_map.values():
         all_meshes = []
         for r in roots:
             all_meshes.extend(get_all_mesh_descendants(r))
-        mesh_groups.append(all_meshes)
-        parent_groups.append(roots)
-        for m in all_meshes:
-            total_verts += len(m.data.vertices)
-            total_edges += len(m.data.edges)
+        group_verts = sum(len(m.data.vertices) for m in all_meshes)
+        group_edges = sum(len(m.data.edges) for m in all_meshes)
+        if group_verts > 0:
+            mesh_groups.append(all_meshes)
+            parent_groups.append(roots)
+            total_verts += group_verts
+            total_edges += group_edges
+            total_objects += len(all_meshes)
 
-    return mesh_groups, parent_groups, total_verts, total_edges
+    return mesh_groups, parent_groups, total_verts, total_edges, total_objects
 
 # -----------------------------
-# Helpers for block processing
+# Helpers for shared memory
 # -----------------------------
+
+cdef tuple create_shared_memory_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t total_objects, list mesh_groups):
+    """Create shared memory segments and return memory views for numpy arrays backed by them."""
+    cdef uint32_t num_groups = len(mesh_groups)
+    verts_size = total_verts * 3 * 4  # float32 = 4 bytes
+    edges_size = total_edges * 2 * 4  # uint32 = 4 bytes
+    vert_counts_size = total_objects * 4  # uint32 = 4 bytes
+    edge_counts_size = total_objects * 4  # uint32 = 4 bytes
+    num_objects_size = num_groups * 4  # uint32 = 4 bytes
+
+    verts_shm_name = f"splatter_verts_{uuid.uuid4().hex}"
+    edges_shm_name = f"splatter_edges_{uuid.uuid4().hex}"
+    vert_counts_shm_name = f"splatter_vert_counts_{uuid.uuid4().hex}"
+    edge_counts_shm_name = f"splatter_edge_counts_{uuid.uuid4().hex}"
+    num_objects_shm_name = f"splatter_num_objects_{uuid.uuid4().hex}"
+
+    verts_shm = shared_memory.SharedMemory(create=True, size=verts_size, name=verts_shm_name)
+    edges_shm = shared_memory.SharedMemory(create=True, size=edges_size, name=edges_shm_name)
+    vert_counts_shm = shared_memory.SharedMemory(create=True, size=vert_counts_size, name=vert_counts_shm_name)
+    edge_counts_shm = shared_memory.SharedMemory(create=True, size=edge_counts_size, name=edge_counts_shm_name)
+    num_objects_shm = shared_memory.SharedMemory(create=True, size=num_objects_size, name=num_objects_shm_name)
+
+    cdef cnp.ndarray all_verts = np.ndarray((verts_size // 4,), dtype=np.float32, buffer=verts_shm.buf)
+    cdef cnp.ndarray all_edges = np.ndarray((edges_size // 4,), dtype=np.uint32, buffer=edges_shm.buf)
+    cdef cnp.ndarray vert_counts_shared = np.ndarray((vert_counts_size // 4,), dtype=np.uint32, buffer=vert_counts_shm.buf)
+    cdef cnp.ndarray edge_counts_shared = np.ndarray((edge_counts_size // 4,), dtype=np.uint32, buffer=edge_counts_shm.buf)
+
+    cdef cnp.ndarray num_objects_per_group = np.array([len(group) for group in mesh_groups], dtype=np.uint32)
+    cdef cnp.ndarray num_objects_shared = np.ndarray(num_objects_per_group.shape, dtype=num_objects_per_group.dtype, buffer=num_objects_shm.buf)
+    num_objects_shared[:] = num_objects_per_group
+
+    cdef float[::1] all_verts_mv = all_verts
+    cdef uint32_t[::1] all_edges_mv = all_edges
+    cdef uint32_t[::1] vert_counts_mv = vert_counts_shared
+    cdef uint32_t[::1] edge_counts_mv = edge_counts_shared
+    cdef uint32_t[::1] num_objects_mv = num_objects_shared
+
+    return (all_verts_mv, all_edges_mv, vert_counts_mv, edge_counts_mv, num_objects_mv)
 
 cdef tuple _prepare_block_counts(list group):
     cdef uint32_t num_objects = len(group)
@@ -245,30 +293,18 @@ def align_to_axes_batch(list selected_objects):
     cdef list all_original_rots = []
     cdef list all_offsets = []
     cdef list all_scales = []
-    cdef list valid_parent_groups = []
 
     # Collect selection into groups and individuals and precompute totals
     cdef list mesh_groups
     cdef list parent_groups
     cdef int total_verts
     cdef int total_edges
-    mesh_groups, parent_groups, total_verts, total_edges = aggregate_object_groups(selected_objects)
+    cdef int total_objects
+    mesh_groups, parent_groups, total_verts, total_edges, total_objects = aggregate_object_groups(selected_objects)
 
-    # Generate unique names for shared memory segments
-    verts_shm_name = f"splatter_verts_{uuid.uuid4().hex}"
-    edges_shm_name = f"splatter_edges_{uuid.uuid4().hex}"
-
-    # Calculate memory sizes (3 floats per vertex, 2 uint32 per edge)
-    verts_size = total_verts * 3 * 4  # float32 = 4 bytes
-    edges_size = total_edges * 2 * 4  # uint32 = 4 bytes
-
-    # Create shared memory segments using Python multiprocessing
-    verts_shm = shared_memory.SharedMemory(create=True, size=verts_size, name=verts_shm_name)
-    edges_shm = shared_memory.SharedMemory(create=True, size=edges_size, name=edges_shm_name)
-
-    # Create numpy arrays directly backed by shared memory
-    cdef cnp.ndarray all_verts = np.ndarray((total_verts * 3,), dtype=np.float32, buffer=verts_shm.buf)
-    cdef cnp.ndarray all_edges = np.ndarray((total_edges * 2,), dtype=np.uint32, buffer=edges_shm.buf)
+    # Create shared memory segments and numpy arrays
+    (all_verts_mv, all_edges_mv, vert_counts_mv, edge_counts_mv, num_objects_mv) = create_shared_memory_arrays(
+         total_verts, total_edges, total_objects, mesh_groups)
 
     cdef uint32_t curr_all_verts_offset = 0
     cdef uint32_t curr_all_edges_offset = 0
@@ -277,12 +313,8 @@ def align_to_axes_batch(list selected_objects):
     print(f"Preparation time elapsed: {(end_prep - start_prep) * 1000:.2f}ms")
 
     start_processing = time.perf_counter()
-    # Build blocks: each block is a list of mesh objects (group or individual)
-    blocks_len = len(mesh_groups)
-    # Preallocate per-block counts (uint32)
-    vert_counts_arr = np.empty(blocks_len, dtype=np.uint32)
-    edge_counts_arr = np.empty(blocks_len, dtype=np.uint32)
-    out_len = 0
+
+    cdef uint32_t obj_offset = 0
 
     # Process each block
     cdef list group
@@ -295,24 +327,14 @@ def align_to_axes_batch(list selected_objects):
     for idx, group in enumerate(mesh_groups):
         obj_vert_counts, obj_edge_counts, group_vert_count, group_edge_count, num_objects = _prepare_block_counts(group)
 
-        # Skip empty blocks (e.g., single object with 0 verts)
-        if group_vert_count == 0:
-            continue
-
         # Fill the global shared memory arrays with geometry data
-        curr_all_verts_offset, curr_all_edges_offset = _fill_block_geometry(group, all_verts, all_edges, curr_all_verts_offset, curr_all_edges_offset)
+        curr_all_verts_offset, curr_all_edges_offset = _fill_block_geometry(group, all_verts_mv, all_edges_mv, curr_all_verts_offset, curr_all_edges_offset)
 
-        # Record counts and mapping
-        vert_counts_arr[out_len] = group_vert_count
-        edge_counts_arr[out_len] = group_edge_count
+        # Fill the counts arrays directly
+        vert_counts_mv[obj_offset:obj_offset + num_objects] = obj_vert_counts
+        edge_counts_mv[obj_offset:obj_offset + num_objects] = obj_edge_counts
 
-        valid_parent_groups.append(parent_groups[idx])
-
-        out_len += 1
-
-    # Resize arrays to actual number of non-empty blocks
-    vert_counts_arr = vert_counts_arr[:out_len]
-    edge_counts_arr = edge_counts_arr[:out_len]
+        obj_offset += num_objects
 
     cdef float[::1] parent_rotations_view
     cdef float[::1] parent_scales_view
@@ -321,7 +343,7 @@ def align_to_axes_batch(list selected_objects):
     cdef list all_ref_locations = []
     cdef Quaternion rot_cpp
 
-    for group in valid_parent_groups:
+    for group in parent_groups:
         parent_rotations_view, parent_scales_view, parent_offsets_view, parent_ref_location = _compute_transforms(group, len(group))
 
         # Store reference location as a plain tuple for fast numeric ops later
@@ -339,8 +361,8 @@ def align_to_axes_batch(list selected_objects):
 
     start_alignment = time.perf_counter()
 
-    # Call batched C++ function to compute group rotations
-    rots, _ = align_min_bounds(all_verts, all_edges, vert_counts_arr, edge_counts_arr)
+    # Call batched C++ function to compute object rotations
+    rots, _ = align_min_bounds(all_verts_mv, all_edges_mv, vert_counts_mv, edge_counts_mv)
 
     # Compute new locations for each object using C++ rotation of offsets, then add ref location
     locs = []
