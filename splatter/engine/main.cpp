@@ -15,6 +15,9 @@
 
 #if SPLATTER_HAVE_BOOST_IPC
 #include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/mapped_region.hpp>
+#include <numeric> // for std::accumulate
 #endif
 
 // Helper functions for JSON control
@@ -223,16 +226,29 @@ int main(int argc, char **argv)
                     continue;
                 }
 
+                uint32_t total_verts = std::accumulate(vertCounts.begin(), vertCounts.end(), 0U);
+                uint32_t total_edges = std::accumulate(edgeCounts.begin(), edgeCounts.end(), 0U);
+                uint32_t expected_verts_size = total_verts * sizeof(Vec3);
+                uint32_t expected_edges_size = total_edges * sizeof(uVec2i);
+
 #if SPLATTER_HAVE_BOOST_IPC
-                boost::interprocess::managed_shared_memory verts_shm(boost::interprocess::open_only, shm_verts.c_str());
-                boost::interprocess::managed_shared_memory edges_shm(boost::interprocess::open_only, shm_edges.c_str());
-                const Vec3 *verts_ptr = verts_shm.find<Vec3>("verts").first;
-                const uVec2i *edges_ptr = edges_shm.find<uVec2i>("edges").first;
-                if (!verts_ptr || !edges_ptr)
-                {
-                    respond_error(id, "shared memory data not found");
+                // Open and map verts shared memory
+                boost::interprocess::shared_memory_object verts_obj(boost::interprocess::open_only, shm_verts.c_str(), boost::interprocess::read_only);
+                boost::interprocess::mapped_region verts_region(verts_obj, boost::interprocess::read_only);
+                if (verts_region.get_size() < expected_verts_size) {
+                    respond_error(id, "verts shared memory size mismatch");
                     continue;
                 }
+                const Vec3 *verts_ptr = static_cast<const Vec3*>(verts_region.get_address());
+
+                // Open and map edges shared memory
+                boost::interprocess::shared_memory_object edges_obj(boost::interprocess::open_only, shm_edges.c_str(), boost::interprocess::read_only);
+                boost::interprocess::mapped_region edges_region(edges_obj, boost::interprocess::read_only);
+                if (edges_region.get_size() < expected_edges_size) {
+                    respond_error(id, "edges shared memory size mismatch");
+                    continue;
+                }
+                const uVec2i *edges_ptr = static_cast<const uVec2i*>(edges_region.get_address());
 
                 std::vector<Quaternion> outR(num_objects);
                 std::vector<Vec3> outT(num_objects);
