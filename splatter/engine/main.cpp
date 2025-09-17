@@ -1,6 +1,6 @@
 // Minimal JSON-over-stdin/stdout IPC loop with Boost.Interprocess shared memory for large data.
 // Protocol: JSON control messages; large arrays via shared memory segments.
-// Request: {"id":N, "op":"prepare", "shm_verts":"segment_name", "shm_edges":"segment_name", "vert_counts":[...], "edge_counts":[...]}
+// Request: {"id":N, "op":"prepare", "shm_verts":"segment_name", "shm_edges":"segment_name", "shm_rotations":"segment_name", "shm_scales":"segment_name", "shm_offsets":"segment_name", "vert_counts":[...], "edge_counts":[...], "object_counts":[...]}
 // Response: {"id":N, "ok":true, "rots":[...], "trans":[...]} or error.
 // Shared memory: Python creates segments, engine maps them read-only, processes in-place.
 
@@ -184,36 +184,52 @@ int main(int argc, char **argv)
         {
             if (op == "prepare")
             {
-                std::string shm_verts, shm_edges;
-                std::vector<uint32_t> vertCounts, edgeCounts;
-                if (auto v = get_value(line, "shm_verts"))
-                    shm_verts = *v;
-                else
-                {
-                    respond_error(id, "missing shm_verts");
-                    continue;
+                std::string shm_verts, shm_edges, shm_rotations, shm_scales, shm_offsets;
+                std::vector<uint32_t> vertCounts, edgeCounts, objectCounts;
+
+                bool parsed = true;
+
+                // Parse required string fields
+                std::vector<std::pair<std::string, std::string*>> stringFields = {
+                    {"shm_verts", &shm_verts},
+                    {"shm_edges", &shm_edges},
+                    {"shm_rotations", &shm_rotations},
+                    {"shm_scales", &shm_scales},
+                    {"shm_offsets", &shm_offsets}
+                };
+                for (auto& [key, ptr] : stringFields) {
+                    if (auto v = get_value(line, key)) {
+                        *ptr = *v;
+                    } else {
+                        respond_error(id, "missing " + key);
+                        parsed = false;
+                        break;
+                    }
                 }
-                if (auto v = get_value(line, "shm_edges"))
-                    shm_edges = *v;
-                else
-                {
-                    respond_error(id, "missing shm_edges");
-                    continue;
+
+                if (!parsed) continue;
+
+                // Parse required array fields
+                std::vector<std::pair<std::string, std::vector<uint32_t>*>> arrayFields = {
+                    {"vert_counts", &vertCounts},
+                    {"edge_counts", &edgeCounts},
+                    {"object_counts", &objectCounts}
+                };
+                for (auto& [key, ptr] : arrayFields) {
+                    if (auto v = get_value(line, key)) {
+                        if (!parse_uint_array(*v, *ptr)) {
+                            respond_error(id, "invalid " + key);
+                            parsed = false;
+                            break;
+                        }
+                    } else {
+                        respond_error(id, "missing " + key);
+                        parsed = false;
+                        break;
+                    }
                 }
-                if (auto v = get_value(line, "vert_counts"))
-                    parse_uint_array(*v, vertCounts);
-                else
-                {
-                    respond_error(id, "missing vert_counts");
-                    continue;
-                }
-                if (auto v = get_value(line, "edge_counts"))
-                    parse_uint_array(*v, edgeCounts);
-                else
-                {
-                    respond_error(id, "missing edge_counts");
-                    continue;
-                }
+
+                if (!parsed) continue;
                 uint32_t num_objects = static_cast<uint32_t>(vertCounts.size());
                 if (num_objects == 0)
                 {
