@@ -258,21 +258,37 @@ cdef tuple _fill_block_geometry(list group, float[::1] all_verts_mv, uint32_t[::
 
 cdef tuple _compute_full_transforms(list group, uint32_t num_objects):
     cdef object first_obj = group[0]
-    cdef cnp.ndarray rotations_array = np.fromiter(
+
+    # Allocate shared memory for rotations
+    cdef uint32_t rotations_size = num_objects * 4 * 4  # float32 = 4 bytes
+    cdef str rotations_shm_name = f"splatter_rotations_{uuid.uuid4().hex}"
+    cdef object rotations_shm = shared_memory.SharedMemory(create=True, size=rotations_size, name=rotations_shm_name)
+    cdef cnp.ndarray rotations_array = np.ndarray((rotations_size // 4,), dtype=np.float32, buffer=rotations_shm.buf)
+    rotations_array[:] = np.fromiter(
         (component for obj in group for component in obj.matrix_world.to_3x3().to_quaternion()),
         dtype=np.float32,
         count=num_objects * 4,
     )
     cdef float[::1] rotations_view = rotations_array
 
-    cdef cnp.ndarray scales_array = np.fromiter(
+    # Allocate shared memory for scales
+    cdef uint32_t scales_size = num_objects * 3 * 4
+    cdef str scales_shm_name = f"splatter_scales_{uuid.uuid4().hex}"
+    cdef object scales_shm = shared_memory.SharedMemory(create=True, size=scales_size, name=scales_shm_name)
+    cdef cnp.ndarray scales_array = np.ndarray((scales_size // 4,), dtype=np.float32, buffer=scales_shm.buf)
+    scales_array[:] = np.fromiter(
         (component for obj in group for component in obj.matrix_world.to_3x3().to_scale()),
         dtype=np.float32,
         count=num_objects * 3,
     )
     cdef float[::1] scales_view = scales_array
 
-    cdef cnp.ndarray offsets_array = np.fromiter(
+    # Allocate shared memory for offsets
+    cdef uint32_t offsets_size = num_objects * 3 * 4
+    cdef str offsets_shm_name = f"splatter_offsets_{uuid.uuid4().hex}"
+    cdef object offsets_shm = shared_memory.SharedMemory(create=True, size=offsets_size, name=offsets_shm_name)
+    cdef cnp.ndarray offsets_array = np.ndarray((offsets_size // 4,), dtype=np.float32, buffer=offsets_shm.buf)
+    offsets_array[:] = np.fromiter(
         (component for obj in group for component in obj.matrix_world.translation.to_tuple()),
         dtype=np.float32,
         count=num_objects * 3,
