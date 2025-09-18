@@ -8,6 +8,7 @@ import os
 import subprocess
 import atexit
 import json
+import select
 from typing import Dict, Any, Optional
 
 
@@ -51,7 +52,7 @@ class SplatterEngine:
                 [engine_path],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=None,  # Inherit stderr to show in Blender console
                 text=True,
                 bufsize=1,  # Line buffered
                 universal_newlines=True

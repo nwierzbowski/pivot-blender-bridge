@@ -240,7 +240,10 @@ void handle_prepare(int id, const std::string &line)
     {
         if (auto v = get_value(line, key))
         {
-            *ptr = *v;
+            std::string val = *v;
+            if (!val.empty() && val.front() == '"' && val.back() == '"')
+                val = val.substr(1, val.size() - 2);
+            *ptr = val;
         }
         else
         {

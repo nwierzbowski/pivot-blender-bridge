@@ -375,6 +375,10 @@ def align_to_axes_batch(list selected_objects):
 
     engine = get_engine_communicator()
     final_response = engine.send_command(command)
+    
+    if "ok" not in final_response or not final_response["ok"]:
+        raise RuntimeError(f"Engine error: {final_response.get('error', 'Unknown error')}")
+    
     rots = [MathutilsQuaternion(r) for r in final_response["rots"]]
 
     # Compute new locations for each object using C++ rotation of offsets, then add ref location
