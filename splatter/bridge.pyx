@@ -298,7 +298,6 @@ def align_to_axes_batch(list selected_objects):
 
     start_prep = time.perf_counter()
 
-    cdef list batch_items = []
     cdef list all_original_rots = []
     cdef list all_offsets = []
 
@@ -346,7 +345,6 @@ def align_to_axes_batch(list selected_objects):
         all_ref_locations.append((parent_ref_location.x, parent_ref_location.y, parent_ref_location.z))
         all_offsets.append(parent_offsets_view)
 
-        batch_items.append(group)
         for obj in group:
             obj.rotation_mode = 'QUATERNION' 
             all_original_rots.append(obj.rotation_quaternion)
@@ -389,10 +387,11 @@ def align_to_axes_batch(list selected_objects):
     cdef Vec3* offsets_group_ptr
     cdef uint32_t group_size
     cdef float[::1] parent_offsets_mv
+    cdef list group
 
-    for i in range(len(batch_items)):
+    for i in range(len(parent_groups)):
         # Rotate this group's offsets in-place using C++ for speed
-        group = batch_items[i]
+        group = parent_groups[i]
         group_size = <uint32_t> len(group)
         parent_offsets_mv = all_offsets[i]
         offsets_group_ptr = <Vec3*> &parent_offsets_mv[0]
@@ -414,4 +413,4 @@ def align_to_axes_batch(list selected_objects):
     end_alignment = time.perf_counter()
     print(f"Alignment time elapsed: {(end_alignment - start_alignment) * 1000:.2f}ms")
 
-    return rots, locs, batch_items, all_original_rots, all_ref_locations
+    return rots, locs, parent_groups, all_original_rots, all_ref_locations
