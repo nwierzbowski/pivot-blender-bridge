@@ -315,12 +315,15 @@ void handle_prepare(int id, const std::string &line)
     std::span<Vec3> scales(static_cast<Vec3 *>(scales_region.get_address()), num_objects);
     std::span<Vec3> offsets(static_cast<Vec3 *>(offsets_region.get_address()), num_objects);
 
-    // Prepare output vectors
-    std::vector<Quaternion> outR(num_objects);
-    std::vector<Vec3> outT(num_objects);
+    
+    
 
     // Process the batch
-    // group_objects();
+    group_objects(verts, edges, vertCounts, edgeCounts, offsets, rotations, scales, objectCounts);
+    
+    // Prepare output vectors
+    std::vector<Quaternion> outR(objectCounts.size());
+    std::vector<Vec3> outT(objectCounts.size());
     prepare_object_batch(verts, edges, vertCounts, edgeCounts, outR, outT);
 
     // Build JSON response

@@ -238,41 +238,56 @@ void prepare_object_batch(std::span<const Vec3> verts_flat, std::span<const uVec
     }
 }
 
-void group_objects(std::span<Vec3> verts_flat, std::span<uVec2i> edges_flat, std::span<const uint32_t> vert_counts, std::span<const uint32_t> edge_counts, std::span<const Vec3> offsets, std::span<const Quaternion> rotations, std::span<const Vec3> scales)
+void group_objects(std::span<Vec3> verts_flat, std::span<uVec2i> edges_flat, std::vector<uint32_t>& vert_counts, std::vector<uint32_t>& edge_counts, std::span<const Vec3> offsets, std::span<const Quaternion> rotations, std::span<const Vec3> scales, std::span<const uint32_t> object_counts)
 {
-    uint32_t num_objects = vert_counts.size();
-    if (num_objects == 0 || edge_counts.size() != num_objects || offsets.size() != num_objects || rotations.size() != num_objects || scales.size() != num_objects)
+    uint32_t num_groups = object_counts.size();
+    if (num_groups == 0 || offsets.size() != num_groups || rotations.size() != num_groups || scales.size() != num_groups)
         return;
 
     // Transform vertices and edges in place
-    uint32_t vert_offset = 0, edge_offset = 0;
-    for (uint32_t i = 0; i < num_objects; ++i)
+    uint32_t vert_offset = 0, edge_offset = 0, obj_index = 0;
+    for (uint32_t group = 0; group < num_groups; ++group)
     {
-        uint32_t v_count = vert_counts[i];
-        uint32_t e_count = edge_counts[i];
+        uint32_t num_objs_in_group = object_counts[group];
+        uint32_t group_vert_count = 0;
+        uint32_t group_edge_count = 0;
+        for (uint32_t j = 0; j < num_objs_in_group; ++j)
+        {
+            group_vert_count += vert_counts[obj_index + j];
+            group_edge_count += edge_counts[obj_index + j];
+        }
 
-        // Rotate and offset vertices
-        for (uint32_t j = 0; j < v_count; ++j)
+        // Update counts to reflect the group
+        vert_counts[group] = group_vert_count;
+        edge_counts[group] = group_edge_count;
+
+        // Apply transformation to the entire group
+        for (uint32_t j = 0; j < group_vert_count; ++j)
         {
             Vec3 &v = verts_flat[vert_offset + j];
-            v.x *= scales[i].x;
-            v.y *= scales[i].y;
-            v.z *= scales[i].z;
-            Vec3 rotated = rotate_vertex_3D_quat(v, rotations[i]);
-            rotated += offsets[i];
+            v.x *= scales[group].x;
+            v.y *= scales[group].y;
+            v.z *= scales[group].z;
+            Vec3 rotated = rotate_vertex_3D_quat(v, rotations[group]);
+            rotated += offsets[group];
             verts_flat[vert_offset + j] = rotated;
         }
 
-        // Adjust edge indices
-        for (uint32_t j = 0; j < e_count; ++j)
+        // Adjust edge indices for the group
+        for (uint32_t j = 0; j < group_edge_count; ++j)
         {
             edges_flat[edge_offset + j].x += vert_offset;
             edges_flat[edge_offset + j].y += vert_offset;
         }
 
-        vert_offset += v_count;
-        edge_offset += e_count;
+        vert_offset += group_vert_count;
+        edge_offset += group_edge_count;
+        obj_index += num_objs_in_group;
     }
+
+    // Resize to reflect the number of groups
+    vert_counts.resize(num_groups);
+    edge_counts.resize(num_groups);
 }
 
 void apply_rotation(Vec3* verts, uint32_t vertCount, const Quaternion &rotation)
