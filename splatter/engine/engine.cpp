@@ -263,83 +263,114 @@ void prepare_object_batch(std::span<const Vec3> verts_flat, std::span<const uVec
     }
 }
 
-void group_objects(std::span<Vec3> verts_flat, std::span<uVec2i> edges_flat, std::vector<uint32_t>& vert_counts, std::vector<uint32_t>& edge_counts, std::span<const Vec3> offsets, std::span<const Quaternion> rotations, std::span<const Vec3> scales, std::span<const uint32_t> object_counts)
+/**
+ * @brief Groups multiple objects into fewer groups by concatenating their geometry and applying per-object transformations.
+ *
+ * This function processes a batch of objects, grouping them according to the provided object_counts.
+ * For each group, it applies individual object transformations (scale, rotation, translation) to vertices,
+ * adjusts edge indices to reference the correct vertices within the concatenated group,
+ * and updates the count vectors to reflect the new group structure.
+ *
+ * @param verts_flat Flat array of all vertices from all objects.
+ * @param edges_flat Flat array of all edges from all objects.
+ * @param vert_counts Vector of vertex counts per object; resized to per-group counts on output.
+ * @param edge_counts Vector of edge counts per object; resized to per-group counts on output.
+ * @param offsets Per-object translation offsets.
+ * @param rotations Per-object rotation quaternions.
+ * @param scales Per-object scale factors.
+ * @param object_counts Number of objects per group.
+ */
+void group_objects(std::span<Vec3> verts_flat, std::span<uVec2i> edges_flat,
+                   std::vector<uint32_t>& vert_counts, std::vector<uint32_t>& edge_counts,
+                   std::span<const Vec3> offsets, std::span<const Quaternion> rotations,
+                   std::span<const Vec3> scales, std::span<const uint32_t> object_counts)
 {
-    std::cerr << "Entered group_objects" << std::endl;
-    
+    // Input validation and logging
+    const uint32_t num_groups = object_counts.size();
+    const uint32_t num_objects = vert_counts.size();
 
-    uint32_t num_groups = object_counts.size();
-    uint32_t num_objects = vert_counts.size();
-
-    std::cerr << "verts_flat size: " << verts_flat.size() << ", edges_flat size: " << edges_flat.size() << std::endl;
-    std::cerr << "vert_counts size: " << vert_counts.size() << ", edge_counts size: " << edge_counts.size() << std::endl;
-
-    std::cerr << "num_groups: " << num_groups << ", offsets size: " << offsets.size() << ", rotations size: " << rotations.size() << ", scales size: " << scales.size() << std::endl;
-
-    if (num_groups == 0 || num_objects == 0 || offsets.size() != num_objects || rotations.size() != num_objects || scales.size() != num_objects)
+    if (num_groups == 0 || num_objects == 0 ||
+        offsets.size() != num_objects || rotations.size() != num_objects || scales.size() != num_objects) {
+        std::cerr << "group_objects: Invalid input sizes, skipping\n";
         return;
-
-    // Transform vertices and edges in place
-    uint32_t group_vert_offset = 0, group_edge_offset = 0, group_obj_index = 0;
-    for (uint32_t group = 0; group < num_groups; ++group)
-    {
-        uint32_t num_objs_in_group = object_counts[group];
-        uint32_t group_vert_count = 0;
-        uint32_t group_edge_count = 0;
-        
-        for (uint32_t j = 0; j < num_objs_in_group; ++j)
-        {
-            group_vert_count += vert_counts[group_obj_index + j];
-            group_edge_count += edge_counts[group_obj_index + j];
-        }
-
-        std::span<uVec2i> group_edges = edges_flat.subspan(group_edge_offset, group_edge_count);
-        std::span<Vec3> group_verts = verts_flat.subspan(group_vert_offset, group_vert_count);
-
-        // Apply transformation to the entire group
-        for (uint32_t j = 0; j < group_vert_count; ++j)
-        {
-            Vec3 &v = group_verts[j];
-            v.x *= scales[group].x;
-            v.y *= scales[group].y;
-            v.z *= scales[group].z;
-            Vec3 rotated = rotate_vertex_3D_quat(v, rotations[group]);
-            rotated += offsets[group];
-            group_verts[j] = rotated;
-        }
-
-        // Adjust edge indices per object within the group
-        uint32_t local_v_off = 0;  // Start at group's vertex offset
-        uint32_t local_e_off = 0;  // Start at group's edge offset
-        for (uint32_t j = 0; j < num_objs_in_group; ++j)
-        {
-            uint32_t obj_vc = vert_counts[group_obj_index + j];  // Original per-object vert count
-            uint32_t obj_ec = edge_counts[group_obj_index + j];  // Original per-object edge count
-
-            for (uint32_t k = 0; k < obj_ec; ++k)
-            {
-                uVec2i &e = group_edges[local_e_off + k];
-                e.x += local_v_off;
-                e.y += local_v_off;
-            }
-
-            local_v_off += obj_vc;  // Increment for next object in group
-            local_e_off += obj_ec;  // Increment for next object in group
-        }
-
-        // Update counts to reflect the group
-        vert_counts[group] = group_vert_count;
-        edge_counts[group] = group_edge_count;
-
-        group_vert_offset += group_vert_count;
-        group_edge_offset += group_edge_count;
-        group_obj_index += num_objs_in_group;
     }
 
-    // Resize to reflect the number of groups
-    std::cerr << "Resizing vert_counts and edge_counts to " << num_groups << std::endl;
+    // Process each group
+    uint32_t global_vertex_offset = 0;
+    uint32_t global_edge_offset = 0;
+    uint32_t object_index = 0;
+
+    for (uint32_t group_idx = 0; group_idx < num_groups; ++group_idx) {
+        const uint32_t objects_in_group = object_counts[group_idx];
+
+        // Calculate total vertices and edges for this group
+        uint32_t group_vertex_count = 0;
+        uint32_t group_edge_count = 0;
+        for (uint32_t j = 0; j < objects_in_group; ++j) {
+            group_vertex_count += vert_counts[object_index + j];
+            group_edge_count += edge_counts[object_index + j];
+        }
+
+        // Create views for this group's data
+        std::span<Vec3> group_vertices = verts_flat.subspan(global_vertex_offset, group_vertex_count);
+        std::span<uVec2i> group_edges = edges_flat.subspan(global_edge_offset, group_edge_count);
+
+        // Apply per-object transformations to vertices
+        uint32_t local_vertex_offset = 0;
+        for (uint32_t obj_in_group = 0; obj_in_group < objects_in_group; ++obj_in_group) {
+            const uint32_t obj_idx = object_index + obj_in_group;
+            const uint32_t obj_vertex_count = vert_counts[obj_idx];
+
+            // Transform each vertex of this object
+            for (uint32_t v = 0; v < obj_vertex_count; ++v) {
+                Vec3& vertex = group_vertices[local_vertex_offset + v];
+                // Apply scale
+                vertex.x *= scales[obj_idx].x;
+                vertex.y *= scales[obj_idx].y;
+                vertex.z *= scales[obj_idx].z;
+                // Apply rotation
+                vertex = rotate_vertex_3D_quat(vertex, rotations[obj_idx]);
+                // Apply translation
+                vertex += offsets[obj_idx];
+            }
+
+            local_vertex_offset += obj_vertex_count;
+        }
+
+        // Adjust edge indices within the group
+        local_vertex_offset = 0;
+        uint32_t local_edge_offset = 0;
+        for (uint32_t obj_in_group = 0; obj_in_group < objects_in_group; ++obj_in_group) {
+            const uint32_t obj_idx = object_index + obj_in_group;
+            const uint32_t obj_vertex_count = vert_counts[obj_idx];
+            const uint32_t obj_edge_count = edge_counts[obj_idx];
+
+            // Offset edge indices by the cumulative vertex count of previous objects in this group
+            for (uint32_t e = 0; e < obj_edge_count; ++e) {
+                uVec2i& edge = group_edges[local_edge_offset + e];
+                edge.x += local_vertex_offset;
+                edge.y += local_vertex_offset;
+            }
+
+            local_vertex_offset += obj_vertex_count;
+            local_edge_offset += obj_edge_count;
+        }
+
+        // Update count vectors for this group
+        vert_counts[group_idx] = group_vertex_count;
+        edge_counts[group_idx] = group_edge_count;
+
+        // Advance global offsets
+        global_vertex_offset += group_vertex_count;
+        global_edge_offset += group_edge_count;
+        object_index += objects_in_group;
+    }
+
+    // Resize vectors to match the number of groups
     vert_counts.resize(num_groups);
     edge_counts.resize(num_groups);
+
+    std::cerr << "group_objects: Grouping complete\n";
 }
 
 void apply_rotation(Vec3* verts, uint32_t vertCount, const Quaternion &rotation)
