@@ -8,9 +8,12 @@ set(CYTHON_GENERATED_CPP ${CMAKE_CURRENT_BINARY_DIR}/bridge.cpp)
 
 add_custom_command(
     OUTPUT ${CYTHON_GENERATED_CPP}
-    COMMAND ${CYTHON_EXECUTABLE} --cplus -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -o ${CYTHON_GENERATED_CPP} ${CYTHON_SOURCE}
+    # Generate annotated HTML (-a) alongside the C++ source for performance insight
+    COMMAND ${CYTHON_EXECUTABLE} --cplus -a -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -o ${CYTHON_GENERATED_CPP} ${CYTHON_SOURCE}
+    # Declare the HTML as a byproduct so build systems (e.g. Ninja) know about it
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/bridge.html
     DEPENDS ${CYTHON_SOURCE}
-    COMMENT "Cythonizing ${CYTHON_SOURCE}"
+    COMMENT "Cythonizing ${CYTHON_SOURCE} with HTML annotations"
 )
 
 add_library(bridge MODULE ${CYTHON_GENERATED_CPP})
