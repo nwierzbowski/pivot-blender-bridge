@@ -20,16 +20,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Eigen)
 
-# Required Boost.Interprocess for shared memory
+# Required Boost libs for IPC and JSON
 cmake_policy(SET CMP0167 NEW) # Suppress FindBoost deprecation warning
-find_package(Boost 1.70 QUIET COMPONENTS interprocess)
+find_package(Boost 1.75 QUIET COMPONENTS interprocess json)
 if(Boost_FOUND)
-    message(STATUS "Using system Boost.Interprocess")
-else()
-    message(STATUS "Boost.Interprocess not found; fetching via FetchContent")
+    message(STATUS "Using system Boost (${Boost_VERSION})")
+endif()
+
+# If Boost headers are not found (or too old), fetch a Boost release for headers
+if(NOT Boost_FOUND)
+    message(STATUS "Boost (with components interprocess/json) not fully available; fetching Boost headers via FetchContent")
     set(BOOST_VERSION 1.83.0 CACHE STRING "Boost release version to fetch")
     string(REPLACE "." "_" BOOST_VERSION_U ${BOOST_VERSION})
-    # boost_ext provides headers
+    # boost_ext provides headers only
     FetchContent_Declare(
         boost_ext
         URL https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_U}.tar.gz
@@ -37,6 +40,9 @@ else()
     )
     FetchContent_MakeAvailable(boost_ext)
 endif()
+
+# If Boost::json target is not available, fetch standalone Boost.JSON cmake project
+    # We will build Boost.JSON from sources in the fetched Boost tree if the system target is unavailable.
 
 if(BUILD_ENGINE)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/engine/CMakeLists.txt)
