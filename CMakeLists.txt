@@ -45,8 +45,8 @@ if(BUILD_ENGINE)
 endif()
 
 if(BUILD_PY_MODULE)
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/python/CMakeLists.txt)
-        add_subdirectory(python)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cython/CMakeLists.txt)
+        add_subdirectory(cython)
     endif()
 endif()
 

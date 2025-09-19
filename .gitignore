@@ -24,3 +24,4 @@ splatter/bin/
 *.egg-info/
 *.so
 *.pyd
+*.zip
