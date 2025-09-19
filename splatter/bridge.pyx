@@ -10,14 +10,6 @@ import time
 import multiprocessing.shared_memory as shared_memory
 import uuid
 
-
-# from splatter.cython_api.engine_api cimport prepare_object_batch as prepare_object_batch_cpp
-# from splatter.cython_api.engine_api cimport group_objects as group_objects_cpp
-from splatter.cython_api.engine_api cimport apply_rotation as apply_rotation_cpp
-
-from splatter.cython_api.vec_api cimport Vec3
-from splatter.cython_api.quaternion_api cimport Quaternion
-
 from splatter.engine import get_engine_communicator
 
 # -----------------------------
@@ -255,7 +247,7 @@ cdef tuple _compute_offset_transforms(list group, uint32_t num_objects):
     )
     cdef float[::1] offsets_view = offsets_array
 
-    return offsets_view, Vec3(first_obj.matrix_world.translation.x, first_obj.matrix_world.translation.y, first_obj.matrix_world.translation.z)
+    return offsets_view, (first_obj.matrix_world.translation.x, first_obj.matrix_world.translation.y, first_obj.matrix_world.translation.z)
 
 
 # -----------------------------
@@ -303,15 +295,14 @@ def align_to_axes_batch(list selected_objects):
     start_processing = time.perf_counter()
 
     cdef float[::1] parent_offsets_view
-    cdef Vec3 parent_ref_location
+    cdef tuple parent_ref_location
     cdef list all_ref_locations = []
-    cdef Quaternion rot_cpp
 
     for group in parent_groups:
         parent_offsets_view, parent_ref_location = _compute_offset_transforms(group, len(group))
 
         # Store reference location as a plain tuple for fast numeric ops later
-        all_ref_locations.append((parent_ref_location.x, parent_ref_location.y, parent_ref_location.z))
+        all_ref_locations.append(parent_ref_location)
         all_offsets.append(parent_offsets_view)
 
         for obj in group:
@@ -353,18 +344,18 @@ def align_to_axes_batch(list selected_objects):
     cdef Py_ssize_t i, j
     cdef float rx, ry, rz
     cdef tuple ref_loc_tup
-    cdef Vec3* offsets_group_ptr
     cdef uint32_t group_size
     cdef float[::1] parent_offsets_mv
 
     for i in range(len(parent_groups)):
-        # Rotate this group's offsets in-place using C++ for speed
+        # Rotate this group's offsets in-place using numpy for speed
         group = parent_groups[i]
         group_size = <uint32_t> len(group)
         parent_offsets_mv = all_offsets[i]
-        offsets_group_ptr = <Vec3*> &parent_offsets_mv[0]
-        rot_cpp.w = rots[i].w; rot_cpp.x = rots[i].x; rot_cpp.y = rots[i].y; rot_cpp.z = rots[i].z
-        apply_rotation_cpp(offsets_group_ptr, group_size, rot_cpp)
+        rot_matrix = np.array(rots[i].to_matrix())
+        offsets_array = np.asarray(parent_offsets_mv).reshape(group_size, 3)
+        rotated_offsets = offsets_array @ rot_matrix.T
+        rotated_flat = rotated_offsets.flatten()
 
         # Add the reference location to each rotated offset and collect as tuples
         ref_loc_tup = all_ref_locations[i]
@@ -372,7 +363,7 @@ def align_to_axes_batch(list selected_objects):
         ry = <float> ref_loc_tup[1]
         rz = <float> ref_loc_tup[2]
         for j in range(len(group)):
-            locs.append((rx + parent_offsets_mv[j * 3], ry + parent_offsets_mv[j * 3 + 1], rz + parent_offsets_mv[j * 3 + 2]))
+            locs.append((rx + rotated_flat[j * 3], ry + rotated_flat[j * 3 + 1], rz + rotated_flat[j * 3 + 2]))
 
     # Unlink shared memory after processing
     for shm in shm_objects:
