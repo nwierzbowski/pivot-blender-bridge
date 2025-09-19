@@ -117,7 +117,7 @@ def aggregate_object_groups(list selected_objects):
         if group_verts > 0:
             mesh_groups.append(all_meshes)
             parent_groups.append([root])
-            group_names.append(root.name)
+            group_names.append(root.name + "_O")
             total_verts += group_verts
             total_edges += group_edges
             total_objects += len(all_meshes)
@@ -132,7 +132,7 @@ def aggregate_object_groups(list selected_objects):
         if group_verts > 0:
             mesh_groups.append(all_meshes)
             parent_groups.append(roots)
-            group_names.append(top_coll.name)
+            group_names.append(top_coll.name + "_C")
             total_verts += group_verts
             total_edges += group_edges
             total_objects += len(all_meshes)
