@@ -31,5 +31,11 @@ if(Python3_NumPy_INCLUDE_DIRS)
     target_include_directories(bridge PRIVATE ${Python3_NumPy_INCLUDE_DIRS})
 endif()
 
+# Include engine src for classification.h
+target_include_directories(bridge PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core)
+
+# Link core library
+target_link_libraries(bridge PRIVATE core)
+
 # Output extension into the package directory so Python can import it
 set_target_properties(bridge PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../splatter")

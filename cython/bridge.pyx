@@ -12,6 +12,12 @@ import uuid
 
 from splatter.engine import get_engine_communicator
 
+cdef extern from "classification.h":
+    cdef enum SurfaceType:
+        Ground
+        Wall
+        Ceiling
+
 # -----------------------------
 # Helpers for selection grouping
 # -----------------------------
