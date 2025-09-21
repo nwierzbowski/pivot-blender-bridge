@@ -66,11 +66,10 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
         )
         if obj:
             try:
-                if hasattr(obj, "classification"):
-                    c = obj.classification
-                    layout.prop(c, "isSeating")
-                    layout.prop(c, "isSurface")
-                    layout.prop(c, "surfaceType")
+                c = obj.classification
+                layout.prop(c, "isSeating")
+                layout.prop(c, "isSurface")
+                layout.prop(c, "surfaceType")
             except (AttributeError, ReferenceError, MemoryError) as e:
                 layout.label(text="Classification data not available")
         layout.separator()

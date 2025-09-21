@@ -92,6 +92,7 @@ def align_to_axes_batch(list selected_objects):
         raise RuntimeError(f"Engine error: {final_response.get('error', 'Unknown error')}")
     
     rots = [Quaternion(r) for r in final_response["rots"]]
+    surface_type = final_response["surface_type"]
 
     # Compute new locations for each object using C++ rotation of offsets, then add ref location
     locs = []
@@ -126,4 +127,4 @@ def align_to_axes_batch(list selected_objects):
     end_alignment = time.perf_counter()
     print(f"Alignment time elapsed: {(end_alignment - start_alignment) * 1000:.2f}ms")
 
-    return rots, locs, parent_groups, all_original_rots, all_ref_locations
+    return rots, locs, parent_groups, all_original_rots, surface_type, group_names

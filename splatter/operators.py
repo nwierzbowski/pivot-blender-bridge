@@ -320,7 +320,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
 
     def execute(self, context):
         startCPP = time.perf_counter()
-        rots, locs, batch_items, all_local_quats, all_ref_locations = bridge.align_to_axes_batch(context.selected_objects)
+        rots, locs, root_objects, all_local_quats, surface_type, group_names = bridge.align_to_axes_batch(context.selected_objects)
         endCPP = time.perf_counter()
         elapsedCPP = endCPP - startCPP
 
@@ -328,10 +328,10 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
         startPython = time.perf_counter()
         # Apply results
         obj_idx = 0
-        for i, item in enumerate(batch_items):
+        for i, group in enumerate(root_objects):
             delta_quat = rots[i]
-            
-            for j, obj in enumerate(item):
+
+            for obj in group:
                 local_quat = all_local_quats[obj_idx]
                 loc = locs[obj_idx]
                 
@@ -339,6 +339,15 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
                 obj.location = Vector(loc)
                 # bpy.context.scene.cursor.location = Vector(loc) + obj.location
                 obj_idx += 1
+
+        for i, group in enumerate(root_objects):
+            surface_type_value = str(surface_type[i])
+            group_name = group_names[i]
+            for obj in group:
+                if not hasattr(obj, "classification"):
+                    continue
+                obj.classification.surfaceType = surface_type_value
+                obj.classification.group_name = group_name
         
         endPython = time.perf_counter()
         elapsedPython = endPython - startPython
