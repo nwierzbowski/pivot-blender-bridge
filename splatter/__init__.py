@@ -23,7 +23,37 @@ from .ui import Splatter_PT_Main_Panel
 from . import engine
 
 
-
+def sync_engine_after_undo(scene):
+    """Sync engine surface types after undo operations to maintain consistency"""
+    try:
+        from .engine import get_engine_communicator
+        engine_comm = get_engine_communicator()
+        
+        # Sync all objects with their current surface types
+        for obj in scene.objects:
+            if hasattr(obj, 'classification') and hasattr(obj.classification, 'group_name'):
+                group_name = obj.classification.group_name
+                surface_type_str = obj.classification.surfaceType
+                
+                if group_name and surface_type_str:
+                    try:
+                        surface_type = int(surface_type_str)
+                        command = {
+                            "id": 3,  # Different ID for undo sync
+                            "op": "set_group_attr",
+                            "group_name": group_name,
+                            "attr": "surface_type",
+                            "value": surface_type
+                        }
+                        response = engine_comm.send_command(command)
+                        if "ok" not in response or not response["ok"]:
+                            print(f"Failed to sync engine after undo: {response.get('error', 'Unknown error')}")
+                        else:
+                            print(f"Synchronized object {obj.name} (group: {group_name}) to surface type {surface_type}")
+                    except (ValueError, AttributeError) as e:
+                        print(f"Error syncing object {obj.name} after undo: {e}")
+    except Exception as e:
+        print(f"Error in undo sync: {e}")
 
 
 bl_info = {
@@ -73,6 +103,10 @@ def register():
 
     # Start the splatter engine
     engine.start_engine()
+    
+    # Register undo handler to sync engine after undo operations
+    bpy.app.handlers.undo_post.append(sync_engine_after_undo)
+    bpy.app.handlers.redo_post.append(sync_engine_after_undo)
 
     # Example: Add addon preferences (if you create an AddonPreferences class)
     # bpy.utils.register_class(MyAddonPreferences)
@@ -97,6 +131,12 @@ def unregister():
 
     # Stop the splatter engine
     engine.stop_engine()
+    
+    # Unregister undo handlers
+    if sync_engine_after_undo in bpy.app.handlers.undo_post:
+        bpy.app.handlers.undo_post.remove(sync_engine_after_undo)
+    if sync_engine_after_undo in bpy.app.handlers.redo_post:
+        bpy.app.handlers.redo_post.remove(sync_engine_after_undo)
 
     # Example: Remove addon preferences
     # bpy.utils.unregister_class(MyAddonPreferences)
