@@ -42,7 +42,8 @@ def sync_engine_after_undo(scene):
         for obj in scene.objects:
             if (hasattr(obj, 'classification') and
                 hasattr(obj.classification, 'group_name') and
-                hasattr(obj.classification, 'surfaceType')):
+                hasattr(obj.classification, 'surfaceType') and
+                obj.classification.group_name):  # Only process objects that have been aligned
 
                 group_name = obj.classification.group_name
                 current_surface_type_str = obj.classification.surfaceType

@@ -348,6 +348,9 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
                     continue
                 obj.classification.surfaceType = surface_type_value
                 obj.classification.group_name = group_name
+                # Initialize expected engine state for this object
+                from . import _engine_expected_state
+                _engine_expected_state[obj.name] = surface_type[i]  # surface_type[i] is already an int
         
         endPython = time.perf_counter()
         elapsedPython = endPython - startPython

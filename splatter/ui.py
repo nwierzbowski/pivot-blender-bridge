@@ -67,9 +67,13 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
         if obj:
             try:
                 c = obj.classification
-                layout.prop(c, "isSeating")
-                layout.prop(c, "isSurface")
-                layout.prop(c, "surfaceType")
+                # Only show classification controls if the object has been processed by align_to_axes
+                if not c.group_name:
+                    layout.label(text="Run 'Align to Axes' first")
+                else:
+                    layout.prop(c, "isSeating")
+                    layout.prop(c, "isSurface")
+                    layout.prop(c, "surfaceType")
             except (AttributeError, ReferenceError, MemoryError) as e:
                 layout.label(text="Classification data not available")
         layout.separator()
