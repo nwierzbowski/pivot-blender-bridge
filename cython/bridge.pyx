@@ -5,16 +5,7 @@ from mathutils import Quaternion
 import numpy as np
 import time
 
-# Import helpers from separate Cython modules
-from .selection_utils import aggregate_object_groups
-from .shm_utils import create_data_arrays
-from .transform_utils import compute_offset_transforms
-
-cdef extern from "classification.h":
-    cdef enum SurfaceType:
-        Ground
-        Wall
-        Ceiling
+from . import selection_utils, shm_utils, transform_utils
 
 # -----------------------------
 # Main
@@ -39,10 +30,10 @@ def align_to_axes_batch(list selected_objects):
     cdef uint32_t[::1] edge_counts_mv
     cdef uint32_t[::1] object_counts_mv
     cdef list group
-    mesh_groups, parent_groups, group_names, total_verts, total_edges, total_objects = aggregate_object_groups(selected_objects)
+    mesh_groups, parent_groups, group_names, total_verts, total_edges, total_objects = selection_utils.aggregate_object_groups(selected_objects)
 
     # Create shared memory segments and numpy arrays
-    shm_objects, shm_names, count_memory_views = create_data_arrays(total_verts, total_edges, total_objects, mesh_groups)
+    shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(total_verts, total_edges, total_objects, mesh_groups)
 
     verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
     vert_counts_mv, edge_counts_mv, object_counts_mv = count_memory_views
@@ -61,7 +52,7 @@ def align_to_axes_batch(list selected_objects):
     cdef list all_ref_locations = []
 
     for group in parent_groups:
-        parent_offsets_view, parent_ref_location = compute_offset_transforms(group, len(group))
+        parent_offsets_view, parent_ref_location = transform_utils.compute_offset_transforms(group, len(group))
 
         # Store reference location as a plain tuple for fast numeric ops later
         all_ref_locations.append(parent_ref_location)

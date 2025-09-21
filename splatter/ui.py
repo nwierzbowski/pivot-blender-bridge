@@ -29,55 +29,49 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
         layout = self.layout
         layout.label(text="Deep Learning Operations:")
         layout.operator(
-            Splatter_OT_Segment_Scene.bl_idname, text="Segment Current Scene"
+            Splatter_OT_Segment_Scene.bl_idname
         )
         # Add more operators here later
         layout.separator()
         layout.label(text="Room Generation:")
         layout.operator(
-            Splatter_OT_Generate_Base.bl_idname, text=Splatter_OT_Generate_Base.bl_label
+            Splatter_OT_Generate_Base.bl_idname
         )
         layout.operator(
-            Splatter_OT_Classify_Base.bl_idname, text=Splatter_OT_Classify_Base.bl_label
+            Splatter_OT_Classify_Base.bl_idname
         )
         layout.separator()
         layout.label(text="Surface Classification:")
         layout.operator(
-            Splatter_OT_Classify_Faces.bl_idname,
-            text=Splatter_OT_Classify_Faces.bl_label,
+            Splatter_OT_Classify_Faces.bl_idname
         )
         row = layout.row()
         row.operator(
-            Splatter_OT_Select_Surfaces.bl_idname,
-            text=Splatter_OT_Select_Surfaces.bl_label,
+            Splatter_OT_Select_Surfaces.bl_idname
         )
         row.operator(
-            Splatter_OT_Selection_To_Surfaces.bl_idname,
-            text=Splatter_OT_Selection_To_Surfaces.bl_label,
+            Splatter_OT_Selection_To_Surfaces.bl_idname
         )
         row = layout.row()
         row.operator(
-            Splatter_OT_Select_Seating.bl_idname,
-            text=Splatter_OT_Select_Seating.bl_label,
+            Splatter_OT_Select_Seating.bl_idname
         )
         row.operator(
-            Splatter_OT_Selection_To_Seating.bl_idname,
-            text=Splatter_OT_Selection_To_Seating.bl_label,
+            Splatter_OT_Selection_To_Seating.bl_idname
         )
         layout.separator()
         layout.label(text="Object Analysis:")
         layout.operator(
-            Splatter_OT_Classify_Object.bl_idname,
-            text=Splatter_OT_Classify_Object.bl_label,
+            Splatter_OT_Classify_Object.bl_idname
         )
         if obj:
             try:
                 if hasattr(obj, "classification"):
                     c = obj.classification
-                    layout.prop(c, "isSeating", text="Is Seating")
-                    layout.prop(c, "isSurface", text="Is Surface")
+                    layout.prop(c, "isSeating")
+                    layout.prop(c, "isSurface")
+                    layout.prop(c, "surfaceType")
             except (AttributeError, ReferenceError, MemoryError) as e:
-                # Silently handle the error or show a message
                 layout.label(text="Classification data not available")
         layout.separator()
-        layout.operator(Splatter_OT_Align_To_Axes.bl_idname, text=Splatter_OT_Align_To_Axes.bl_label)
+        layout.operator(Splatter_OT_Align_To_Axes.bl_idname)

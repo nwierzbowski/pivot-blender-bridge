@@ -8,6 +8,7 @@ set(CYTHON_MODULES
     selection_utils
     shm_utils
     transform_utils
+    classification
 )
 set(CYTHON_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}/selection_utils.pxd
@@ -48,18 +49,28 @@ target_link_libraries(bridge PRIVATE core)
 # Output extension into the package directory so Python can import it
 set_target_properties(bridge PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../splatter")
 
-# Build helper modules (selection_utils, shm_utils, transform_utils)
+# Build helper modules (selection_utils, shm_utils, transform_utils, surface_types)
 foreach(mod ${CYTHON_MODULES})
     set(SRC ${CMAKE_CURRENT_SOURCE_DIR}/${mod}.pyx)
-    set(PXD ${CMAKE_CURRENT_SOURCE_DIR}/${mod}.pxd)
     set(OUT ${CMAKE_CURRENT_BINARY_DIR}/${mod}.cpp)
-    add_custom_command(
-        OUTPUT ${OUT}
-        COMMAND ${CYTHON_EXECUTABLE} --cplus -a -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -o ${OUT} ${SRC}
-        BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${mod}.html
-        DEPENDS ${SRC} ${PXD}
-        COMMENT "Cythonizing ${SRC} with HTML annotations"
-    )
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${mod}.pxd)
+        set(PXD ${CMAKE_CURRENT_SOURCE_DIR}/${mod}.pxd)
+        add_custom_command(
+            OUTPUT ${OUT}
+            COMMAND ${CYTHON_EXECUTABLE} --cplus -a -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -o ${OUT} ${SRC}
+            BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${mod}.html
+            DEPENDS ${SRC} ${PXD}
+            COMMENT "Cythonizing ${SRC} with HTML annotations"
+        )
+    else()
+        add_custom_command(
+            OUTPUT ${OUT}
+            COMMAND ${CYTHON_EXECUTABLE} --cplus -a -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -o ${OUT} ${SRC}
+            BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${mod}.html
+            DEPENDS ${SRC}
+            COMMENT "Cythonizing ${SRC} with HTML annotations"
+        )
+    endif()
     add_library(${mod} MODULE ${OUT})
     set_target_properties(${mod} PROPERTIES PREFIX "")
     if(WIN32)
@@ -70,6 +81,8 @@ foreach(mod ${CYTHON_MODULES})
     if(Python3_NumPy_INCLUDE_DIRS)
         target_include_directories(${mod} PRIVATE ${Python3_NumPy_INCLUDE_DIRS})
     endif()
+    # Include engine src for classification.h (needed for surface_types)
+    target_include_directories(${mod} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core)
     # Output extension into the package directory so Python can import it
     set_target_properties(${mod} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../splatter")
 endforeach()
