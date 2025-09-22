@@ -1,8 +1,6 @@
 import bpy
 import os
 import stat
-import subprocess
-import atexit
 
 from .classes import ObjectAttributes
 from bpy.props import PointerProperty
@@ -22,7 +20,6 @@ from .operators import (
 )
 from .ui import Splatter_PT_Main_Panel
 from . import engine
-from . import engine_state
 
 
 @persistent
