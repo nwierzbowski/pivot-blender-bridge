@@ -1,5 +1,12 @@
-# Property Management System
-# Centralized management of object properties with automatic engine synchronization
+"""Property Management System
+
+Centralized management of object properties with automatic engine synchronization.
+Separation of concerns:
+- Public API: setting attributes, scene/object sync entry points
+- Engine I/O: command construction and communicator access
+- State: expected engine state bookkeeping (engine_state module)
+- Checks: helpers to determine if a sync is necessary
+"""
 
 import bpy
 from typing import Any, Optional
@@ -17,8 +24,10 @@ class PropertyManager:
     def __init__(self) -> None:
         self._engine_communicator: Optional[Any] = None
 
+    # --- Engine I/O helpers -------------------------------------------------
+
     def _get_engine_communicator(self) -> Optional[Any]:
-        """Lazy initialization of engine communicator."""
+        """Lazy-initialize and cache the engine communicator."""
         if self._engine_communicator is None:
             try:
                 from .engine import get_engine_communicator
@@ -27,19 +36,22 @@ class PropertyManager:
                 self._engine_communicator = None
         return self._engine_communicator
 
+    # --- Object/group helpers ----------------------------------------------
+
+    def _get_group_name(self, obj: Any) -> Optional[str]:
+        """Return the object's group_name if present and non-empty."""
+        classification = getattr(obj, 'classification', None)
+        if classification is None:
+            return None
+        group_name = getattr(classification, 'group_name', None)
+        return group_name or None
+
     def set_attribute(self, obj: Any, attr_name: str, engine_value: Any, update_group: bool = True, update_engine: bool = True) -> bool:
-        """
-        Set an attribute for an object with optional group and engine updates.
+        """Set an attribute for an object with optional group and engine updates.
 
-        Args:
-            obj: Blender object.
-            attr_name: Name of the attribute (e.g., 'surfaceType').
-            engine_value: Value to send to engine (converted to Blender value internally).
-            update_group: Whether to update all objects in the same group.
-            update_engine: Whether to sync with the engine.
-
-        Returns:
-            bool: True if successful, False otherwise.
+        - Converts engine_value to Blender's stored value when needed (e.g., enums).
+        - Optionally emits a single group-level engine command before updating Blender state.
+        - Updates expected engine state for the group to keep future diffs minimal.
         """
         if not hasattr(obj, 'classification'):
             return False
@@ -47,7 +59,7 @@ class PropertyManager:
         # Convert engine value to Blender value
         blender_value = str(engine_value) if isinstance(engine_value, int) else engine_value
 
-        group_name = obj.classification.group_name
+        group_name = self._get_group_name(obj)
 
         # Handle group update with engine sync
         if update_group and update_engine and group_name:
@@ -68,7 +80,7 @@ class PropertyManager:
         return True
 
     def _send_group_attribute_command(self, group_name: str, attr_name: str, engine_value: Any) -> bool:
-        """Send command to engine to set group attribute."""
+        """Send a single command to engine to set a group's attribute."""
         engine = self._get_engine_communicator()
         if not engine:
             return False
@@ -91,63 +103,37 @@ class PropertyManager:
             return False
 
     def set_group_name(self, obj: Any, group_name: str) -> bool:
-        """Set group name for an object.
-
-        Args:
-            obj: Blender object.
-            group_name: Name of the group.
-
-        Returns:
-            bool: True if successful, False otherwise.
-        """
+        """Set group name for an object."""
         if hasattr(obj, 'classification'):
             obj.classification.group_name = group_name
             return True
         return False
 
     def _update_engine_state(self, group_name: str, attr_name: str, value: Any) -> None:
-        """Update the expected engine state for a group attribute.
-
-        Args:
-            group_name: Name of the group.
-            attr_name: Name of the attribute.
-            value: The expected value.
-        """
+        """Update the expected engine state for a group attribute."""
         engine_state._engine_expected_state.setdefault(group_name, {})[attr_name] = value
 
     def _update_group_attribute(self, source_obj: Any, attr_name: str, blender_value: Any, engine_value: Any) -> None:
-        """Update all objects in the same group as the source object for a given attribute.
-
-        Args:
-            source_obj: The source Blender object.
-            attr_name: Name of the attribute.
-            blender_value: Value to set in Blender.
-            engine_value: Value for engine (unused here).
-        """
-        group_name = source_obj.classification.group_name
+        """Update Blender properties for all members of the source object's group."""
+        group_name = self._get_group_name(source_obj)
         if not group_name:
             return
 
         # Update all other objects in the group (skip the source object)
         for obj in bpy.context.scene.objects:
-            if (obj != source_obj and
-                hasattr(obj, 'classification') and
-                hasattr(obj.classification, 'group_name') and
-                obj.classification.group_name == group_name):
+            if obj is source_obj:
+                continue
+            if self._get_group_name(obj) != group_name:
+                continue
 
-                # Update the property directly to avoid triggering callbacks
-                if getattr(obj.classification, attr_name, None) != blender_value:
-                    setattr(obj.classification, attr_name, blender_value)
+            # Update the property directly to avoid triggering callbacks
+            if getattr(obj.classification, attr_name, None) != blender_value:
+                setattr(obj.classification, attr_name, blender_value)
 
     def sync_object_properties(self, obj: Any) -> int:
-        """
-        Sync all properties that need synchronization for the object.
+        """Sync all properties that need synchronization for an object.
 
-        Args:
-            obj: Blender object.
-
-        Returns:
-            int: Number of properties that were synced.
+        Returns number of attributes actually synchronized.
         """
         synced_count = 0
         for attr_name in get_syncable_properties():
@@ -157,19 +143,9 @@ class PropertyManager:
         return synced_count
 
     def sync_attribute_with_engine(self, obj: Any, attr_name: str) -> bool:
-        """
-        Sync a single object's attribute with the engine.
-
-        Args:
-            obj: Blender object.
-            attr_name: Name of the attribute.
-
-        Returns:
-            bool: True if sync was successful, False otherwise.
-        """
-        if not (hasattr(obj, 'classification') and
-                hasattr(obj.classification, 'group_name') and
-                obj.classification.group_name):
+        """Sync a single object's attribute to the engine (by group)."""
+        group_name = self._get_group_name(obj)
+        if not group_name:
             return False
 
         engine = self._get_engine_communicator()
@@ -177,10 +153,7 @@ class PropertyManager:
             return False
 
         try:
-            group_name = obj.classification.group_name
             value = getattr(obj.classification, attr_name)
-
-
             command = {
                 "id": COMMAND_SYNC_OBJECT,
                 "op": "set_group_attr",
@@ -202,99 +175,91 @@ class PropertyManager:
         return False
 
     def needs_attribute_sync(self, obj: Any, attr_name: str) -> bool:
-        """Check if an object needs attribute synchronization.
-
-        Args:
-            obj: Blender object.
-            attr_name: Name of the attribute.
-
-        Returns:
-            bool: True if sync is needed, False otherwise.
-        """
-        if not (hasattr(obj, 'classification') and
-                hasattr(obj.classification, 'group_name') and
-                hasattr(obj.classification, attr_name)):
+        """Return True if an object's attribute differs from expected engine state."""
+        classification = getattr(obj, 'classification', None)
+        if classification is None or not hasattr(classification, attr_name):
             return False
 
-        # Only sync objects that have been processed by align_to_axes
-        if not obj.classification.group_name:
+        # Only sync objects that have been assigned a group
+        group_name = self._get_group_name(obj)
+        if not group_name:
             return False
 
         try:
-            current_value = getattr(obj.classification, attr_name)
-            expected_value = engine_state._engine_expected_state.get(obj.classification.group_name, {}).get(attr_name)
+            current_value = getattr(classification, attr_name)
+            expected_value = engine_state._engine_expected_state.get(group_name, {}).get(attr_name)
             return expected_value is not None and current_value != expected_value
         except (ValueError, AttributeError):
             return False
 
     def needs_sync(self, obj: Any) -> bool:
-        """Check if any property needs synchronization for the object.
-
-        Args:
-            obj: Blender object.
-
-        Returns:
-            bool: True if any sync is needed, False otherwise.
-        """
+        """Return True if any syncable property on the object needs synchronization."""
         for attr_name in get_syncable_properties():
             if self.needs_attribute_sync(obj, attr_name):
                 return True
         return False
 
-    def needs_surface_sync(self, obj: Any) -> bool:
-        """Check if an object needs surface type synchronization.
-
-        Args:
-            obj: Blender object.
-
-        Returns:
-            bool: True if sync is needed, False otherwise.
-        """
-        return self.needs_attribute_sync(obj, 'surface_type')
-
     def sync_scene_after_undo(self, scene: Any) -> tuple[int, int]:
-        """Sync engine properties after undo/redo with per-group de-duplication.
+        """Deduplicated group/attribute sync for undo/redo passes.
 
-        Walk all objects to detect properties needing sync, but only issue one
-        engine command per (group, attribute) pair. Subsequent objects in the same
-        group won't trigger another engine command for that attribute within the
-        same pass.
-
-        Args:
-            scene: The Blender scene containing objects.
-
-        Returns:
-            A tuple of (synced_pairs_count, touched_groups_count).
+        Returns (synced_pairs_count, touched_groups_count).
         """
-        from .property_manager import get_syncable_properties  # local import to avoid cycles
-
+        props = get_syncable_properties()
+        print(f"Syncable properties: {props}")
         synced_pairs: set[tuple[str, str]] = set()
         groups_touched: set[str] = set()
 
         for obj in scene.objects:
-            if not (hasattr(obj, 'classification') and getattr(obj.classification, 'group_name', None)):
+            group_name = self._get_group_name(obj)
+            if not group_name:
                 continue
 
-            group_name = obj.classification.group_name
-
-            for attr_name in get_syncable_properties():
+            for attr_name in props:
                 pair = (group_name, attr_name)
                 if pair in synced_pairs:
                     continue
 
-                if self.needs_attribute_sync(obj, attr_name):
-                    if self.sync_attribute_with_engine(obj, attr_name):
-                        synced_pairs.add(pair)
-                        groups_touched.add(group_name)
+                # If expected state is missing for this group/attr, seed it from current value.
+                expected = engine_state._engine_expected_state.get(group_name, {}).get(attr_name)
+                needs = expected is None or self.needs_attribute_sync(obj, attr_name)
+                if needs and self.sync_attribute_with_engine(obj, attr_name):
+                    synced_pairs.add(pair)
+                    groups_touched.add(group_name)
 
         return (len(synced_pairs), len(groups_touched))
 
 
+_SYNCABLE_PROPS_CACHE: Optional[list[str]] = None
+
 def get_syncable_properties() -> list[str]:
-    """Get the list of syncable properties from ObjectAttributes, excluding group_name."""
-    from .classes import ObjectAttributes
-    syncable_props = [name for name in ObjectAttributes.__annotations__ if name != 'group_name']
-    return syncable_props
+    """Return the list of syncable properties with safe, lazy caching.
+
+    Prefers ObjectAttributes.__annotations__ when available; otherwise falls back
+    to checking for known runtime properties. Avoids caching empty results so
+    late-initialized properties (post-register) are eventually discovered.
+    """
+    global _SYNCABLE_PROPS_CACHE
+    if _SYNCABLE_PROPS_CACHE:
+        return list(_SYNCABLE_PROPS_CACHE)
+
+    props: list[str] = []
+    try:
+        from .classes import ObjectAttributes
+        annotations = getattr(ObjectAttributes, '__annotations__', {}) or {}
+        if annotations:
+            props = [n for n in annotations if n != 'group_name']
+        else:
+            # Fallback for Blender runtime-defined properties (no annotations)
+            for name in ('surface_type',):
+                if hasattr(ObjectAttributes, name):
+                    props.append(name)
+    except Exception:
+        # If classes can't be imported yet, return empty and try again later
+        return []
+
+    if props:
+        _SYNCABLE_PROPS_CACHE = props
+    return props
 
 
 # Global instance

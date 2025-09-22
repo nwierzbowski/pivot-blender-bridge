@@ -6,6 +6,7 @@ import atexit
 
 from .classes import ObjectAttributes
 from bpy.props import PointerProperty
+from bpy.app.handlers import persistent
 
 from .operators import (
     Splatter_OT_Align_To_Axes,
@@ -24,11 +25,17 @@ from . import engine
 from . import engine_state
 
 
-def sync_engine_after_undo(scene):
-    """Sync engine properties after undo/redo via PropertyManager (deduped per group/attr)."""
+@persistent
+def sync_engine_after_undo(_dummy=None):
+    """Sync engine properties after undo/redo via PropertyManager (deduped per group/attr).
+
+    Marked persistent so it survives file loads; uses bpy.context.scene instead of a
+    handler argument to be compatible with Blender's undo/redo handler signature.
+    """
+    print("Syncing engine after undo/redo...")
     from .property_manager import get_property_manager
 
-    synced_count, touched_groups = get_property_manager().sync_scene_after_undo(scene)
+    synced_count, touched_groups = get_property_manager().sync_scene_after_undo(bpy.context.scene)
     if synced_count > 0:
         print(f"Undo/Redo sync: {synced_count} properties synchronized across {touched_groups} groups")
 
@@ -84,8 +91,10 @@ def register():
     engine.start_engine()
     
     # Register undo handler to sync engine after undo operations
-    bpy.app.handlers.undo_post.append(sync_engine_after_undo)
-    bpy.app.handlers.redo_post.append(sync_engine_after_undo)
+    if sync_engine_after_undo not in bpy.app.handlers.undo_post:
+        bpy.app.handlers.undo_post.append(sync_engine_after_undo)
+    if sync_engine_after_undo not in bpy.app.handlers.redo_post:
+        bpy.app.handlers.redo_post.append(sync_engine_after_undo)
 
     # Example: Add addon preferences (if you create an AddonPreferences class)
     # bpy.utils.register_class(MyAddonPreferences)
