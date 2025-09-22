@@ -72,8 +72,6 @@ class PropertyManager:
         engine = self._get_engine_communicator()
         if not engine:
             return False
-        
-        engine_value = int(engine_value) if isinstance(engine_value, str) and engine_value.isdigit() else engine_value
 
         try:
             command = {
@@ -182,9 +180,6 @@ class PropertyManager:
             group_name = obj.classification.group_name
             value = getattr(obj.classification, attr_name)
 
-            # Convert to engine value if needed
-            if isinstance(value, str) and value.isdigit():
-                value = int(value)
 
             command = {
                 "id": COMMAND_SYNC_OBJECT,
@@ -261,12 +256,7 @@ class PropertyManager:
 def get_syncable_properties() -> list[str]:
     """Get the list of syncable properties from ObjectAttributes, excluding group_name."""
     from .classes import ObjectAttributes
-    syncable_props = []
-    for name in dir(ObjectAttributes):
-        if not name.startswith('_') and name != 'group_name':
-            attr = getattr(ObjectAttributes, name, None)
-            if hasattr(attr, 'name'):  # It's a Blender property
-                syncable_props.append(name)
+    syncable_props = [name for name in ObjectAttributes.__annotations__ if name != 'group_name']
     return syncable_props
 
 
