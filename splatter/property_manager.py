@@ -252,6 +252,43 @@ class PropertyManager:
         """
         return self.needs_attribute_sync(obj, 'surface_type')
 
+    def sync_scene_after_undo(self, scene: Any) -> tuple[int, int]:
+        """Sync engine properties after undo/redo with per-group de-duplication.
+
+        Walk all objects to detect properties needing sync, but only issue one
+        engine command per (group, attribute) pair. Subsequent objects in the same
+        group won't trigger another engine command for that attribute within the
+        same pass.
+
+        Args:
+            scene: The Blender scene containing objects.
+
+        Returns:
+            A tuple of (synced_pairs_count, touched_groups_count).
+        """
+        from .property_manager import get_syncable_properties  # local import to avoid cycles
+
+        synced_pairs: set[tuple[str, str]] = set()
+        groups_touched: set[str] = set()
+
+        for obj in scene.objects:
+            if not (hasattr(obj, 'classification') and getattr(obj.classification, 'group_name', None)):
+                continue
+
+            group_name = obj.classification.group_name
+
+            for attr_name in get_syncable_properties():
+                pair = (group_name, attr_name)
+                if pair in synced_pairs:
+                    continue
+
+                if self.needs_attribute_sync(obj, attr_name):
+                    if self.sync_attribute_with_engine(obj, attr_name):
+                        synced_pairs.add(pair)
+                        groups_touched.add(group_name)
+
+        return (len(synced_pairs), len(groups_touched))
+
 
 def get_syncable_properties() -> list[str]:
     """Get the list of syncable properties from ObjectAttributes, excluding group_name."""

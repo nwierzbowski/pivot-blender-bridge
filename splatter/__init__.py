@@ -25,22 +25,12 @@ from . import engine_state
 
 
 def sync_engine_after_undo(scene):
-    """Sync engine surface types after undo/redo operations."""
+    """Sync engine properties after undo/redo via PropertyManager (deduped per group/attr)."""
     from .property_manager import get_property_manager
-    prop_manager = get_property_manager()
 
-    synced_count = 0
-    synced_objects = 0
-
-    # Sync each object that needs it
-    for obj in scene.objects:
-        obj_synced = prop_manager.sync_object_properties(obj)
-        if obj_synced > 0:
-            synced_count += obj_synced
-            synced_objects += 1
-
+    synced_count, touched_groups = get_property_manager().sync_scene_after_undo(scene)
     if synced_count > 0:
-        print(f"Undo/Redo sync: {synced_count} properties synchronized across {synced_objects} objects")
+        print(f"Undo/Redo sync: {synced_count} properties synchronized across {touched_groups} groups")
 
 
 
