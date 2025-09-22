@@ -9,13 +9,35 @@ cpdef object get_root_parent(object obj):
     return obj
 
 
-cpdef list get_all_mesh_descendants(object root):
+# cpdef list get_all_mesh_descendants(object root):
+#     cdef list meshes = []
+#     if root.type == 'MESH' and len(root.data.vertices) != 0:
+#         meshes.append(root)
+#     for child in root.children:
+#         meshes.extend(get_all_mesh_descendants(child))
+#     return meshes
+
+
+cpdef tuple get_mesh_and_all_descendants(object root):
     cdef list meshes = []
-    if root.type == 'MESH' and len(root.data.vertices) != 0:
-        meshes.append(root)
-    for child in root.children:
-        meshes.extend(get_all_mesh_descendants(child))
-    return meshes
+    cdef list descendants = [root]
+    cdef list stack = [root]
+    cdef object current
+    while stack:
+        current = stack.pop()
+        if current.type == 'MESH' and len(current.data.vertices) != 0:
+            meshes.append(current)
+        for child in current.children:
+            descendants.append(child)
+            stack.append(child)
+    return meshes, descendants
+
+
+# cpdef list get_all_descendants(object root):
+#     cdef list descendants = [root]
+#     for child in root.children:
+#         descendants.extend(get_all_descendants(child))
+#     return descendants
 
 
 cpdef list get_all_root_objects(object coll):
@@ -32,8 +54,8 @@ cpdef list get_all_root_objects(object coll):
 def aggregate_object_groups(list selected_objects):
     """Group selection by scene/collection boundaries.
 
-    Returns a 6-tuple:
-      (mesh_groups, parent_groups, group_names, total_verts, total_edges, total_objects)
+    Returns a 7-tuple:
+      (mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects)
     """
     cdef object scene_coll = bpy.context.scene.collection
     cdef dict coll_to_top = {}
@@ -57,6 +79,7 @@ def aggregate_object_groups(list selected_objects):
     cdef list scene_roots = []
     cdef list mesh_groups = []
     cdef list parent_groups = []
+    cdef list full_groups = []
     cdef list group_names = []
     cdef int total_verts = 0
     cdef int total_edges = 0
@@ -66,6 +89,7 @@ def aggregate_object_groups(list selected_objects):
     cdef object coll
     cdef list roots
     cdef list all_meshes
+    cdef list all_descendants
     cdef int group_verts
     cdef int group_edges
 
@@ -95,12 +119,13 @@ def aggregate_object_groups(list selected_objects):
 
     # Handle scene roots individually
     for root in scene_roots:
-        all_meshes = get_all_mesh_descendants(root)
+        all_meshes, all_descendants = get_mesh_and_all_descendants(root)
         group_verts = sum(len(m.data.vertices) for m in all_meshes)
         group_edges = sum(len(m.data.edges) for m in all_meshes)
         if group_verts > 0:
             mesh_groups.append(all_meshes)
             parent_groups.append([root])
+            full_groups.append(all_descendants)
             group_names.append(root.name + "_O")
             total_verts += group_verts
             total_edges += group_edges
@@ -109,16 +134,20 @@ def aggregate_object_groups(list selected_objects):
     # For each non-scene group, collect mesh descendants and build groups
     for top_coll, roots in group_map.items():
         all_meshes = []
+        full_objects = []
         for r in roots:
-            all_meshes.extend(get_all_mesh_descendants(r))
+            meshes, desc = get_mesh_and_all_descendants(r)
+            all_meshes.extend(meshes)
+            full_objects.extend(desc)
         group_verts = sum(len(m.data.vertices) for m in all_meshes)
         group_edges = sum(len(m.data.edges) for m in all_meshes)
         if group_verts > 0:
             mesh_groups.append(all_meshes)
             parent_groups.append(roots)
+            full_groups.append(full_objects)
             group_names.append(top_coll.name + "_C")
             total_verts += group_verts
             total_edges += group_edges
             total_objects += len(all_meshes)
 
-    return mesh_groups, parent_groups, group_names, total_verts, total_edges, total_objects
+    return mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects

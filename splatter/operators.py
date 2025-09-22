@@ -1,13 +1,10 @@
 import math
 import bpy
 import random
-import bmesh
 import time
 
-import numpy as np
-
 from .utils import link_node_group
-from mathutils import Vector, Quaternion, Euler
+from mathutils import Vector
 from .constants import (
     BOOLEAN,
     CANCELLED,
@@ -317,7 +314,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
 
     def execute(self, context):
         startCPP = time.perf_counter()
-        rots, locs, root_objects, all_local_quats, surface_type, group_names = bridge.align_to_axes_batch(context.selected_objects)
+        rots, locs, root_groups, full_groups, all_local_quats, surface_type, group_names = bridge.align_to_axes_batch(context.selected_objects)
         endCPP = time.perf_counter()
         elapsedCPP = endCPP - startCPP
 
@@ -325,7 +322,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
         startPython = time.perf_counter()
         # Apply results
         obj_idx = 0
-        for i, group in enumerate(root_objects):
+        for i, group in enumerate(root_groups):
             delta_quat = rots[i]
 
             for obj in group:
@@ -337,7 +334,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
                 # bpy.context.scene.cursor.location = Vector(loc) + obj.location
                 obj_idx += 1
 
-        for i, group in enumerate(root_objects):
+        for i, group in enumerate(full_groups):
             surface_type_value = surface_type[i]
             group_name = group_names[i]
             

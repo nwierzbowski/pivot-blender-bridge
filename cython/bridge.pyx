@@ -22,6 +22,7 @@ def align_to_axes_batch(list selected_objects):
     # Collect selection into groups and individuals and precompute totals
     cdef list mesh_groups
     cdef list parent_groups
+    cdef list full_groups
     cdef list group_names
     cdef int total_verts
     cdef int total_edges
@@ -30,7 +31,7 @@ def align_to_axes_batch(list selected_objects):
     cdef uint32_t[::1] edge_counts_mv
     cdef uint32_t[::1] object_counts_mv
     cdef list group
-    mesh_groups, parent_groups, group_names, total_verts, total_edges, total_objects = selection_utils.aggregate_object_groups(selected_objects)
+    mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects = selection_utils.aggregate_object_groups(selected_objects)
 
     # Create shared memory segments and numpy arrays
     shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(total_verts, total_edges, total_objects, mesh_groups)
@@ -127,4 +128,4 @@ def align_to_axes_batch(list selected_objects):
     end_alignment = time.perf_counter()
     print(f"Alignment time elapsed: {(end_alignment - start_alignment) * 1000:.2f}ms")
 
-    return rots, locs, parent_groups, all_original_rots, surface_type, group_names
+    return rots, locs, parent_groups, full_groups, all_original_rots, surface_type, group_names
