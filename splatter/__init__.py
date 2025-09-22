@@ -30,15 +30,17 @@ def sync_engine_after_undo(scene):
     prop_manager = get_property_manager()
 
     synced_count = 0
+    synced_objects = 0
 
     # Sync each object that needs it
     for obj in scene.objects:
-        if prop_manager.needs_surface_sync(obj):
-            if prop_manager.sync_object_with_engine(obj):
-                synced_count += 1
+        obj_synced = prop_manager.sync_object_properties(obj)
+        if obj_synced > 0:
+            synced_count += obj_synced
+            synced_objects += 1
 
     if synced_count > 0:
-        print(f"Undo/Redo sync: {synced_count} objects synchronized with engine")
+        print(f"Undo/Redo sync: {synced_count} properties synchronized across {synced_objects} objects")
 
 
 

@@ -341,7 +341,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
                 obj_idx += 1
 
         for i, group in enumerate(root_objects):
-            surface_type_value = str(surface_type[i])
+            surface_type_value = surface_type[i]
             group_name = group_names[i]
             
             # Since the engine is the source of truth, update each object without sending commands back to engine
@@ -353,7 +353,7 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
                 for obj in group:
                     if hasattr(obj, "classification"):
                         prop_manager.set_group_name(obj, group_name)
-                        prop_manager.set_surface_type(obj, surface_type_value, update_group=False, update_engine=False)
+                        prop_manager.set_attribute(obj, 'surface_type', surface_type_value, update_group=False, update_engine=False)
                 
                 
         
