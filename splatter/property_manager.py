@@ -46,7 +46,7 @@ class PropertyManager:
         group_name = getattr(classification, 'group_name', None)
         return group_name or None
 
-    def set_attribute(self, obj: Any, attr_name: str, engine_value: Any, update_group: bool = True, update_engine: bool = True) -> bool:
+    def set_attribute(self, obj: Any, attr_name: str, value: Any, update_group: bool = True, update_engine: bool = True) -> bool:
         """Set an attribute for an object with optional group and engine updates.
 
         - Converts engine_value to Blender's stored value when needed (e.g., enums).
@@ -56,30 +56,27 @@ class PropertyManager:
         if not hasattr(obj, 'classification'):
             return False
 
-        # Convert engine value to Blender value
-        blender_value = str(engine_value) if isinstance(engine_value, int) else engine_value
-
         group_name = self._get_group_name(obj)
 
         # Handle group update with engine sync
         if update_group and update_engine and group_name:
-            if not self._send_group_attribute_command(group_name, attr_name, engine_value):
+            if not self._send_group_attribute_command(group_name, attr_name, value):
                 return False
 
         # Update the object's property
-        if getattr(obj.classification, attr_name, None) != blender_value:
-            setattr(obj.classification, attr_name, blender_value)
+        if getattr(obj.classification, attr_name, None) != value:
+            setattr(obj.classification, attr_name, value)
 
         # Update group properties if requested
         if update_group and group_name:
-            self._update_group_attribute(obj, attr_name, blender_value, engine_value)
-            self._update_engine_state(group_name, attr_name, engine_value)
+            self._update_group_attribute(obj, attr_name, value, value)
+            self._update_engine_state(group_name, attr_name, value)
         elif update_engine and group_name:
-            self._update_engine_state(group_name, attr_name, engine_value)
+            self._update_engine_state(group_name, attr_name, value)
 
         return True
 
-    def _send_group_attribute_command(self, group_name: str, attr_name: str, engine_value: Any) -> bool:
+    def _send_group_attribute_command(self, group_name: str, attr_name: str, value: Any) -> bool:
         """Send a single command to engine to set a group's attribute."""
         engine = self._get_engine_communicator()
         if not engine:
@@ -91,7 +88,7 @@ class PropertyManager:
                 "op": "set_group_attr",
                 "group_name": group_name,
                 "attr": attr_name,
-                "value": engine_value
+                "value": value
             }
             response = engine.send_command(command)
             if "ok" not in response or not response["ok"]:
