@@ -257,9 +257,9 @@ class Splatter_OT_Classify_Object(bpy.types.Operator):
 
         return {FINISHED}
 
-class Splatter_OT_Align_To_Axes(bpy.types.Operator):
-    bl_idname = PRE.lower() + ".align_to_axes"
-    bl_label = "Align to Axes"
+class Splatter_OT_Classify_Selected_Objects(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".classify_selected_objects"
+    bl_label = "Classify Selected Objects"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -357,3 +357,8 @@ class Splatter_OT_Align_To_Axes(bpy.types.Operator):
         print(f"Python time elapsed: {elapsedPython * 1000:.2f}ms")
         print(f"Total time elapsed: {(elapsedCPP + elapsedPython) * 1000:.2f}ms")
         return {FINISHED}
+
+class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):
+    bl_idname = PRE.lower() + ".organize_classified_objects"
+    bl_label = "Organize Classified Objects"
+    bl_options = {"REGISTER", "UNDO"}

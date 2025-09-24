@@ -1,7 +1,8 @@
 from re import S
 import bpy
 from .operators import (
-    Splatter_OT_Align_To_Axes,
+    Splatter_OT_Classify_Selected_Objects,
+    Splatter_OT_Organize_Classified_Objects,
     Splatter_OT_Classify_Object,
     Splatter_OT_Selection_To_Seating,
     Splatter_OT_Selection_To_Surfaces,
@@ -67,9 +68,9 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
         if obj:
             try:
                 c = obj.classification
-                # Only show classification controls if the object has been processed by align_to_axes
+                # Only show classification controls if the object has been processed by classify_selected_objects
                 if not c.group_name:
-                    layout.label(text="Run 'Align to Axes' first")
+                    layout.label(text="Classify object first")
                 else:
                     # layout.prop(c, "isSeating")
                     # layout.prop(c, "isSurface")
@@ -77,4 +78,5 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
             except (AttributeError, ReferenceError, MemoryError) as e:
                 layout.label(text="Classification data not available")
         layout.separator()
-        layout.operator(Splatter_OT_Align_To_Axes.bl_idname)
+        layout.operator(Splatter_OT_Classify_Selected_Objects.bl_idname)
+        layout.operator(Splatter_OT_Organize_Classified_Objects.bl_idname)

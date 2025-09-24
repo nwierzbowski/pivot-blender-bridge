@@ -7,7 +7,8 @@ from bpy.props import PointerProperty
 from bpy.app.handlers import persistent
 
 from .operators import (
-    Splatter_OT_Align_To_Axes,
+    Splatter_OT_Classify_Selected_Objects,
+    Splatter_OT_Organize_Classified_Objects,
     Splatter_OT_Classify_Base,
     Splatter_OT_Classify_Object,
     Splatter_OT_Selection_To_Seating,
@@ -115,7 +116,8 @@ classesToRegister = (
     Splatter_OT_Select_Seating,
     Splatter_OT_Selection_To_Seating,
     Splatter_OT_Classify_Object,
-    Splatter_OT_Align_To_Axes,
+    Splatter_OT_Classify_Selected_Objects,
+    Splatter_OT_Organize_Classified_Objects,
 )
 
 
