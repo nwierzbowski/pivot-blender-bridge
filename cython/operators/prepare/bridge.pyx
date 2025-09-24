@@ -5,7 +5,7 @@ from mathutils import Quaternion
 import numpy as np
 import time
 
-from . import selection_utils, shm_utils, transform_utils
+from ..shared import selection_utils, shm_utils, transform_utils
 
 # -----------------------------
 # Main
