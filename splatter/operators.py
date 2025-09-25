@@ -28,6 +28,8 @@ from .constants import (
     WRITE_SURFACES,
 )
 from .lib import classify_object
+from . import engine
+from .engine_state import get_engine_has_groups_cached
 
 class Splatter_OT_Segment_Scene(bpy.types.Operator):
     bl_idname = PRE.lower() + ".segment_scene"
@@ -324,3 +326,22 @@ class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):
     bl_idname = PRE.lower() + ".organize_classified_objects"
     bl_label = "Organize Classified Objects"
     bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        # Once we have groups cached as true, keep returning true (groups are never deleted)
+        if get_engine_has_groups_cached():
+            return True
+        
+        # Otherwise, try to query the engine
+        try:
+            engine_comm = engine.get_engine_communicator()
+            response = engine_comm.send_command({"id": 0, "op": "has_groups"})
+            return response.get("has_groups", False)
+        except Exception:
+            return False
+
+    def execute(self, context):
+        print("Organize Classified Objects Operator Called (Not Implemented Yet)")
+        self.report({"INFO"}, "Organize Classified Objects (Not Implemented Yet)")
+        return {FINISHED}
