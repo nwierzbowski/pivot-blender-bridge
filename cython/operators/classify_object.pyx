@@ -29,9 +29,6 @@ def classify_and_apply_objects(list selected_objects):
     cdef list group
     mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects = selection_utils.aggregate_object_groups(selected_objects)
 
-    # Create dictionary mapping group names to parent object lists
-    cdef dict parent_groups_dict = {group_names[i]: parent_groups[i] for i in range(len(group_names))}
-
     # Create shared memory segments and numpy arrays
     shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(total_verts, total_edges, total_objects, mesh_groups)
 
@@ -93,6 +90,7 @@ def classify_and_apply_objects(list selected_objects):
     engine = get_engine_communicator()
     
     # Store parent groups globally for later positioning work
+    cdef dict parent_groups_dict = {group_names[i]: {'objects': parent_groups[i], 'offsets': all_parent_offsets[i]} for i in range(len(group_names))}
     set_engine_parent_groups(parent_groups_dict)
     final_response = engine.send_command(command)
     

@@ -29,7 +29,7 @@ from .constants import (
 )
 from .lib import classify_object
 from . import engine
-from .engine_state import get_engine_has_groups_cached, set_engine_has_groups_cached
+from .engine_state import get_engine_has_groups_cached, set_engine_has_groups_cached, get_engine_parent_groups
 
 class Splatter_OT_Segment_Scene(bpy.types.Operator):
     bl_idname = PRE.lower() + ".segment_scene"
@@ -347,52 +347,27 @@ class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):
                 
                 # positions is now a dict mapping group_name -> [x, y, z]
                 
-                # Get all classified objects and group them by group_name
-                group_objects = {}
-                for obj in bpy.context.scene.objects:
-                    if hasattr(obj, 'classification') and obj.classification.group_name:
-                        group_name = obj.classification.group_name
-                        if group_name not in group_objects:
-                            group_objects[group_name] = []
-                        group_objects[group_name].append(obj)
+                # Get the cached parent groups dictionary
+                parent_groups = get_engine_parent_groups()
                 
                 # Apply positions to each group
                 organized_count = 0
                 for group_name, pos in positions.items():
-                    if group_name in group_objects:
+                    if group_name in parent_groups:
                         target_pos = Vector((pos[0], pos[1], pos[2]))
                         
-                        # Get all objects in this group
-                        objects_in_group = group_objects[group_name]
+                        # Get all parent objects in this group (these are the ones that need to be moved)
+                        group_data = parent_groups[group_name]
+                        parent_objects = group_data['objects']
+                        offsets = group_data['offsets']
                         
-                        # Try to use stored group origin first, otherwise calculate current center
-                        group_origin = None
-                        for obj in objects_in_group:
-                            if obj.classification.group_origin:
-                                try:
-                                    # Parse stored origin "x,y,z"
-                                    origin_str = obj.classification.group_origin
-                                    x, y, z = map(float, origin_str.split(','))
-                                    group_origin = Vector((x, y, z))
-                                    break
-                                except (ValueError, AttributeError):
-                                    pass
+                        # Get the location of the first object in the group
+                        first_obj_location = parent_objects[0].location
                         
-                        if group_origin is None:
-                            # Calculate current center by averaging positions
-                            group_origin = Vector((0, 0, 0))
-                            for obj in objects_in_group:
-                                group_origin += obj.location
-                            group_origin /= len(objects_in_group)
-                        
-                        # Apply the organized position as absolute position
-                        for obj in objects_in_group:
-                            obj.location = target_pos
-                        
-                        # Store the new group origin for future use (origin stays the same, position changes)
-                        origin_str = f"{group_origin.x},{group_origin.y},{group_origin.z}"
-                        for obj in objects_in_group:
-                            obj.classification.group_origin = origin_str
+                        # Apply positions to each parent object using its offset + target position + first object location
+                        for i, obj in enumerate(parent_objects):
+                            obj_offset = Vector(offsets[i]) if i < len(offsets) else Vector((0, 0, 0))
+                            obj.location = obj_offset + target_pos
                         
                         organized_count += 1
                 
