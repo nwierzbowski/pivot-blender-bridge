@@ -1,4 +1,4 @@
-# classification.pyx - C declarations and Python constants for classification
+# classify_object.pyx - Main classification operator
 
 from libc.stdint cimport uint32_t
 from libc.stddef cimport size_t
@@ -8,10 +8,6 @@ import numpy as np
 import time
 
 from . import selection_utils, shm_utils, transform_utils
-
-# -----------------------------
-# Main
-# -----------------------------
 
 def classify_object(list selected_objects):
 

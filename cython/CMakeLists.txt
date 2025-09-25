@@ -5,12 +5,13 @@ find_program(CYTHON_EXECUTABLE cython REQUIRED)
 
 set(CYTHON_MODULE_SOURCES
     operators/classify_object.pyx
+    shared/classification.pyx
     shared/selection_utils.pyx
     shared/shm_utils.pyx
     shared/transform_utils.pyx
 )
 # Operator modules that need linking to core library
-set(OPERATOR_MODULES classify_object)
+set(OPERATOR_MODULES classify_object classification)
 set(CYTHON_INCLUDES
 )
 
