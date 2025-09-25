@@ -26,3 +26,5 @@ splatter/bin/
 *.so
 *.pyd
 *.zip
+
+.github/
