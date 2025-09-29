@@ -3,7 +3,7 @@ import bpy
 import random
 import time
 
-from .utils import link_node_group
+from .utils import link_node_group, get_all_mesh_objects_in_collection, get_qualifying_objects_for_selected, perform_classification
 from mathutils import Vector
 from .constants import (
     BOOLEAN,
@@ -268,85 +268,13 @@ class Splatter_OT_Classify_Selected_Objects(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         sel = getattr(context, "selected_objects", None) or []
-
-        
-
-        if context.scene.splatter.objects_collection:
-            scene_root = context.scene.splatter.objects_collection
-        else:
-            scene_root = context.scene.collection if context and context.scene else None
-        if not sel:
-            return False
-        
-        for obj in sel:
-            if obj.type == 'MESH' and scene_root in obj.users_collection:
-                return True
-
-        # Check for selected objects in scene_root that have mesh descendants
-        def has_mesh_descendants(obj):
-            for child in obj.children:
-                if child.type == 'MESH' or has_mesh_descendants(child):
-                    return True
-            return False
-
-        for obj in sel:
-            if scene_root in obj.users_collection and has_mesh_descendants(obj):
-                return True
-
-        # Build a map of every nested collection to its top-level (direct child of scene_root)
-        coll_to_top = {}
-
-        def traverse(current_coll, current_top):
-            for child in current_coll.children:
-                coll_to_top[child] = current_top
-                traverse(child, current_top)
-
-        for top in scene_root.children:
-            coll_to_top[top] = top
-            traverse(top, top)
-
-        # Cache for whether a top-level collection's subtree contains any mesh
-        top_has_mesh_cache = {}
-
-        def coll_has_mesh(coll):
-            # Fast boolean check: any mesh in this collection or its children
-            for o in coll.objects:
-                if o.type == 'MESH':
-                    return True
-            for child in coll.children:
-                if coll_has_mesh(child):
-                    return True
-            return False
-
-        for obj in sel:
-            # Consider all collections the object belongs to
-            for coll in getattr(obj, 'users_collection', []) or []:
-                if coll is scene_root:
-                    continue
-                top = coll_to_top.get(coll)
-                if not top:
-                    continue
-                if top not in top_has_mesh_cache:
-                    top_has_mesh_cache[top] = coll_has_mesh(top)
-                if top_has_mesh_cache[top]:
-                    return True
-
-        return False
+        objects_collection = context.scene.splatter.objects_collection or context.scene.collection
+        return bool(get_qualifying_objects_for_selected(sel, objects_collection))
 
     def execute(self, context):
-        startCPP = time.perf_counter()
-        
-        # Determine which collection to use
         objects_collection = context.scene.splatter.objects_collection or context.scene.collection
-        
-        classify_object.classify_and_apply_objects(context.selected_objects, objects_collection)
-        endCPP = time.perf_counter()
-        elapsedCPP = endCPP - startCPP
-        print(f"Total time elapsed: {(elapsedCPP) * 1000:.2f}ms")
-        
-        # Mark that we now have classified objects/groups
-        set_engine_has_groups_cached(True)
-        
+        objects = get_qualifying_objects_for_selected(context.selected_objects, objects_collection)
+        perform_classification(objects, objects_collection)
         return {FINISHED}
 
 class Splatter_OT_Classify_All_Objects_In_Collection(bpy.types.Operator):
@@ -358,43 +286,12 @@ class Splatter_OT_Classify_All_Objects_In_Collection(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         objects_collection = context.scene.splatter.objects_collection or context.scene.collection
-
-        def has_mesh_in_collection(coll):
-            for obj in coll.objects:
-                if obj.type == 'MESH':
-                    return True
-            for child in coll.children:
-                if has_mesh_in_collection(child):
-                    return True
-            return False
-
-        return has_mesh_in_collection(objects_collection)
+        return bool(get_all_mesh_objects_in_collection(objects_collection))
 
     def execute(self, context):
-        startCPP = time.perf_counter()
-        
-        # Determine which collection to use
         objects_collection = context.scene.splatter.objects_collection or context.scene.collection
-        
-        def get_all_mesh_objects_in_collection(coll):
-            meshes = []
-            for obj in coll.objects:
-                if obj.type == 'MESH':
-                    meshes.append(obj)
-            for child in coll.children:
-                meshes.extend(get_all_mesh_objects_in_collection(child))
-            return meshes
-        
-        all_objects = get_all_mesh_objects_in_collection(objects_collection)
-        
-        classify_object.classify_and_apply_objects(all_objects, objects_collection)
-        endCPP = time.perf_counter()
-        elapsedCPP = endCPP - startCPP
-        print(f"Total time elapsed: {(elapsedCPP) * 1000:.2f}ms")
-        
-        # Mark that we now have classified objects/groups
-        set_engine_has_groups_cached(True)
-        
+        objects = get_all_mesh_objects_in_collection(objects_collection)
+        perform_classification(objects, objects_collection)
         return {FINISHED}
 
 class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):

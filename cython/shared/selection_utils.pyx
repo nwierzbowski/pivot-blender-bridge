@@ -75,14 +75,8 @@ def aggregate_object_groups(list selected_objects, object collection):
                 coll_to_top[child_coll] = current_top
                 stack.append((child_coll, current_top))
 
-    cdef list filtered_selected = []
     cdef object coll
     cdef object obj
-    for obj in selected_objects:
-        if obj.users_collection:
-            coll = obj.users_collection[0]
-            if coll == scene_coll or coll in coll_to_top:
-                filtered_selected.append(obj)
 
     cdef set root_parents = set()
     cdef dict group_map = {}  # top_coll -> list of root_parents
@@ -103,7 +97,7 @@ def aggregate_object_groups(list selected_objects, object collection):
     cdef int group_edges
 
     # Collect unique root parents
-    for obj in filtered_selected:
+    for obj in selected_objects:
         root = get_root_parent(obj)
         root_parents.add(root)
 
