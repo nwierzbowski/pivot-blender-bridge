@@ -267,11 +267,12 @@ class Splatter_OT_Classify_Selected_Objects(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         sel = getattr(context, "selected_objects", None) or []
-        if any(obj.type == 'MESH' for obj in sel):
-            return True
 
-        scene_root = context.scene.collection if context and context.scene else None
-        if not scene_root or not sel:
+        if context.scene.splatter.objects_collection:
+            scene_root = context.scene.splatter.objects_collection
+        else:
+            scene_root = context.scene.collection if context and context.scene else None
+        if not sel:
             return False
 
         # Build a map of every nested collection to its top-level (direct child of scene_root)
@@ -316,7 +317,11 @@ class Splatter_OT_Classify_Selected_Objects(bpy.types.Operator):
 
     def execute(self, context):
         startCPP = time.perf_counter()
-        classify_object.classify_and_apply_objects(context.selected_objects)
+        
+        # Determine which collection to use
+        objects_collection = context.scene.splatter.objects_collection or context.scene.collection
+        
+        classify_object.classify_and_apply_objects(context.selected_objects, objects_collection)
         endCPP = time.perf_counter()
         elapsedCPP = endCPP - startCPP
         print(f"Total time elapsed: {(elapsedCPP) * 1000:.2f}ms")

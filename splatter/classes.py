@@ -1,6 +1,7 @@
 # type: ignore
 from bpy.types import PropertyGroup, Collection
 from bpy.props import BoolProperty, EnumProperty, StringProperty, PointerProperty
+import bpy
 
 # Import C enum values from Cython module
 from .lib import classification

@@ -51,17 +51,18 @@ cpdef list get_all_root_objects(object coll):
     return roots
 
 
-def aggregate_object_groups(list selected_objects):
+def aggregate_object_groups(list selected_objects, object collection):
     """Group selection by scene/collection boundaries.
 
     Returns a 7-tuple:
       (mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects)
     """
-    cdef object scene_coll = bpy.context.scene.collection
+    cdef object scene_coll = collection
     cdef dict coll_to_top = {}
     cdef object top_coll
     cdef object child_coll
     cdef list stack
+    
 
     # Inline _build_coll_to_top_map to avoid nested function
     for top_coll in scene_coll.children:
@@ -74,6 +75,15 @@ def aggregate_object_groups(list selected_objects):
                 coll_to_top[child_coll] = current_top
                 stack.append((child_coll, current_top))
 
+    cdef list filtered_selected = []
+    cdef object coll
+    cdef object obj
+    for obj in selected_objects:
+        if obj.users_collection:
+            coll = obj.users_collection[0]
+            if coll == scene_coll or coll in coll_to_top:
+                filtered_selected.append(obj)
+
     cdef set root_parents = set()
     cdef dict group_map = {}  # top_coll -> list of root_parents
     cdef list scene_roots = []
@@ -84,9 +94,8 @@ def aggregate_object_groups(list selected_objects):
     cdef int total_verts = 0
     cdef int total_edges = 0
     cdef int total_objects = 0
-    cdef object obj
+    
     cdef object root
-    cdef object coll
     cdef list roots
     cdef list all_meshes
     cdef list all_descendants
@@ -94,7 +103,7 @@ def aggregate_object_groups(list selected_objects):
     cdef int group_edges
 
     # Collect unique root parents
-    for obj in selected_objects:
+    for obj in filtered_selected:
         root = get_root_parent(obj)
         root_parents.add(root)
 

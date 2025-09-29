@@ -10,7 +10,7 @@ import bpy
 
 from . import selection_utils, shm_utils, transform_utils
 
-def classify_and_apply_objects(list selected_objects):
+def classify_and_apply_objects(list selected_objects, collection):
     cdef double start_prep = time.perf_counter()
 
     cdef list all_original_rots = []
@@ -27,7 +27,7 @@ def classify_and_apply_objects(list selected_objects):
     cdef uint32_t[::1] edge_counts_mv
     cdef uint32_t[::1] object_counts_mv
     cdef list group
-    mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects = selection_utils.aggregate_object_groups(selected_objects)
+    mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects = selection_utils.aggregate_object_groups(selected_objects, collection)
 
     # Create shared memory segments and numpy arrays
     shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(total_verts, total_edges, total_objects, mesh_groups)
