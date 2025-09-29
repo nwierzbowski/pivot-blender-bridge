@@ -32,13 +32,13 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
         
         # Objects Collection - split label and selector 50/50
         row = layout.row()
-        split = row.split(factor=0.5)
+        split = row.split()
         split.label(text=LABEL_OBJECTS_COLLECTION)
         split.prop(context.scene.splatter, "objects_collection", text="")
         
         # Room Collection - split label and selector 50/50
         row = layout.row()
-        split = row.split(factor=0.5)
+        split = row.split()
         split.label(text=LABEL_ROOM_COLLECTION)
         split.prop(context.scene.splatter, "room_collection", text="")
         
@@ -91,7 +91,7 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
                     # layout.prop(c, "isSurface")
                     # Split surface type label and selector 50/50
                     row = layout.row()
-                    split = row.split(factor=0.5)
+                    split = row.split()
                     split.label(text=LABEL_SURFACE_TYPE)
                     split.prop(c, "surface_type", text="")
             except (AttributeError, ReferenceError, MemoryError) as e:
