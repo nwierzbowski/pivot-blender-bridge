@@ -269,12 +269,29 @@ class Splatter_OT_Classify_Selected_Objects(bpy.types.Operator):
     def poll(cls, context):
         sel = getattr(context, "selected_objects", None) or []
 
+        
+
         if context.scene.splatter.objects_collection:
             scene_root = context.scene.splatter.objects_collection
         else:
             scene_root = context.scene.collection if context and context.scene else None
         if not sel:
             return False
+        
+        for obj in sel:
+            if obj.type == 'MESH' and scene_root in obj.users_collection:
+                return True
+
+        # Check for selected objects in scene_root that have mesh descendants
+        def has_mesh_descendants(obj):
+            for child in obj.children:
+                if child.type == 'MESH' or has_mesh_descendants(child):
+                    return True
+            return False
+
+        for obj in sel:
+            if scene_root in obj.users_collection and has_mesh_descendants(obj):
+                return True
 
         # Build a map of every nested collection to its top-level (direct child of scene_root)
         coll_to_top = {}
