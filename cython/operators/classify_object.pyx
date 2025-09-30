@@ -12,6 +12,10 @@ from . import selection_utils, shm_utils, transform_utils
 
 def classify_and_apply_objects(list selected_objects, collection):
     cdef double start_prep = time.perf_counter()
+    cdef double end_prep, start_processing, end_processing, start_alignment, end_alignment
+    cdef double classify_send_start, classify_send_end, face_prep_start, face_prep_end
+    cdef double faces_send_start, faces_send_end, classify_wait_start, classify_wait_end
+    cdef double faces_wait_start, faces_wait_end, start_apply, end_apply
 
     cdef list all_original_rots = []
 
@@ -35,10 +39,10 @@ def classify_and_apply_objects(list selected_objects, collection):
     verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
     vert_counts_mv, edge_counts_mv, object_counts_mv, offsets_mv = count_memory_views
 
-    cdef double end_prep = time.perf_counter()
+    end_prep = time.perf_counter()
     print(f"Preparation time elapsed: {(end_prep - start_prep) * 1000:.2f}ms")
 
-    cdef double start_processing = time.perf_counter()
+    start_processing = time.perf_counter()
 
     cdef size_t current_offset_idx = 0
     cdef size_t group_size
@@ -65,10 +69,10 @@ def classify_and_apply_objects(list selected_objects, collection):
         
         current_offset_idx += group_offset_size
 
-    cdef double end_processing = time.perf_counter()
+    end_processing = time.perf_counter()
     print(f"Block processing time elapsed: {(end_processing - start_processing) * 1000:.2f}ms")
 
-    cdef double start_alignment = time.perf_counter()
+    start_alignment = time.perf_counter()
 
     # Send classify op to engine (without faces for pipelining)
     cdef dict command = {
@@ -89,24 +93,25 @@ def classify_and_apply_objects(list selected_objects, collection):
     from splatter.engine_state import set_engine_parent_groups
     engine = get_engine_communicator()
     
+    # Send classify command asynchronously (don't wait for response yet)
+    classify_send_start = time.perf_counter()
+    engine.send_command_async(command)
+    classify_send_end = time.perf_counter()
+    print(f"Classify command sent: {(classify_send_end - classify_send_start) * 1000:.2f}ms")
+    
     # Start preparing face data while classify command is being processed
-    cdef double face_prep_start = time.perf_counter()
+    face_prep_start = time.perf_counter()
     
     # Prepare face data asynchronously while engine processes
     face_shm_objects, face_shm_names, face_counts_mv, face_sizes_mv, face_vert_counts_mv, total_faces_count, total_faces = shm_utils.prepare_face_data(total_objects, mesh_groups)
     faces_shm_name, face_sizes_shm_name = face_shm_names
     
-    cdef double face_prep_end = time.perf_counter()
+    face_prep_end = time.perf_counter()
     print(f"Face preparation time: {(face_prep_end - face_prep_start) * 1000:.2f}ms")
     
-    # Now wait for classify response
-    final_response = engine.send_command(command)
-    
-    if "ok" not in final_response or not final_response["ok"]:
-        raise RuntimeError(f"Engine error: {final_response.get('error', 'Unknown error')}")
-    
-    # Send face data to engine in single command (all groups at once)
+    # Send face data to engine asynchronously (while classify is still processing)
     if total_faces > 0:  # Only send if there are faces to send
+        faces_send_start = time.perf_counter()
         faces_command = {
             "id": 2,
             "op": "send_faces",
@@ -117,11 +122,25 @@ def classify_and_apply_objects(list selected_objects, collection):
             "object_counts": list(object_counts_mv)  # Object counts per group to split face data
         }
         
-        faces_response = engine.send_command(faces_command)
-        if "ok" not in faces_response or not faces_response["ok"]:
-            print(f"Warning: Failed to send face data: {faces_response.get('error', 'Unknown error')}")
+        
     
-    # Close face shared memory handles
+    # Now wait for classify response (this is where we block)
+    classify_wait_start = time.perf_counter()
+    final_response = engine.wait_for_response(1)  # Wait for response with id=1
+    classify_wait_end = time.perf_counter()
+    print(f"Classify response received: {(classify_wait_end - classify_wait_start) * 1000:.2f}ms")
+    
+    # If we sent faces, wait for that response too before closing shared memory
+    if total_faces > 0:
+        engine.send_command_async(faces_command)
+        faces_send_end = time.perf_counter()
+        print(f"Faces command sent: {(faces_send_end - faces_send_start) * 1000:.2f}ms")
+        faces_wait_start = time.perf_counter()
+        faces_response = engine.wait_for_response(2)  # Wait for response with id=2
+        faces_wait_end = time.perf_counter()
+        print(f"Faces response received: {(faces_wait_end - faces_wait_start) * 1000:.2f}ms")
+    
+    # Now it's safe to close face shared memory handles
     for shm in face_shm_objects:
         shm.close()
     
@@ -167,11 +186,11 @@ def classify_and_apply_objects(list selected_objects, collection):
     for shm in shm_objects:
         shm.close()
 
-    cdef double end_alignment = time.perf_counter()
+    end_alignment = time.perf_counter()
     print(f"Alignment time elapsed: {(end_alignment - start_alignment) * 1000:.2f}ms")
 
     # Apply results
-    cdef double start_apply = time.perf_counter()
+    start_apply = time.perf_counter()
     cdef int obj_idx = 0
     cdef tuple loc
     for i, group in enumerate(parent_groups):
@@ -203,5 +222,5 @@ def classify_and_apply_objects(list selected_objects, collection):
                     prop_manager.set_group_name(obj, group_name)
                     prop_manager.set_attribute(obj, 'surface_type', surface_type_value, update_group=False, update_engine=False)
     
-    cdef double end_apply = time.perf_counter()
+    end_apply = time.perf_counter()
     print(f"Application time elapsed: {(end_apply - start_apply) * 1000:.2f}ms")

@@ -156,6 +156,55 @@ class SplatterEngine:
         except Exception as e:
             raise RuntimeError(f"Communication error: {e}")
 
+    def send_command_async(self, command_dict: Dict[str, Any]) -> None:
+        """Send a command to the engine without waiting for response.
+
+        Args:
+            command_dict: Command to send as a dictionary
+
+        Raises:
+            RuntimeError: If engine is not running or communication fails
+        """
+        if not self.is_running():
+            raise RuntimeError("Engine process not started or has terminated. Make sure the addon is properly registered.")
+
+        try:
+            # Send command as JSON
+            command_json = json.dumps(command_dict) + "\n"
+            self._process.stdin.write(command_json)
+            self._process.stdin.flush()
+        except Exception as e:
+            raise RuntimeError(f"Communication error: {e}")
+
+    def wait_for_response(self, expected_id: int) -> Dict[str, Any]:
+        """Wait for a response with the specified ID.
+
+        Args:
+            expected_id: The ID of the response to wait for
+
+        Returns:
+            Dict containing the engine's response
+
+        Raises:
+            RuntimeError: If engine is not running or communication fails
+        """
+        if not self.is_running():
+            raise RuntimeError("Engine process not started or has terminated. Make sure the addon is properly registered.")
+
+        try:
+            # Read responses until we get the one with the expected ID
+            while True:
+                response_line = self._process.stdout.readline().strip()
+                if not response_line:
+                    raise RuntimeError("Engine process terminated unexpectedly")
+
+                response = json.loads(response_line)
+                if response.get("id") == expected_id:
+                    return response
+
+        except Exception as e:
+            raise RuntimeError(f"Communication error: {e}")
+
     def get_process_info(self) -> Dict[str, Any]:
         """Get information about the current engine process."""
         return {
