@@ -29,7 +29,7 @@ def classify_and_apply_objects(list selected_objects, collection):
     cdef list group
     mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects = selection_utils.aggregate_object_groups(selected_objects, collection)
 
-    # Create shared memory segments and numpy arrays
+    # Create shared memory segments and numpy arrays for verts/edges only
     shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(total_verts, total_edges, total_objects, mesh_groups)
 
     verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
@@ -70,7 +70,7 @@ def classify_and_apply_objects(list selected_objects, collection):
 
     cdef double start_alignment = time.perf_counter()
 
-    # Send classify op to engine
+    # Send classify op to engine (without faces for pipelining)
     cdef dict command = {
         "id": 1,
         "op": "classify",
@@ -89,10 +89,76 @@ def classify_and_apply_objects(list selected_objects, collection):
     from splatter.engine_state import set_engine_parent_groups
     engine = get_engine_communicator()
     
+    # Start preparing face data while classify command is being processed
+    cdef double face_prep_start = time.perf_counter()
+    
+    # Calculate face totals for face data preparation
+    cdef int total_faces = 0
+    cdef int total_faces_count = 0
+    for group in mesh_groups:
+        for obj in group:
+            total_faces_count += len(obj.data.polygons)
+            for poly in obj.data.polygons:
+                total_faces += len(poly.vertices)
+    
+    # Prepare face data asynchronously while engine processes
+    face_shm_objects, face_shm_names, face_counts_mv, face_sizes_mv, face_vert_counts_mv = shm_utils.prepare_face_data(total_faces, total_objects, mesh_groups)
+    faces_shm_name, face_sizes_shm_name = face_shm_names
+    
+    cdef double face_prep_end = time.perf_counter()
+    print(f"Face preparation time: {(face_prep_end - face_prep_start) * 1000:.2f}ms")
+    
+    # Now wait for classify response
     final_response = engine.send_command(command)
     
     if "ok" not in final_response or not final_response["ok"]:
         raise RuntimeError(f"Engine error: {final_response.get('error', 'Unknown error')}")
+    
+    # Send face data to engine for each group
+    cdef uint32_t face_sizes_offset = 0
+    cdef list group_face_counts
+    cdef list group_face_sizes
+    cdef uint32_t group_face_total
+    cdef dict faces_command
+    
+    for group_idx in range(len(group_names)):
+        group = mesh_groups[group_idx]
+        group_name = group_names[group_idx]
+        
+        # Collect face data for this group
+        group_face_counts = []
+        group_face_sizes = []
+        group_face_total = 0
+        
+        for obj in group:
+            obj_face_count = len(obj.data.polygons)
+            group_face_counts.append(obj_face_count)
+            
+            if obj_face_count > 0:
+                # Use face_sizes_mv directly instead of reading from shared memory
+                face_sizes_data = face_sizes_mv[face_sizes_offset:face_sizes_offset + obj_face_count]
+                group_face_sizes.extend(face_sizes_data.tolist())
+                group_face_total += np.sum(face_sizes_data)
+                face_sizes_offset += obj_face_count
+        
+        if group_face_total > 0:  # Only send if group has faces
+            faces_command = {
+                "id": 2 + group_idx,
+                "op": "send_faces",
+                "shm_faces": faces_shm_name,
+                "shm_face_sizes": face_sizes_shm_name,
+                "group_name": group_name,
+                "face_counts": group_face_counts,
+                "face_sizes": group_face_sizes
+            }
+            
+            faces_response = engine.send_command(faces_command)
+            if "ok" not in faces_response or not faces_response["ok"]:
+                print(f"Warning: Failed to send face data for group {group_name}: {faces_response.get('error', 'Unknown error')}")
+    
+    # Close face shared memory handles
+    for shm in face_shm_objects:
+        shm.close()
     
     cdef dict groups = final_response["groups"]
     cdef list rots = [Quaternion(groups[name]["rot"]) for name in group_names]
