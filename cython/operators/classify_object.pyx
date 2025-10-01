@@ -114,6 +114,7 @@ def classify_and_apply_objects(list selected_objects, collection):
             "shm_faces": faces_shm_name,
             "shm_face_sizes": face_sizes_shm_name,
             "face_counts": list(face_counts_mv),
+            "vert_counts": list(vert_counts_mv),
             "group_names": group_names,
             "object_counts": list(object_counts_mv)
         }
