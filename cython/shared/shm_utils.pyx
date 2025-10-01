@@ -130,6 +130,8 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
     cdef cnp.ndarray[cnp.uint32_t, ndim=1] face_vert_counts = None
     cdef uint32_t[::1] face_sizes_slice_view
     cdef uint32_t[::1] face_counts_mv
+    cdef uint32_t[::1] face_sizes_mv
+    cdef uint32_t[::1] face_vert_counts_mv
     cdef uint32_t[::1] face_vert_counts_view
     cdef uint32_t face_sizes_offset = 0
     cdef uint32_t obj_idx = 0
@@ -158,8 +160,10 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
         shm_face_sizes_buf = np.zeros(0, dtype=np.uint32)
 
         face_counts_mv = face_counts
+        face_sizes_mv = shm_face_sizes_buf
+        face_vert_counts_mv = face_vert_counts
 
-        return (), ("", ""), face_counts_mv, 0
+        return (), ("", ""), face_counts_mv, face_sizes_mv, face_vert_counts_mv, 0, 0
 
     cdef size_t face_sizes_size = <size_t>total_faces_count * 4
 
@@ -218,11 +222,13 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
                 obj_idx += 1
 
         face_counts_mv = face_counts
+        face_sizes_mv = shm_face_sizes_buf
+        face_vert_counts_mv = face_vert_counts_view
 
         shm_objects = (faces_shm, face_sizes_shm)
         shm_names = (faces_shm_name, face_sizes_shm_name)
 
-        return shm_objects, shm_names, face_counts_mv, total_face_vertices
+        return shm_objects, shm_names, face_counts_mv, face_sizes_mv, face_vert_counts_mv, total_faces_count, total_face_vertices
 
     except Exception:
         if faces_shm is not None:
