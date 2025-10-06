@@ -10,6 +10,32 @@ endif()
 option(BUILD_ENGINE "Build C++ engine executable" ON)
 option(BUILD_PY_MODULE "Build Python (Cython) extension" ON)
 
+# Edition selection (defaults to PRO)
+set(SPLATTER_EDITION "PRO" CACHE STRING "Edition to build (PRO or STANDARD)")
+set_property(CACHE SPLATTER_EDITION PROPERTY STRINGS PRO STANDARD)
+string(TOUPPER "${SPLATTER_EDITION}" SPLATTER_EDITION_UPPER)
+set(_allowed_editions PRO STANDARD)
+list(FIND _allowed_editions "${SPLATTER_EDITION_UPPER}" _edition_index)
+if(_edition_index EQUAL -1)
+    message(FATAL_ERROR "Invalid SPLATTER_EDITION '${SPLATTER_EDITION}'. Choose PRO or STANDARD.")
+endif()
+set(SPLATTER_EDITION "${SPLATTER_EDITION_UPPER}" CACHE STRING "Edition to build (PRO or STANDARD)" FORCE)
+unset(_allowed_editions)
+unset(_edition_index)
+
+set(_edition_defines)
+if(SPLATTER_EDITION STREQUAL "PRO")
+    list(APPEND _edition_defines "SPLATTER_EDITION_PRO=1" "SPLATTER_EDITION_STANDARD=0")
+else()
+    list(APPEND _edition_defines "SPLATTER_EDITION_PRO=0" "SPLATTER_EDITION_STANDARD=1")
+endif()
+
+set(SPLATTER_EDITION_DEFINES "${_edition_defines}" CACHE INTERNAL "Compile definitions for the selected edition")
+set(SPLATTER_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/splatter/bin" CACHE INTERNAL "Engine output directory")
+set(SPLATTER_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/splatter/lib" CACHE INTERNAL "Cython module output directory")
+
+message(STATUS "Building Splatter edition: ${SPLATTER_EDITION}")
+
 # Shared dependencies (available to subprojects)
 include(FetchContent)
 FetchContent_Declare(

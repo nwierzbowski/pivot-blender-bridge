@@ -18,7 +18,7 @@ test.*
 assets/
 
 # Build artifacts
-build/
+build*/
 dist/
 out/
 splatter/lib/

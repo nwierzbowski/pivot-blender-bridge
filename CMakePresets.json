@@ -9,7 +9,17 @@
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "Python_ROOT_DIR": "/home/nwier/.local/share/flatpak/app/org.blender.Blender/current/active/files/blender/4.5/python"
+        "Python_ROOT_DIR": "/home/nwier/.local/share/flatpak/app/org.blender.Blender/current/active/files/blender/4.5/python",
+        "SPLATTER_EDITION": "PRO"
+      }
+    },
+    {
+      "name": "standard",
+      "displayName": "Standard Edition",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-standard",
+      "cacheVariables": {
+        "SPLATTER_EDITION": "STANDARD"
       }
     }
   ],
@@ -17,6 +27,11 @@
     {
       "name": "default-release",
       "configurePreset": "default",
+      "configuration": "Release"
+    },
+    {
+      "name": "standard-release",
+      "configurePreset": "standard",
       "configuration": "Release"
     }
   ]

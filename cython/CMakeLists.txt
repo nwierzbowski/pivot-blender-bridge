@@ -10,10 +10,9 @@ set(CYTHON_MODULE_SOURCES
     shared/shm_utils.pyx
     shared/transform_utils.pyx
 )
+
 # Operator modules that need linking to core library
 set(OPERATOR_MODULES classify_object classification)
-set(CYTHON_INCLUDES
-)
 
 # Build all Cython modules
 foreach(mod_src ${CYTHON_MODULE_SOURCES})
@@ -56,15 +55,30 @@ foreach(mod_src ${CYTHON_MODULE_SOURCES})
         if(${mod} IN_LIST OPERATOR_MODULES)
             target_link_libraries(${mod} PRIVATE core)
         endif()
+        if(DEFINED SPLATTER_EDITION_DEFINES)
+            foreach(def ${SPLATTER_EDITION_DEFINES})
+                target_compile_definitions(${mod} PRIVATE ${def})
+            endforeach()
+        endif()
     endif()
 endforeach()
 
 # Consolidate output directory for all Cython modules
+if(DEFINED SPLATTER_LIB_DIR)
+    set(_cython_output_dir ${SPLATTER_LIB_DIR})
+else()
+    set(_cython_output_dir "${CMAKE_CURRENT_SOURCE_DIR}/../splatter/lib")
+endif()
+
 set(CYTHON_ALL_MODULES)
 foreach(mod_src ${CYTHON_MODULE_SOURCES})
     get_filename_component(mod ${mod_src} NAME_WE)
     list(APPEND CYTHON_ALL_MODULES ${mod})
 endforeach()
 foreach(mod ${CYTHON_ALL_MODULES})
-    set_target_properties(${mod} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../splatter/lib")
+    if(TARGET ${mod})
+        set_target_properties(${mod} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${_cython_output_dir}")
+    endif()
 endforeach()
+
+unset(_cython_output_dir)
