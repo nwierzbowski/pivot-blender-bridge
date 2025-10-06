@@ -13,6 +13,7 @@ __pycache__/
 
 # Test files
 test.*
+*.blend
 *.blend1
 assets/
 

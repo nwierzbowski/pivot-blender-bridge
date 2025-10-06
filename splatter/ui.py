@@ -9,7 +9,6 @@ from .operators import (
     Splatter_OT_Selection_To_Surfaces,
     Splatter_OT_Classify_Faces,
     Splatter_OT_Generate_Base,
-    Splatter_OT_Segment_Scene,
     Splatter_OT_Classify_Base,
     Splatter_OT_Select_Surfaces,
     Splatter_OT_Select_Seating,
@@ -39,11 +38,6 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
         row = layout.row()
         row.prop(context.scene.splatter, "room_collection")
         
-        layout.separator()
-        layout.label(text="Deep Learning Operations:")
-        layout.operator(
-            Splatter_OT_Segment_Scene.bl_idname
-        )
         # Add more operators here later
         layout.separator()
         layout.label(text="Room Generation:")

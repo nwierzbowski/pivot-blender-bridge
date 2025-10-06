@@ -31,16 +31,6 @@ from .lib import classify_object
 from . import engine
 from .engine_state import get_engine_has_groups_cached, set_engine_has_groups_cached, get_engine_parent_groups
 
-class Splatter_OT_Segment_Scene(bpy.types.Operator):
-    bl_idname = PRE.lower() + ".segment_scene"
-    bl_label = "Segment Scene"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        print("Segment Scene Operator Called (Not Implemented Yet)")
-        self.report({"INFO"}, "Scene Segmentation (Not Implemented Yet)")
-        return {FINISHED}
-
 
 class Splatter_OT_Generate_Base(bpy.types.Operator):
     bl_idname = PRE.lower() + ".generate_base"
