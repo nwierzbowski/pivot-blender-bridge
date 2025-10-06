@@ -14,8 +14,8 @@ from .operators import (
     Splatter_OT_Select_Seating,
 )
 
-from .constants import PRE, CATEGORY
-from .classes import LABEL_OBJECTS_COLLECTION, LABEL_ROOM_COLLECTION, LABEL_SURFACE_TYPE
+from .constants import PRE, CATEGORY, LICENSE_PRO
+from .classes import LABEL_OBJECTS_COLLECTION, LABEL_ROOM_COLLECTION, LABEL_SURFACE_TYPE, LABEL_LICENSE_TYPE
 
 
 class Splatter_PT_Main_Panel(bpy.types.Panel):
@@ -27,64 +27,60 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
 
     def draw(self, context):
         obj = context.active_object
-
         layout = self.layout
+        license_type = context.scene.splatter.license_type
         
-        # Objects Collection - split label and selector 50/50
-        row = layout.row()
-        row.prop(context.scene.splatter, "objects_collection")
+        # Always show license selector
+        self._draw_license_selector(layout)
         
-        # Room Collection - split label and selector 50/50
-        # row = layout.row()
-        # row.prop(context.scene.splatter, "room_collection")
-        
-        # Add more operators here later
-        # layout.separator()
-        # layout.label(text="Room Generation:")
-        # layout.operator(
-        #     Splatter_OT_Generate_Base.bl_idname
-        # )
-        # layout.operator(
-        #     Splatter_OT_Classify_Base.bl_idname
-        # )
-        # layout.separator()
-        # layout.label(text="Surface Classification:")
-        # layout.operator(
-        #     Splatter_OT_Classify_Faces.bl_idname
-        # )
-        # row = layout.row()
-        # row.operator(
-        #     Splatter_OT_Select_Surfaces.bl_idname
-        # )
-        # row.operator(
-        #     Splatter_OT_Selection_To_Surfaces.bl_idname
-        # )
-        # row = layout.row()
-        # row.operator(
-        #     Splatter_OT_Select_Seating.bl_idname
-        # )
-        # row.operator(
-        #     Splatter_OT_Selection_To_Seating.bl_idname
-        # )
-        # layout.separator()
-        # layout.label(text="Object Analysis:")
-        # layout.operator(
-        #     Splatter_OT_Classify_Object.bl_idname
-        # )
-        if obj:
-            try:
-                c = obj.classification
-                # Only show classification controls if the object has been processed by classify_selected_objects
-                if not c.group_name:
-                    layout.label(text="Classify object first")
-                else:
-                    row = layout.row()
-
-                    row.prop(c, "surface_type")
-            except (AttributeError, ReferenceError, MemoryError) as e:
-                layout.label(text="Classification data not available")
         layout.separator()
+        
+        if license_type == LICENSE_PRO:
+            self._draw_pro_ui(layout, obj)
+        else:
+            self._draw_standard_ui(layout)
+    
+    def _draw_license_selector(self, layout):
+        """Draw the license type selector (always visible)."""
+        row = layout.row()
+        row.prop(bpy.context.scene.splatter, "license_type")
+    
+    def _draw_standard_ui(self, layout):
+        """Draw the standard license UI - minimal functionality."""
+        # Classification buttons
+        row = layout.row()
+        row.operator(Splatter_OT_Classify_Selected_Objects.bl_idname)
+    
+    def _draw_pro_ui(self, layout, obj):
+        """Draw the pro license UI - full functionality."""
+        # Objects Collection selector
+        row = layout.row()
+        row.prop(bpy.context.scene.splatter, "objects_collection")
+        
+        # Object classification controls (if applicable)
+        self._draw_object_controls(layout, obj)
+        
+        layout.separator()
+        
+        # Classification buttons
         row = layout.row()
         row.operator(Splatter_OT_Classify_Selected_Objects.bl_idname)
         row.operator(Splatter_OT_Classify_All_Objects_In_Collection.bl_idname)
+        
+        # Organization button
         layout.operator(Splatter_OT_Organize_Classified_Objects.bl_idname)
+    
+    def _draw_object_controls(self, layout, obj):
+        """Draw object-specific classification controls."""
+        if not obj:
+            return
+            
+        try:
+            c = obj.classification
+            if not c.group_name:
+                layout.label(text="Classify object first")
+            else:
+                row = layout.row()
+                row.prop(c, "surface_type")
+        except (AttributeError, ReferenceError, MemoryError) as e:
+            layout.label(text="Classification data not available")

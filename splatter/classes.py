@@ -5,11 +5,13 @@ import bpy
 
 # Import C enum values from Cython module
 from .lib import classification
+from .constants import LICENSE_STANDARD, LICENSE_PRO
 
 # UI Labels (property names derived from these)
 LABEL_OBJECTS_COLLECTION = "Objects:"
 LABEL_ROOM_COLLECTION = "Room:"
 LABEL_SURFACE_TYPE = "Surface:"
+LABEL_LICENSE_TYPE = "License:"
 
 
 
@@ -44,6 +46,15 @@ class SceneAttributes(PropertyGroup):
         name=LABEL_ROOM_COLLECTION.rstrip(":"),
         description="Collection containing room geometry",
         type=Collection,
+    )
+    license_type: EnumProperty(
+        name=LABEL_LICENSE_TYPE.rstrip(":"),
+        description="License type for UI features",
+        items=[
+            (LICENSE_STANDARD, "Standard", "Standard license features"),
+            (LICENSE_PRO, "Pro", "Pro license features"),
+        ],
+        default=LICENSE_STANDARD,
     )
 
 

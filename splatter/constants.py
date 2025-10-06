@@ -1,6 +1,10 @@
 PRE = "LBO_SPLATTER"
 CATEGORY = "Splatter"
 
+# License types
+LICENSE_STANDARD = "STANDARD"
+LICENSE_PRO = "PRO"
+
 ASSETS_FILENAME = "assets.blend"
 ROOM_BASE_NG = "GenRoomBase"
 CLASSIFY_ROOM = "classifyRoom"
