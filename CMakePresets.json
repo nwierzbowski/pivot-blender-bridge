@@ -5,7 +5,7 @@
       "name": "pro",
       "displayName": "Pro Edition Config",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build",
+      "binaryDir": "${sourceDir}/build-pro",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "Python_ROOT_DIR": "/home/nwier/.local/share/flatpak/app/org.blender.Blender/current/active/files/blender/4.5/python",

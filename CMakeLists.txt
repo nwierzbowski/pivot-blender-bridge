@@ -49,24 +49,30 @@ unset(_edition_name)
 message(STATUS "Building Splatter edition: ${SPLATTER_EDITION}")
 
 # Ensure output directories are ready for this edition
-set(_splatter_cmake_util_dir "${CMAKE_BINARY_DIR}/cmake")
-file(MAKE_DIRECTORY "${_splatter_cmake_util_dir}")
-set(_splatter_outputs_script "${_splatter_cmake_util_dir}/ensure_edition_outputs.cmake")
-configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EnsureEditionOutputs.cmake.in"
-    "${_splatter_outputs_script}"
-    @ONLY
-)
-add_custom_target(splatter_ensure_outputs ALL
-    COMMAND ${CMAKE_COMMAND} -P "${_splatter_outputs_script}"
-    COMMENT "Ensuring Splatter output directories match ${SPLATTER_EDITION} edition"
-    VERBATIM
-)
-unset(_splatter_outputs_script)
-unset(_splatter_cmake_util_dir)
+function(_splatter_prepare_dir dir)
+    if(dir STREQUAL "")
+        return()
+    endif()
+    file(MAKE_DIRECTORY "${dir}")
+    set(marker "${dir}/.edition")
+    set(should_clean TRUE)
+    if(EXISTS "${marker}")
+        file(READ "${marker}" existing_marker)
+        string(STRIP "${existing_marker}" existing_marker)
+        if(existing_marker STREQUAL "${SPLATTER_EDITION}")
+            set(should_clean FALSE)
+        endif()
+    endif()
+    # Always clear to ensure correct edition artifacts
+    file(GLOB children LIST_DIRECTORIES true "${dir}/*")
+    if(children)
+        file(REMOVE_RECURSE ${children})
+    endif()
+    file(WRITE "${marker}" "${SPLATTER_EDITION}\n")
+endfunction()
 
-# Remove old engine executable to ensure clean edition switch
-execute_process(COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_CURRENT_SOURCE_DIR}/splatter/bin/splatter_engine)
+_splatter_prepare_dir("${SPLATTER_BIN_DIR}")
+_splatter_prepare_dir("${SPLATTER_LIB_DIR}")
 
 # Shared dependencies (available to subprojects)
 include(FetchContent)
@@ -118,7 +124,6 @@ endif()
 
 # Convenience meta-target to build both when present
 add_custom_target(dev ALL)
-add_dependencies(dev splatter_ensure_outputs)
 if(TARGET splatter_engine)
     add_dependencies(dev splatter_engine)
 endif()
