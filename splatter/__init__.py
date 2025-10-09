@@ -22,7 +22,6 @@ from .operators import (
 )
 from .ui import Splatter_PT_Main_Panel
 from . import engine
-from .engine_state import set_engine_license_status
 
 
 @persistent
@@ -149,6 +148,7 @@ def register():
         print("[Splatter] Failed to start engine")
     else:
         # Print Cython edition for debugging
+
         try:
             lib_path = os.path.join(os.path.dirname(__file__), 'lib')
             if lib_path not in sys.path:

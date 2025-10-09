@@ -30,14 +30,13 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
     def draw(self, context):
         obj = context.active_object
         layout = self.layout
-        scene = context.scene
         
         # Get license_type from cached engine status, sync if needed
-        match, license_type = get_engine_license_status()
+        license_type = get_engine_license_status()
         if license_type == "UNKNOWN":
             try:
-                match, license_type = engine.sync_license_mode()
-                set_engine_license_status(match, license_type)
+                license_type = engine.sync_license_mode()
+                set_engine_license_status(license_type)
             except Exception as e:
                 print(f"[Splatter] Failed to sync license: {e}")
                 license_type = "UNKNOWN"

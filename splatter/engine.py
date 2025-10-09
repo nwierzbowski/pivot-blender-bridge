@@ -240,11 +240,11 @@ def get_engine_process():
     return _engine_instance._process
 
 
-def sync_license_mode() -> Tuple[bool, str]:
+def sync_license_mode() -> str:
     """Retrieve the compiled edition from the engine.
 
     Returns:
-        Tuple consisting of (True, engine_mode) where engine_mode is the
+        The engine_mode is the
         edition compiled into the engine binary ("PRO", "STANDARD", or "UNKNOWN").
 
     Raises:
@@ -258,7 +258,7 @@ def sync_license_mode() -> Tuple[bool, str]:
     }
     response = engine_comm.send_command(payload)
     engine_mode = str(response.get("engine_edition", "UNKNOWN")).upper()
-    return True, engine_mode
+    return engine_mode
 
 
 def test_engine_communication() -> bool:
