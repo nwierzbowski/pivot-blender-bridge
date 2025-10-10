@@ -8,7 +8,7 @@ import numpy as np
 import time
 import bpy
 
-from . import selection_utils, shm_utils, transform_utils
+from . import selection_utils, shm_utils, transform_utils, edition_utils
 
 def classify_and_apply_objects(list selected_objects, collection):
     cdef double start_prep = time.perf_counter()
@@ -94,44 +94,46 @@ def classify_and_apply_objects(list selected_objects, collection):
     end_processing = time.perf_counter()
     print(f"Preparation time elapsed: {(end_processing - start_prep) * 1000:.2f}ms")
 
-    start_alignment = time.perf_counter()
+    # start_alignment = time.perf_counter()
     classify_wait_start = time.perf_counter()
-    face_shm_objects, face_shm_names, face_counts_mv, face_sizes_mv, face_vert_counts_mv, total_faces_count, total_faces = shm_utils.prepare_face_data(total_objects, mesh_groups)
-    faces_shm_name, face_sizes_shm_name = face_shm_names
+    # face_shm_objects, face_shm_names, face_counts_mv, face_sizes_mv, face_vert_counts_mv, total_faces_count, total_faces = shm_utils.prepare_face_data(total_objects, mesh_groups)
+    # faces_shm_name, face_sizes_shm_name = face_shm_names
 
-    print(f"Time to prepare face data for sending to engine: {(time.perf_counter() - classify_wait_start) * 1000:.2f}ms")
+    # print(f"Time to prepare face data for sending to engine: {(time.perf_counter() - classify_wait_start) * 1000:.2f}ms")
 
     final_response = engine.wait_for_response(1)  # Wait for response with id=1
     classify_wait_end = time.perf_counter()
     print(f"Time for engine to return classify response: {(classify_wait_end - classify_wait_start) * 1000:.2f}ms")
     
     cdef double post_classify_start = time.perf_counter()
-    if total_faces > 0:
-        faces_send_start = time.perf_counter()
-        faces_command = {
-            "id": 2,
-            "op": "send_faces",
-            "shm_faces": faces_shm_name,
-            "shm_face_sizes": face_sizes_shm_name,
-            "face_counts": list(face_counts_mv),
-            "vert_counts": list(vert_counts_mv),
-            "group_names": group_names,
-            "object_counts": list(object_counts_mv)
-        }
+    # if total_faces > 0:
+    #     faces_send_start = time.perf_counter()
+    #     faces_command = {
+    #         "id": 2,
+    #         "op": "send_faces",
+    #         "shm_faces": faces_shm_name,
+    #         "shm_face_sizes": face_sizes_shm_name,
+    #         "face_counts": list(face_counts_mv),
+    #         "vert_counts": list(vert_counts_mv),
+    #         "group_names": group_names,
+    #         "object_counts": list(object_counts_mv)
+    #     }
         
-        engine.send_command_async(faces_command)
-        faces_send_end = time.perf_counter()
-        total_face_pipeline_start = faces_send_start
+    #     engine.send_command_async(faces_command)
+    #     faces_send_end = time.perf_counter()
+    #     total_face_pipeline_start = faces_send_start
         
-        faces_response = engine.wait_for_response(2)
+    #     faces_response = engine.wait_for_response(2)
     
     # Now it's safe to close face shared memory handles
-    for shm in face_shm_objects:
-        shm.close()
+    # for shm in face_shm_objects:
+    #     shm.close()
     
     cdef dict groups = final_response["groups"]
     cdef list rots = [Quaternion(groups[name]["rot"]) for name in group_names]
-    cdef list surface_type = [groups[name]["surface_type"] for name in group_names]
+    cdef list surface_type = []
+    if edition_utils.is_pro_edition():
+        surface_type = [groups[name]["surface_type"] for name in group_names]
     cdef list origin = [tuple(groups[name]["origin"]) for name in group_names]
 
     # Compute new locations for each object using Cython rotation of offsets, then add ref location
@@ -188,20 +190,22 @@ def classify_and_apply_objects(list selected_objects, collection):
             obj.location = Vector(loc)
             obj_idx += 1
 
-    for i, group in enumerate(full_groups):
-        surface_type_value = surface_type[i]
-        group_name = group_names[i]
-        
-        # Since the engine is the source of truth, update each object without sending commands back to engine
-        if group:  # Make sure group is not empty
-            from splatter.property_manager import get_property_manager
-            prop_manager = get_property_manager()
+
+    if edition_utils.is_pro_edition():
+        for i, group in enumerate(full_groups):
+            surface_type_value = surface_type[i]
+            group_name = group_names[i]
             
-            # Set group names and surface types for all objects in the group
-            for obj in group:
-                if hasattr(obj, "classification"):
-                    prop_manager.set_group_name(obj, group_name)
-                    prop_manager.set_attribute(obj, 'surface_type', surface_type_value, update_group=False, update_engine=False)
+            # Since the engine is the source of truth, update each object without sending commands back to engine
+            if group:  # Make sure group is not empty
+                from splatter.property_manager import get_property_manager
+                prop_manager = get_property_manager()
+                
+                # Set group names and surface types for all objects in the group
+                for obj in group:
+                    if hasattr(obj, "classification"):
+                        prop_manager.set_group_name(obj, group_name)
+                        prop_manager.set_attribute(obj, 'surface_type', surface_type_value, update_group=False, update_engine=False)
     
     end_apply = time.perf_counter()
     
