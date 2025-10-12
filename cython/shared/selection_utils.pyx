@@ -60,6 +60,9 @@ cpdef list get_all_root_objects(object coll):
 def aggregate_object_groups(list selected_objects, object collection):
     """Group the selection by collection boundaries and root parents."""
 
+    if edition_utils.is_standard_edition() and len(selected_objects) != 1:
+        raise ValueError("Standard edition only supports single object selection")
+
     cdef object depsgraph
     cdef object scene_coll
     cdef dict coll_to_top_map
