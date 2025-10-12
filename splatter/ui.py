@@ -49,6 +49,9 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
         self._draw_license_selector(layout, license_type)
         
         layout.separator()
+        # Objects Collection selector
+        row = layout.row()
+        row.prop(bpy.context.scene.splatter, "objects_collection")
         
         if license_type == LICENSE_PRO:
             self._draw_pro_ui(layout, obj)
@@ -68,9 +71,7 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
     
     def _draw_pro_ui(self, layout, obj):
         """Draw the pro license UI - full functionality."""
-        # Objects Collection selector
-        row = layout.row()
-        row.prop(bpy.context.scene.splatter, "objects_collection")
+        
         
         # Object classification controls (if applicable)
         self._draw_object_controls(layout, obj)
