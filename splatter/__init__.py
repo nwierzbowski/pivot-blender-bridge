@@ -187,6 +187,16 @@ def unregister():
     del bpy.types.Object.classification
     del bpy.types.Scene.splatter
 
+    # Sync group classifications to engine before stopping
+    try:
+        from .property_manager import get_property_manager
+        pm = get_property_manager()
+        classifications = pm.collect_group_classifications()
+        if classifications:
+            pm.sync_group_classifications(classifications)
+    except Exception as e:
+        print(f"Failed to sync classifications before closing: {e}")
+
     # Stop the splatter engine
     engine.stop_engine()
 
