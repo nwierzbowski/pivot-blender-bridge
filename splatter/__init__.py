@@ -5,7 +5,6 @@ import sys
 
 from .classes import ObjectAttributes, SceneAttributes
 from bpy.props import PointerProperty
-from bpy.app.handlers import persistent
 
 from .operators.operators import (
     # Splatter_OT_Generate_Base,
@@ -25,75 +24,6 @@ from .operators.classification import (
 )
 from .ui import Splatter_PT_Main_Panel
 from . import engine
-
-
-@persistent
-def sync_engine_after_undo(_dummy=None):
-    """Sync engine properties after undo/redo via PropertyManager (deduped per group/attr).
-
-    Marked persistent so it survives file loads; uses bpy.context.scene instead of a
-    handler argument to be compatible with Blender's undo/redo handler signature.
-    """
-    # Fast bail-outs to keep undo fluid and avoid work when not applicable
-    
-    try:
-        if getattr(bpy.app, "background", False):
-            return
-
-        # Ensure engine is running before doing any sync work
-        try:
-            proc = engine.get_engine_process()
-        except Exception:
-            return
-        if not proc or proc.poll() is not None:
-            return
-
-        # Only operate when there is at least one 3D Viewport visible
-        if not _has_view3d_open():
-            return
-
-        scene = getattr(bpy.context, "scene", None)
-        if scene is None:
-            return
-        
-        print("Undo/Redo handler triggered")
-
-        from .property_manager import get_property_manager
-        synced_count, touched_groups = get_property_manager().sync_scene_after_undo(scene)
-        if synced_count:
-            print(f"Undo/Redo sync: {synced_count} properties synchronized across {touched_groups} groups")
-    except Exception as e:
-        # Never break Blender's handler chain due to addon errors
-        print(f"Undo/Redo sync error: {e}")
-
-
-def _has_view3d_open() -> bool:
-    wm = bpy.context.window_manager
-    if not wm:
-        return False
-    for win in wm.windows:
-        screen = getattr(win, 'screen', None)
-        if not screen:
-            continue
-        for area in screen.areas:
-            if area.type == 'VIEW_3D':
-                return True
-    return False
-
-
-def _register_undo_handlers() -> None:
-    if sync_engine_after_undo not in bpy.app.handlers.undo_post:
-        bpy.app.handlers.undo_post.append(sync_engine_after_undo)
-    if sync_engine_after_undo not in bpy.app.handlers.redo_post:
-        bpy.app.handlers.redo_post.append(sync_engine_after_undo)
-
-def _unregister_undo_handlers() -> None:
-    if sync_engine_after_undo in bpy.app.handlers.undo_post:
-        bpy.app.handlers.undo_post.remove(sync_engine_after_undo)
-    if sync_engine_after_undo in bpy.app.handlers.redo_post:
-        bpy.app.handlers.redo_post.remove(sync_engine_after_undo)
-
-
 
 
 bl_info = {
@@ -162,9 +92,6 @@ def register():
         except Exception as e:
             print(f"[Splatter] Could not print Cython edition: {e}")
     
-    # Always-on undo/redo handlers (fast no-ops when not applicable)
-    _register_undo_handlers()
-
     # Example: Add addon preferences (if you create an AddonPreferences class)
     # bpy.utils.register_class(MyAddonPreferences)
 
@@ -199,9 +126,6 @@ def unregister():
 
     # Stop the splatter engine
     engine.stop_engine()
-
-    # Unregister undo/redo handlers
-    _unregister_undo_handlers()
 
     # Example: Remove addon preferences
     # bpy.utils.unregister_class(MyAddonPreferences)
