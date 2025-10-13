@@ -118,6 +118,46 @@ class PropertyManager:
             return
         coll.name = new_name
 
+    def _get_group_collection_for_object(self, obj: Any, group_name: Optional[str]) -> Optional[Any]:
+        if not group_name:
+            return None
+
+        for coll in getattr(obj, "users_collection", []) or []:
+            if coll.get(GROUP_COLLECTION_PROP) == group_name:
+                return coll
+        return None
+
+    def _ensure_collection_link(self, parent: Any, child: Any) -> None:
+        if parent is None or child is None:
+            return
+
+        children = getattr(parent, "children", None)
+        if children is None:
+            return
+
+        if children.find(child.name) == -1:
+            children.link(child)
+
+    def _get_or_create_surface_collection(self, pivot_root: Any, surface_key: str) -> Optional[Any]:
+        if pivot_root is None:
+            return None
+
+        for coll in pivot_root.children:
+            if coll.get(CLASSIFICATION_COLLECTION_PROP) == surface_key:
+                return coll
+
+        # Attempt to reuse existing collection by name if available.
+        existing = bpy.data.collections.get(surface_key)
+        if existing is not None:
+            self._ensure_collection_link(pivot_root, existing)
+            existing[CLASSIFICATION_COLLECTION_PROP] = surface_key
+            return existing
+
+        surface_coll = bpy.data.collections.new(surface_key)
+        surface_coll[CLASSIFICATION_COLLECTION_PROP] = surface_key
+        pivot_root.children.link(surface_coll)
+        return surface_coll
+
     def _get_or_create_group_collection(self, obj: Any, group_name: str, root_collection: Optional[Any]) -> Optional[Any]:
         """Return a collection under root_collection used for tracking group membership."""
         if root_collection is None:
@@ -174,40 +214,42 @@ class PropertyManager:
 
     def _assign_surface_collection(self, obj: Any, surface_value: Any) -> None:
         surface_key = str(surface_value)
-        root = self._get_or_create_root_collection(CLASSIFICATION_ROOT_COLLECTION_NAME)
-        if root is None:
+        pivot_root = self._get_or_create_root_collection(CLASSIFICATION_ROOT_COLLECTION_NAME)
+        if pivot_root is None:
             return
 
-        target = None
-        for coll in root.children:
-            if coll.get(CLASSIFICATION_COLLECTION_PROP) == surface_key:
-                target = coll
-                break
+        group_name = self._get_group_name(obj)
+        group_collection = self._get_group_collection_for_object(obj, group_name)
 
-        if target is None:
-            name = surface_key
-            existing = bpy.data.collections.get(name)
-            if existing is not None and root.children.find(existing.name) == -1:
-                target = existing
-            else:
-                target = bpy.data.collections.new(name)
-            if root.children.find(target.name) == -1:
-                root.children.link(target)
-            target[CLASSIFICATION_COLLECTION_PROP] = surface_key
+        # Fallback in the unlikely event the object is missing its group collection.
+        if group_collection is None:
+            fallback_name = group_name or surface_key
+            group_collection = bpy.data.collections.get(fallback_name)
+            if group_collection is None:
+                group_collection = bpy.data.collections.new(fallback_name)
+            if group_collection not in obj.users_collection:
+                group_collection.objects.link(obj)
+            group_collection[GROUP_COLLECTION_PROP] = group_name or fallback_name
 
-        # Unlink from other classification collections.
-        to_unlink: list[Any] = []
-        for coll in getattr(obj, "users_collection", []) or []:
-            if coll.get(CLASSIFICATION_COLLECTION_PROP) and coll is not target:
-                to_unlink.append(coll)
-        for coll in to_unlink:
-            try:
-                coll.objects.unlink(obj)
-            except RuntimeError:
-                pass
+        surface_collection = self._get_or_create_surface_collection(pivot_root, surface_key)
+        if surface_collection is None:
+            return
 
-        if target not in obj.users_collection:
-            target.objects.link(obj)
+        # Link the group collection under the correct surface classification branch.
+        self._ensure_collection_link(surface_collection, group_collection)
+
+        # Ensure the group collection's metadata reflects its latest surface type and
+        # that it is not linked under any other surface containers.
+        group_collection[CLASSIFICATION_COLLECTION_PROP] = surface_key
+
+        for coll in pivot_root.children:
+            if coll is surface_collection:
+                continue
+            children = getattr(coll, "children", None)
+            if children is None:
+                continue
+            if children.find(group_collection.name) != -1:
+                children.unlink(group_collection)
 
     def set_attribute(self, obj: Any, attr_name: str, value: Any, update_group: bool = True, update_engine: bool = True) -> bool:
         """Set an attribute for an object with optional group and engine updates.
