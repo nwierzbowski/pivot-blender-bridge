@@ -23,8 +23,6 @@ GROUP_COLLECTION_PROP = "splatter_group_name"
 CLASSIFICATION_ROOT_COLLECTION_NAME = "pivot"
 CLASSIFICATION_COLLECTION_PROP = "splatter_surface_type"
 
-INTERNAL_ROOT_COLLECTION_NAME = "_splatter_internal"
-
 
 class PropertyManager:
     """Centralized manager for object properties that handles engine synchronization."""
@@ -74,36 +72,87 @@ class PropertyManager:
             scene.collection.children.link(root)
         return root
 
-    def _get_or_create_group_collection(self, group_name: str, _root_collection: Optional[Any]) -> Optional[Any]:
-        """Return an internal collection used only for tracking group membership."""
-        # Ensure the internal root exists to provide user references.
-        internal_root = bpy.data.collections.get(INTERNAL_ROOT_COLLECTION_NAME)
-        if internal_root is None:
-            internal_root = bpy.data.collections.new(INTERNAL_ROOT_COLLECTION_NAME)
-            # Add a fake user to prevent deletion.
-            internal_root.use_fake_user = True
+    def _iter_child_collections(self, root: Any) -> Iterable[Any]:
+        stack = list(getattr(root, "children", []) or [])
+        while stack:
+            coll = stack.pop()
+            yield coll
+            stack.extend(list(getattr(coll, "children", []) or []))
 
-        for coll in internal_root.children:
+    def _collection_contains_object(self, coll: Any, obj: Any) -> bool:
+        try:
+            if coll.objects.find(obj.name) != -1:
+                return True
+        except (AttributeError, ReferenceError):
+            return False
+
+        for child in getattr(coll, "children", []) or []:
+            if self._collection_contains_object(child, obj):
+                return True
+        return False
+
+    def _find_top_collection_for_object(self, obj: Any, root_collection: Any) -> Optional[Any]:
+        if root_collection is None:
+            return None
+
+        for child in getattr(root_collection, "children", []) or []:
+            if self._collection_contains_object(child, obj):
+                return child
+        return None
+
+    def _is_descendant_of(self, candidate: Any, root: Any) -> bool:
+        if candidate is None or root is None or candidate == root:
+            return False
+
+        for coll in self._iter_child_collections(root):
+            if coll == candidate:
+                return True
+        return False
+
+    def _rename_collection(self, coll: Any, new_name: str) -> None:
+        if getattr(coll, "name", None) == new_name:
+            return
+
+        existing = bpy.data.collections.get(new_name)
+        if existing is not None and existing is not coll:
+            return
+        coll.name = new_name
+
+    def _get_or_create_group_collection(self, obj: Any, group_name: str, root_collection: Optional[Any]) -> Optional[Any]:
+        """Return a collection under root_collection used for tracking group membership."""
+        if root_collection is None:
+            return None
+
+        # Reuse any existing child collection tagged with this group.
+        for coll in self._iter_child_collections(root_collection):
             if coll.get(GROUP_COLLECTION_PROP) == group_name:
                 return coll
 
-        # Create a dedicated hidden collection name to avoid clashing with user data.
-        sanitized = group_name.replace('/', '_').replace('\\', '_')
-        internal_name = f"_splatter_group_{sanitized}"
+        # If the root collection itself carries the group tag, reuse it.
+        if root_collection.get(GROUP_COLLECTION_PROP) == group_name:
+            return root_collection
 
-        # Reuse an existing internal collection if present.
-        existing = bpy.data.collections.get(internal_name)
-        if existing is not None and existing.get(GROUP_COLLECTION_PROP) in (None, group_name):
-            existing[GROUP_COLLECTION_PROP] = group_name
-            if internal_root.children.find(existing.name) == -1:
-                internal_root.children.link(existing)
-            return existing
+        # Collection-based groups: reuse the top-level collection that currently owns the object.
+        if group_name.endswith("_C"):
+            top_coll = self._find_top_collection_for_object(obj, root_collection)
+            if top_coll is None:
+                top_coll = bpy.data.collections.new(group_name)
+                root_collection.children.link(top_coll)
+            else:
+                self._rename_collection(top_coll, group_name)
 
-        coll = bpy.data.collections.new(internal_name)
+            top_coll[GROUP_COLLECTION_PROP] = group_name
+            return top_coll
+
+        # Parent-based groups: create (or reuse) a dedicated collection under the root.
+        existing_named = bpy.data.collections.get(group_name)
+        if existing_named is not None and self._is_descendant_of(existing_named, root_collection):
+            existing_named[GROUP_COLLECTION_PROP] = group_name
+            return existing_named
+
+        coll = bpy.data.collections.new(group_name)
         coll[GROUP_COLLECTION_PROP] = group_name
-        internal_root.children.link(coll)
-        # Add fake user to prevent deletion.
-        coll.use_fake_user = True
+        root_collection.children.link(coll)
         return coll
 
     def _iter_group_objects(self, group_name: str) -> Iterable[Any]:
@@ -218,12 +267,18 @@ class PropertyManager:
 
     def set_group_name(self, obj: Any, group_name: str, root_collection: Optional[Any] = None) -> bool:
         """Set group name for an object."""
-        coll = self._get_or_create_group_collection(group_name, root_collection)
+        coll = self._get_or_create_group_collection(obj, group_name, root_collection)
         if coll is None:
             return False
 
         if coll not in obj.users_collection:
             coll.objects.link(obj)
+
+        if root_collection is not None and root_collection is not coll:
+            try:
+                root_collection.objects.unlink(obj)
+            except RuntimeError:
+                pass
 
         self._unlink_other_group_collections(obj, coll)
 
@@ -365,7 +420,7 @@ def get_syncable_properties() -> list[str]:
         from .classes import ObjectAttributes
         annotations = getattr(ObjectAttributes, '__annotations__', {}) or {}
         if annotations:
-            props = [n for n in annotations if n != 'group_name']
+            props = list(annotations)
         else:
             # Fallback for Blender runtime-defined properties (no annotations)
             for name in ('surface_type',):

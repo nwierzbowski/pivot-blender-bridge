@@ -179,7 +179,13 @@ def aggregate_object_groups(list selected_objects, object collection):
             mesh_groups.append(meshes)
             parent_groups.append(top_roots)
             full_groups.append(descendants)
-            group_names.append(top_coll.name + "_C")
+
+            group_label = ""
+            if hasattr(top_coll, "get"):
+                group_label = top_coll.get("splatter_group_name", "")
+            if not group_label:
+                group_label = top_coll.name + "_C"
+            group_names.append(group_label)
             total_verts += group_verts
             total_edges += group_edges
             total_objects += len(meshes)
