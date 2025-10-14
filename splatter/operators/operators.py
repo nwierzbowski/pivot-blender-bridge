@@ -45,7 +45,7 @@ class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):
                 # Apply positions to each group using collection-based tracking
                 organized_count = 0
                 for group_name, pos in positions.items():
-                    objects_in_group = prop_manager._iter_group_objects(group_name)
+                    objects_in_group = list(prop_manager._iter_group_objects(group_name))
                     if objects_in_group:
                         target_pos = Vector((pos[0], pos[1], pos[2]))
                         

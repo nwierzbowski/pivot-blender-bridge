@@ -2,6 +2,9 @@ import bpy
 import os
 import stat
 import sys
+import hashlib
+
+from bpy.app.handlers import persistent
 
 from .classes import SceneAttributes
 from bpy.props import PointerProperty
@@ -17,29 +20,23 @@ from .operators.classification import (
 from .ui import Splatter_PT_Main_Panel
 from . import engine
 
-
-# Global state for mode tracking
-_last_object_modes = {}
-
-
-def _on_depsgraph_update(scene):
-    """Lightweight hook to mark groups unsynced when objects enter edit mode."""
+@persistent
+def on_depsgraph_update_fast(scene, depsgraph):
+    """
+    Checks for geometry updates on the active object using the depsgraph.updates collection.
+    """
     obj = bpy.context.active_object
-    if not obj:
+    if not obj or obj.type != 'MESH':
         return
 
-    current_mode = obj.mode
-    last_mode = _last_object_modes.get(obj.name)
-
-    # Check if just entered edit mode
-    if 'EDIT' in current_mode and (last_mode is None or 'EDIT' not in last_mode):
-        from .property_manager import get_property_manager
-        pm = get_property_manager()
-        group_name = pm.get_group_name(obj)
-        if group_name:
-            pm.mark_group_unsynced(group_name)
-
-    _last_object_modes[obj.name] = current_mode
+    # Iterate through all updates in the dependency graph.
+    for update in depsgraph.updates:
+        # Check if the update is for the active object's data block
+        # and if the geometry was flagged as updated.
+        if (update.id.original == obj.data) and update.is_updated_geometry:
+            print(f"Geometry update detected for active object: '{obj.name}'")
+            # You can place your custom logic here
+            break  # Exit the loop once the first matching update is found.
 
 
 bl_info = {
@@ -99,7 +96,7 @@ def register():
             print(f"[Splatter] Could not print Cython edition: {e}")
     
     # Register edit mode hook
-    bpy.app.handlers.depsgraph_update_post.append(_on_depsgraph_update)
+    bpy.app.handlers.depsgraph_update_post.append(on_depsgraph_update_fast)
     
     # Example: Add addon preferences (if you create an AddonPreferences class)
     # bpy.utils.register_class(MyAddonPreferences)
@@ -136,7 +133,7 @@ def unregister():
     engine.stop_engine()
 
     # Unregister edit mode hook
-    bpy.app.handlers.depsgraph_update_post.remove(_on_depsgraph_update)
+    bpy.app.handlers.depsgraph_update_post.remove(on_depsgraph_update_fast)
 
     # Example: Remove addon preferences
     # bpy.utils.unregister_class(MyAddonPreferences)

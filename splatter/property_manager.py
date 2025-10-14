@@ -163,7 +163,8 @@ class PropertyManager:
         """Ensure group metadata keys are populated on a collection."""
         coll[GROUP_COLLECTION_PROP] = group_name
         # Newly tagged collections are assumed to be in sync until explicitly invalidated.
-        coll.setdefault(GROUP_COLLECTION_SYNC_PROP, True)
+        if GROUP_COLLECTION_SYNC_PROP not in coll:
+            coll[GROUP_COLLECTION_SYNC_PROP] = True
         # Set color tag based on sync status
         coll.color_tag = 'NONE' if coll.get(GROUP_COLLECTION_SYNC_PROP, True) else 'COLOR_03'
 
@@ -259,7 +260,7 @@ class PropertyManager:
         # Ensure the group collection's metadata reflects its latest surface type and
         # that it is not linked under any other surface containers.
         group_collection[CLASSIFICATION_COLLECTION_PROP] = surface_key
-        self.mark_group_unsynced(group_collection.get(GROUP_COLLECTION_PROP))
+        # self.mark_group_unsynced(group_collection.get(GROUP_COLLECTION_PROP))
 
         for coll in pivot_root.children:
             if coll is surface_collection:
@@ -360,7 +361,7 @@ class PropertyManager:
                 pass
 
         self._unlink_other_group_collections(obj, coll)
-        self.mark_group_unsynced(group_name)
+        # self.mark_group_unsynced(group_name)
 
         return True
 
