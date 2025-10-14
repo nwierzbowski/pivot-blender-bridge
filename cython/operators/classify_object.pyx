@@ -206,8 +206,6 @@ def classify_and_apply_objects(list selected_objects, collection):
             group_name = group_names[i]
 
             for obj in group:
-                if not hasattr(obj, "classification"):
-                    continue
                 prop_manager.set_group_name(obj, group_name, collection)
                 prop_manager._assign_surface_collection(obj, surface_type_value)
 

@@ -30,9 +30,3 @@ class SceneAttributes(PropertyGroup):
         description="License type (read-only, determined by engine)",
         default="UNKNOWN",
     )
-
-
-class ObjectAttributes(PropertyGroup):
-    # isSeating: BoolProperty(name="Is Seating")
-    # isSurface: BoolProperty(name="Is Surface")
-    pass
