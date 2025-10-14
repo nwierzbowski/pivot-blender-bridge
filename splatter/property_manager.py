@@ -171,7 +171,7 @@ class PropertyManager:
         if root_collection.get(GROUP_COLLECTION_PROP) == group_name:
             return root_collection
 
-        # Collection-based groups: reuse the top-level collection that currently owns the object.
+        # Collection-based groups (ending with "_C"): reuse the object's current top-level collection.
         if group_name.endswith("_C"):
             top_coll = self._find_top_collection_for_object(obj, root_collection)
             if top_coll is None:
@@ -183,7 +183,7 @@ class PropertyManager:
             top_coll[GROUP_COLLECTION_PROP] = group_name
             return top_coll
 
-        # Parent-based groups: create (or reuse) a dedicated collection under the root.
+        # Parent-based groups: create or reuse a dedicated collection under the root.
         existing_named = bpy.data.collections.get(group_name)
         if existing_named is not None and self._is_descendant_of(existing_named, root_collection):
             existing_named[GROUP_COLLECTION_PROP] = group_name
@@ -195,10 +195,12 @@ class PropertyManager:
         return coll
 
     def _iter_group_objects(self, group_name: str) -> Iterable[Any]:
+        """Iterate over objects in collections tagged with the given group name."""
         for coll in bpy.data.collections:
             if coll.get(GROUP_COLLECTION_PROP) == group_name:
-                return list(coll.objects)
-        return []
+                # Return objects from the first matching collection (groups assumed unique)
+                return iter(coll.objects)
+        return iter([])
 
     def _unlink_other_group_collections(self, obj: Any, keep: Optional[Any]) -> None:
         to_unlink: list[Any] = []
@@ -211,6 +213,21 @@ class PropertyManager:
             except RuntimeError:
                 pass
 
+    def _ensure_group_collection(self, obj: Any, group_name: Optional[str], fallback_name: str) -> Optional[Any]:
+        """Ensure the object has a group collection, creating one if necessary."""
+        group_collection = self._get_group_collection_for_object(obj, group_name)
+        if group_collection is not None:
+            return group_collection
+
+        # Fallback: reuse or create a collection with the fallback name
+        group_collection = bpy.data.collections.get(fallback_name)
+        if group_collection is None:
+            group_collection = bpy.data.collections.new(fallback_name)
+        if group_collection not in obj.users_collection:
+            group_collection.objects.link(obj)
+        group_collection[GROUP_COLLECTION_PROP] = group_name or fallback_name
+        return group_collection
+
     def _assign_surface_collection(self, obj: Any, surface_value: Any) -> None:
         surface_key = str(surface_value)
         pivot_root = self._get_or_create_root_collection(CLASSIFICATION_ROOT_COLLECTION_NAME)
@@ -218,17 +235,7 @@ class PropertyManager:
             return
 
         group_name = self._get_group_name(obj)
-        group_collection = self._get_group_collection_for_object(obj, group_name)
-
-        # Fallback in the unlikely event the object is missing its group collection.
-        if group_collection is None:
-            fallback_name = group_name or surface_key
-            group_collection = bpy.data.collections.get(fallback_name)
-            if group_collection is None:
-                group_collection = bpy.data.collections.new(fallback_name)
-            if group_collection not in obj.users_collection:
-                group_collection.objects.link(obj)
-            group_collection[GROUP_COLLECTION_PROP] = group_name or fallback_name
+        group_collection = self._ensure_group_collection(obj, group_name, group_name or surface_key)
 
         surface_collection = self._get_or_create_surface_collection(pivot_root, surface_key)
         if surface_collection is None:
@@ -277,11 +284,7 @@ class PropertyManager:
 
     def has_existing_groups(self) -> bool:
         """Check if there are any existing groups by looking at collection metadata."""
-        # Check if there are any collections with GROUP_COLLECTION_PROP set
-        for coll in bpy.data.collections:
-            if coll.get(GROUP_COLLECTION_PROP):
-                return True
-        return False
+        return any(coll.get(GROUP_COLLECTION_PROP) for coll in bpy.data.collections)
 
     def sync_group_classifications(self, group_surface_map: Dict[str, Any]) -> bool:
         """Send a batch classification update to the engine."""
