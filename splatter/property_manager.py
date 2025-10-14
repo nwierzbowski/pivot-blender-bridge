@@ -165,8 +165,6 @@ class PropertyManager:
         # Newly tagged collections are assumed to be in sync until explicitly invalidated.
         if GROUP_COLLECTION_SYNC_PROP not in coll:
             coll[GROUP_COLLECTION_SYNC_PROP] = True
-        # Set color tag based on sync status
-        coll.color_tag = 'NONE' if coll.get(GROUP_COLLECTION_SYNC_PROP, True) else 'COLOR_03'
 
     def _get_or_create_group_collection(self, obj: Any, group_name: str, root_collection: Optional[Any]) -> Optional[Any]:
         """Return a collection under root_collection used for tracking group membership."""
@@ -337,9 +335,8 @@ class PropertyManager:
                 print(f"Failed to update group classifications: {error}")
                 return False
 
-            for group_name, surface_int in normalized_map.items():
-                self._update_engine_state(group_name, "surface_type", surface_int)
-                self.mark_group_synced(group_name)
+            # for group_name, surface_int in normalized_map.items():
+            #     self._update_engine_state(group_name, "surface_type", surface_int)
             return True
         except Exception as exc:
             print(f"Error sending group classifications: {exc}")
@@ -365,9 +362,9 @@ class PropertyManager:
 
         return True
 
-    def _update_engine_state(self, group_name: str, attr_name: str, value: Any) -> None:
-        """Update the expected engine state for a group attribute."""
-        engine_state._engine_expected_state.setdefault(group_name, {})[attr_name] = value
+    # def _update_engine_state(self, group_name: str, attr_name: str, value: Any) -> None:
+    #     """Update the expected engine state for a group attribute."""
+    #     engine_state._engine_expected_state.setdefault(group_name, {})[attr_name] = value
 
     # --- Sync bookkeeping -------------------------------------------------
 
@@ -383,13 +380,14 @@ class PropertyManager:
 
     def mark_group_synced(self, group_name: str) -> None:
         """Mark all collections for the group as synchronized with the engine."""
+        print(f"Marking group '{group_name}' as synced")
         if not group_name:
             return
 
         for coll in self.iter_group_collections():
             if coll.get(GROUP_COLLECTION_PROP) == group_name:
                 coll[GROUP_COLLECTION_SYNC_PROP] = True
-                coll.color_tag = 'NONE'
+                coll.color_tag = 'COLOR_04'
 
     def iter_group_collections(self) -> Iterator[Any]:
         """Yield every Blender collection tagged as a group collection."""

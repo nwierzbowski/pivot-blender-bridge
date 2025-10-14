@@ -192,7 +192,6 @@ def classify_and_apply_objects(list selected_objects, collection):
         #     obj.select_set(True)
         # bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
 
-
     if edition_utils.is_pro_edition():
         from splatter.property_manager import get_property_manager
         prop_manager = get_property_manager()
@@ -209,7 +208,7 @@ def classify_and_apply_objects(list selected_objects, collection):
                 prop_manager.set_group_name(obj, group_name, collection)
                 prop_manager._assign_surface_collection(obj, surface_type_value)
 
-            # group_surface_updates[group_name] = surface_type_value
+            prop_manager.mark_group_synced(group_name)
 
 
     end_apply = time.perf_counter()
