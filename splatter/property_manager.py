@@ -1,15 +1,13 @@
-"""Property Management System
+"""Property management glue between Blender collections and the C++ engine.
 
-Centralized management of object properties with automatic engine synchronization.
-Separation of concerns:
-- Public API: setting attributes, scene/object sync entry points
-- Engine I/O: command construction and communicator access
-- State: expected engine state bookkeeping (engine_state module)
-- Checks: helpers to determine if a sync is necessary
+Responsibilities:
+- Track group metadata stored on Blender collections.
+- Keep the expected engine state in sync with Blender edits.
+- Provide a small, explicit API for callers to manage sync status.
 """
 
 import bpy
-from typing import Any, Dict, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterable, Iterator, Optional
 
 from . import engine_state
 
@@ -18,9 +16,13 @@ COMMAND_SET_GROUP_CLASSIFICATIONS = 4
 
 
 GROUP_COLLECTION_PROP = "splatter_group_name"
+GROUP_COLLECTION_SYNC_PROP = "splatter_group_in_sync"
 
 CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot"
 CLASSIFICATION_COLLECTION_PROP = "splatter_surface_type"
+
+if TYPE_CHECKING:  # pragma: no cover - Blender types only exist at runtime.
+    from bpy.types import Collection, Object
 
 
 class PropertyManager:
@@ -157,6 +159,14 @@ class PropertyManager:
         pivot_root.children.link(surface_coll)
         return surface_coll
 
+    def _tag_group_collection(self, coll: Any, group_name: str) -> None:
+        """Ensure group metadata keys are populated on a collection."""
+        coll[GROUP_COLLECTION_PROP] = group_name
+        # Newly tagged collections are assumed to be in sync until explicitly invalidated.
+        coll.setdefault(GROUP_COLLECTION_SYNC_PROP, True)
+        # Set color tag based on sync status
+        coll.color_tag = 'NONE' if coll.get(GROUP_COLLECTION_SYNC_PROP, True) else 'COLOR_03'
+
     def _get_or_create_group_collection(self, obj: Any, group_name: str, root_collection: Optional[Any]) -> Optional[Any]:
         """Return a collection under root_collection used for tracking group membership."""
         if root_collection is None:
@@ -165,10 +175,12 @@ class PropertyManager:
         # Reuse any existing direct child collection tagged with this group.
         for coll in getattr(root_collection, "children", []) or []:
             if coll.get(GROUP_COLLECTION_PROP) == group_name:
+                self._tag_group_collection(coll, group_name)
                 return coll
 
         # If the root collection itself carries the group tag, reuse it.
         if root_collection.get(GROUP_COLLECTION_PROP) == group_name:
+            self._tag_group_collection(root_collection, group_name)
             return root_collection
 
         # Collection-based groups (ending with "_C"): reuse the object's current top-level collection.
@@ -180,17 +192,17 @@ class PropertyManager:
             else:
                 self._rename_collection(top_coll, group_name)
 
-            top_coll[GROUP_COLLECTION_PROP] = group_name
+            self._tag_group_collection(top_coll, group_name)
             return top_coll
 
         # Parent-based groups: create or reuse a dedicated collection under the root.
         existing_named = bpy.data.collections.get(group_name)
         if existing_named is not None and self._is_descendant_of(existing_named, root_collection):
-            existing_named[GROUP_COLLECTION_PROP] = group_name
+            self._tag_group_collection(existing_named, group_name)
             return existing_named
 
         coll = bpy.data.collections.new(group_name)
-        coll[GROUP_COLLECTION_PROP] = group_name
+        self._tag_group_collection(coll, group_name)
         root_collection.children.link(coll)
         return coll
 
@@ -225,7 +237,7 @@ class PropertyManager:
             group_collection = bpy.data.collections.new(fallback_name)
         if group_collection not in obj.users_collection:
             group_collection.objects.link(obj)
-        group_collection[GROUP_COLLECTION_PROP] = group_name or fallback_name
+        self._tag_group_collection(group_collection, group_name or fallback_name)
         return group_collection
 
     def _assign_surface_collection(self, obj: Any, surface_value: Any) -> None:
@@ -247,6 +259,7 @@ class PropertyManager:
         # Ensure the group collection's metadata reflects its latest surface type and
         # that it is not linked under any other surface containers.
         group_collection[CLASSIFICATION_COLLECTION_PROP] = surface_key
+        self.mark_group_unsynced(group_collection.get(GROUP_COLLECTION_PROP))
 
         for coll in pivot_root.children:
             if coll is surface_collection:
@@ -325,6 +338,7 @@ class PropertyManager:
 
             for group_name, surface_int in normalized_map.items():
                 self._update_engine_state(group_name, "surface_type", surface_int)
+                self.mark_group_synced(group_name)
             return True
         except Exception as exc:
             print(f"Error sending group classifications: {exc}")
@@ -346,12 +360,55 @@ class PropertyManager:
                 pass
 
         self._unlink_other_group_collections(obj, coll)
+        self.mark_group_unsynced(group_name)
 
         return True
 
     def _update_engine_state(self, group_name: str, attr_name: str, value: Any) -> None:
         """Update the expected engine state for a group attribute."""
         engine_state._engine_expected_state.setdefault(group_name, {})[attr_name] = value
+
+    # --- Sync bookkeeping -------------------------------------------------
+
+    def mark_group_unsynced(self, group_name: str) -> None:
+        """Flag every collection representing the group as needing an engine refresh."""
+        if not group_name:
+            return
+
+        for coll in self.iter_group_collections():
+            if coll.get(GROUP_COLLECTION_PROP) == group_name:
+                coll[GROUP_COLLECTION_SYNC_PROP] = False
+                coll.color_tag = 'COLOR_03'
+
+    def mark_group_synced(self, group_name: str) -> None:
+        """Mark all collections for the group as synchronized with the engine."""
+        if not group_name:
+            return
+
+        for coll in self.iter_group_collections():
+            if coll.get(GROUP_COLLECTION_PROP) == group_name:
+                coll[GROUP_COLLECTION_SYNC_PROP] = True
+                coll.color_tag = 'NONE'
+
+    def iter_group_collections(self) -> Iterator[Any]:
+        """Yield every Blender collection tagged as a group collection."""
+        for coll in bpy.data.collections:
+            if coll.get(GROUP_COLLECTION_PROP):
+                yield coll
+
+    def iter_unsynced_group_collections(self) -> Iterator[Any]:
+        """Yield group collections flagged as out-of-sync with the engine."""
+        for coll in self.iter_group_collections():
+            if not coll.get(GROUP_COLLECTION_SYNC_PROP, True):
+                yield coll
+
+    def get_group_collections(self) -> list[Any]:
+        """Return all group collections as a materialized list."""
+        return list(self.iter_group_collections())
+
+    def get_unsynced_group_collections(self) -> list[Any]:
+        """Return every group collection flagged as out-of-sync."""
+        return list(self.iter_unsynced_group_collections())
 
     # Global instance
 _property_manager = PropertyManager()
