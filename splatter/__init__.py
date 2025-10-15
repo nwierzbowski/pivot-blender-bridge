@@ -19,94 +19,104 @@ from .operators.classification import (
 from .ui import Splatter_PT_Main_Panel
 from . import engine
 from .property_manager import GROUP_COLLECTION_PROP, get_property_manager
+from . import engine_state
 
-# Globals tracking state for sync detection
-_previous_scales = {}
-_group_membership_snapshot: dict[str, set[str]] = {}
-_is_undoing = False
+# Cache of each object's last-known scale to detect transform-only edits quickly.
+_previous_scales: dict[str, tuple[float, float, float]] = {}
+
+
+def _record_object_scales(object_names: set[str]) -> None:
+    for name in object_names:
+        obj = bpy.data.objects.get(name)
+        if obj:
+            _previous_scales[name] = tuple(obj.scale)
+
+
+def _forget_object_scales(object_names: set[str]) -> None:
+    for name in object_names:
+        _previous_scales.pop(name, None)
+
 
 @persistent
 def on_depsgraph_update_fast(scene, depsgraph):
-    """
-    Checks for geometry updates on selected mesh objects using the depsgraph.updates collection.
-    """
-    global _group_membership_snapshot, _is_undoing
-
+    """Detect local changes and mark groups as out-of-sync with the engine."""
     pm = get_property_manager()
-    if not _group_membership_snapshot:
-        _group_membership_snapshot = _snapshot_group_memberships(pm)
-        _refresh_object_scales(_group_membership_snapshot)
 
-    if _is_undoing:
-        _group_membership_snapshot = _snapshot_group_memberships(pm)
-        _refresh_object_scales(_group_membership_snapshot)
-        return
+    current_snapshot = _snapshot_group_memberships(pm)
+    expected_snapshot = engine_state.get_group_membership_snapshot()
+    all_groups = set(expected_snapshot) | set(current_snapshot)
 
-    if depsgraph.id_type_updated('OBJECT') or depsgraph.id_type_updated('COLLECTION'):
-        current_snapshot = _snapshot_group_memberships(pm)
-        all_groups = set(_group_membership_snapshot.keys()) | set(current_snapshot.keys())
-        for group_name in all_groups:
-            prev_members = _group_membership_snapshot.get(group_name, set())
-            curr_members = current_snapshot.get(group_name, set())
-            if group_name and prev_members != curr_members:
+    for group_name in all_groups:
+        if not group_name:
+            continue
+
+        current_members = current_snapshot.get(group_name, set())
+        expected_members = expected_snapshot.get(group_name)
+
+        if expected_members is None:
+            if current_members:
                 pm.mark_group_unsynced(group_name)
-                removed_objects = prev_members - curr_members
-                for obj_name in removed_objects:
-                    _previous_scales.pop(obj_name, None)
-                added_objects = curr_members - prev_members
-                for obj_name in added_objects:
-                    obj = bpy.data.objects.get(obj_name)
-                    if obj:
-                        _previous_scales[obj_name] = tuple(obj.scale)
-        _group_membership_snapshot = current_snapshot
+                _record_object_scales(current_members)
+            continue
 
-    selected_objects = [o for o in bpy.context.selected_objects if o.type == 'MESH']
-    if not selected_objects:
-        return
+        if expected_members == current_members:
+            missing_scales = {name for name in current_members if name not in _previous_scales}
+            if missing_scales:
+                _record_object_scales(missing_scales)
+            continue
 
-    # Iterate through all updates in the dependency graph.
-    for update in depsgraph.updates:
-        # Check if the geometry or transform was flagged as updated.
-        if update.is_updated_geometry or update.is_updated_transform:
+        print(
+            f"[Splatter] Collection membership change detected for '{group_name}': prev={expected_members}, curr={current_members}"
+        )
+        pm.mark_group_unsynced(group_name)
+
+        removed = expected_members - current_members
+        added = current_members - expected_members
+        _forget_object_scales(removed)
+        _record_object_scales(added)
+
+    # Keep unsynced highlighting alive even if Blender undo rewinds the property flag.
+    for group_name in engine_state.get_unsynced_groups():
+        pm.mark_group_unsynced(group_name)
+
+    selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+    if selected_objects:
+        for update in depsgraph.updates:
+            if not (update.is_updated_geometry or update.is_updated_transform):
+                continue
+
             for obj in selected_objects:
-                # Check if the update is for this object's data block (for geometry) or the object itself (for transform).
-                if update.id.original == obj.data or update.id.original == obj:
-                    group_name = pm.get_group_name(obj)
-                    if group_name:
-                        current_scale = tuple(obj.scale)
-                        prev_scale = _previous_scales.get(obj.name)
-                        scale_changed = prev_scale is not None and current_scale != prev_scale
-                        group_size = len(_group_membership_snapshot.get(group_name, set()))
+                if update.id.original not in (obj, obj.data):
+                    continue
 
-                        should_mark_unsynced = (
-                            update.is_updated_geometry
-                            or scale_changed
-                            or (update.is_updated_transform and not scale_changed and group_size > 1)
-                        )
-                        if should_mark_unsynced:
-                            pm.mark_group_unsynced(group_name)
+                group_name = pm.get_group_name(obj)
+                if not group_name:
+                    break
 
-                        _previous_scales[obj.name] = current_scale
-                    break  # Found the object for this update, move to next update
+                expected_members = expected_snapshot.get(group_name)
+                current_members = current_snapshot.get(group_name, set())
+                member_count = len(expected_members) if expected_members is not None else len(current_members)
 
+                current_scale = tuple(obj.scale)
+                prev_scale = _previous_scales.get(obj.name)
+                scale_changed = prev_scale is not None and current_scale != prev_scale
 
-@persistent
-def _on_undo_pre(_dummy=None):
-    global _is_undoing
-    _is_undoing = True
+                should_mark_unsynced = (
+                    expected_members is None
+                    or update.is_updated_geometry
+                    or scale_changed
+                    or (update.is_updated_transform and not scale_changed and member_count > 1)
+                )
 
+                if should_mark_unsynced:
+                    pm.mark_group_unsynced(group_name)
 
-@persistent
-def _on_undo_post(_dummy=None):
-    global _is_undoing, _group_membership_snapshot
-    _is_undoing = False
-    try:
-        pm = get_property_manager()
-        _group_membership_snapshot = _snapshot_group_memberships(pm)
-        _refresh_object_scales(_group_membership_snapshot)
-    except Exception as e:
-        print(f"[Splatter] Failed to refresh state after undo: {e}")
+                _previous_scales[obj.name] = current_scale
+                break
 
+    cleared_groups = pm.cleanup_empty_group_collections()
+    if cleared_groups:
+        engine_state.drop_groups_from_snapshot(cleared_groups)
 
 bl_info = {
     "name": "Splatter: AI Powered Object Scattering",
@@ -164,21 +174,12 @@ def register():
         except Exception as e:
             print(f"[Splatter] Could not print Cython edition: {e}")
     
-    global _group_membership_snapshot, _previous_scales
+    global _previous_scales
     _previous_scales.clear()
-    try:
-        pm = get_property_manager()
-        _group_membership_snapshot = _snapshot_group_memberships(pm)
-        _refresh_object_scales(_group_membership_snapshot)
-    except Exception as e:
-        print(f"[Splatter] Could not initialize group membership snapshot: {e}")
+    engine_state.update_group_membership_snapshot({}, replace=True)
 
     if on_depsgraph_update_fast not in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.append(on_depsgraph_update_fast)
-    if _on_undo_pre not in bpy.app.handlers.undo_pre:
-        bpy.app.handlers.undo_pre.append(_on_undo_pre)
-    if _on_undo_post not in bpy.app.handlers.undo_post:
-        bpy.app.handlers.undo_post.append(_on_undo_post)
 
 
 def unregister():
@@ -203,13 +204,10 @@ def unregister():
     # Unregister edit mode hook
     if on_depsgraph_update_fast in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(on_depsgraph_update_fast)
-    if _on_undo_pre in bpy.app.handlers.undo_pre:
-        bpy.app.handlers.undo_pre.remove(_on_undo_pre)
-    if _on_undo_post in bpy.app.handlers.undo_post:
-        bpy.app.handlers.undo_post.remove(_on_undo_post)
 
-    global _group_membership_snapshot, _previous_scales, _is_undoing
-    _is_undoing = False
+    engine_state.update_group_membership_snapshot({}, replace=True)
+
+    global _previous_scales
     _previous_scales.clear()
 
 def _snapshot_group_memberships(pm) -> dict[str, set[str]]:
@@ -224,15 +222,6 @@ def _snapshot_group_memberships(pm) -> dict[str, set[str]]:
             continue
         snapshot[group_name] = {obj.name for obj in objects}
     return snapshot
-
-
-def _refresh_object_scales(snapshot: dict[str, set[str]]) -> None:
-    _previous_scales.clear()
-    for members in snapshot.values():
-        for obj_name in members:
-            obj = bpy.data.objects.get(obj_name)
-            if obj:
-                _previous_scales[obj_name] = tuple(obj.scale)
 
 
 if __name__ == "__main__":

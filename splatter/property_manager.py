@@ -166,6 +166,13 @@ class PropertyManager:
         if GROUP_COLLECTION_SYNC_PROP not in coll:
             coll[GROUP_COLLECTION_SYNC_PROP] = True
 
+    def _clear_group_collection_metadata(self, coll: Any) -> None:
+        """Remove Pivot-specific metadata from a collection."""
+        for key in (GROUP_COLLECTION_PROP, GROUP_COLLECTION_SYNC_PROP, CLASSIFICATION_COLLECTION_PROP):
+            if key in coll:
+                del coll[key]
+        coll.color_tag = 'COLOR_NONE'
+
     def _get_or_create_group_collection(self, obj: Any, group_name: str, root_collection: Optional[Any]) -> Optional[Any]:
         """Return a collection under root_collection used for tracking group membership."""
         if root_collection is None:
@@ -373,6 +380,8 @@ class PropertyManager:
         if not group_name:
             return
 
+        engine_state.flag_group_unsynced(group_name)
+
         for coll in self.iter_group_collections():
             if coll.get(GROUP_COLLECTION_PROP) == group_name:
                 coll[GROUP_COLLECTION_SYNC_PROP] = False
@@ -388,6 +397,37 @@ class PropertyManager:
             if coll.get(GROUP_COLLECTION_PROP) == group_name:
                 coll[GROUP_COLLECTION_SYNC_PROP] = True
                 coll.color_tag = 'COLOR_04'
+
+        engine_state.clear_group_unsynced(group_name)
+
+    def get_managed_group_names(self) -> list[str]:
+        """Return all unique Pivot-managed group names sorted alphabetically."""
+        names: set[str] = set()
+        for coll in self.iter_group_collections():
+            name = coll.get(GROUP_COLLECTION_PROP)
+            if name:
+                names.add(name)
+        return sorted(names)
+
+    def cleanup_empty_group_collections(self) -> list[str]:
+        """Detach Pivot metadata from empty collections.
+
+        Returns:
+            list[str]: Group names that were cleared.
+        """
+
+        cleared: list[str] = []
+        for coll in list(self.iter_group_collections()):
+            if len(getattr(coll, "objects", []) or []) > 0:
+                continue
+
+            group_name = coll.get(GROUP_COLLECTION_PROP)
+            if group_name:
+                cleared.append(group_name)
+
+            self._clear_group_collection_metadata(coll)
+
+        return cleared
 
     def iter_group_collections(self) -> Iterator[Any]:
         """Yield every Blender collection tagged as a group collection."""
@@ -409,7 +449,7 @@ class PropertyManager:
         """Return every group collection flagged as out-of-sync."""
         return list(self.iter_unsynced_group_collections())
 
-    # Global instance
+# Global instance
 _property_manager = PropertyManager()
 
 def get_property_manager() -> PropertyManager:

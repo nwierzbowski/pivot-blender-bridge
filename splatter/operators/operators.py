@@ -47,17 +47,24 @@ class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):
                 for group_name, pos in positions.items():
                     objects_in_group = list(prop_manager._iter_group_objects(group_name))
                     if objects_in_group:
-                        target_pos = Vector((pos[0], pos[1], pos[2]))
-                        
-                        # Calculate current center of the group to preserve relative positions
-                        current_center = sum((obj.location for obj in objects_in_group), Vector((0, 0, 0))) / len(objects_in_group)
-                        delta = target_pos - current_center
-                        
-                        # Move all objects in the group by the delta
-                        for obj in objects_in_group:
-                            obj.location += delta
-                        
-                        organized_count += 1
+                        try:
+                            target_pos = Vector((pos[0], pos[1], pos[2]))
+                            
+                            # Calculate current center of the group to preserve relative positions
+                            current_center = sum((obj.location for obj in objects_in_group), Vector((0, 0, 0))) / len(objects_in_group)
+                            delta = target_pos - current_center
+                            
+                            # Move all objects in the group by the delta
+                            for obj in objects_in_group:
+                                obj.location += delta
+                            
+                            organized_count += 1
+                        except Exception as e:
+                            print(f"[Splatter] Failed to organize group '{group_name}': {e}")
+                            # print(f"  Raw position data: {pos} (type: {type(pos)})")
+                            # print(f"  Full positions response: {positions}")
+                            # print(f"  Full engine response: {response}")
+                            # Continue to next group instead of failing the whole operation
                 
                 self.report({"INFO"}, f"Organized {organized_count} object groups")
             else:

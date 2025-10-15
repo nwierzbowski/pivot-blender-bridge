@@ -9,6 +9,7 @@ import time
 import bpy
 
 from . import selection_utils, shm_utils, transform_utils, edition_utils
+from splatter import engine_state
 
 def classify_and_apply_objects(list selected_objects, collection):
     cdef double start_prep = time.perf_counter()
@@ -32,6 +33,14 @@ def classify_and_apply_objects(list selected_objects, collection):
     cdef uint32_t[::1] object_counts_mv
     cdef list group
     mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects = selection_utils.aggregate_object_groups(selected_objects, collection)
+
+    group_membership_snapshot = {}
+    for idx in range(len(full_groups)):
+        group_name = group_names[idx]
+        group = full_groups[idx]
+        if group_name is None:
+            continue
+        group_membership_snapshot[group_name] = [obj.name for obj in group if obj is not None]
 
     # Create shared memory segments and numpy arrays for verts/edges only
     shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(total_verts, total_edges, total_objects, mesh_groups)
@@ -209,6 +218,8 @@ def classify_and_apply_objects(list selected_objects, collection):
                 prop_manager._assign_surface_collection(obj, surface_type_value)
 
             prop_manager.mark_group_synced(group_name)
+
+    engine_state.update_group_membership_snapshot(group_membership_snapshot, replace=True)
 
 
     end_apply = time.perf_counter()
