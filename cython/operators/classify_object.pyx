@@ -12,28 +12,45 @@ from . import selection_utils, shm_utils, transform_utils, edition_utils
 from splatter import engine_state
 
 
+
 def set_origin_and_preserve_children(obj, new_origin_world):
     """
     Sets the origin of an object to a new world-space location while keeping
-    its children stationary by adjusting mesh data and parent inverse matrices.
+    its mesh and its children visually stationary.
     """
     if not hasattr(obj, 'data') or not hasattr(obj.data, 'transform'):
         print(f"Warning: Object '{obj.name}' has no transformable data.")
         return
 
+    # Ensure the new origin is a Vector
+    if not isinstance(new_origin_world, Vector):
+        new_origin_world = Vector(new_origin_world)
+
     old_origin_world = obj.matrix_world.translation.copy()
-    translation_offset = new_origin_world - old_origin_world
+    translation_offset_world = new_origin_world - old_origin_world
 
-    # Transform mesh data to compensate for origin change
-    obj.data.transform(Matrix.Translation(-translation_offset))
+    # --- THE CORRECTION IS HERE ---
+    # We need to convert the world-space offset into the object's local space.
+    # This accounts for the object's rotation and scale.
+    # We multiply by the inverse of the object's 3x3 matrix (rotation & scale part).
+    inv_matrix = obj.matrix_world.to_3x3().inverted()
+    translation_offset_local = inv_matrix @ translation_offset_world
+    # --- END CORRECTION ---
 
-    # Update parent's world matrix to move origin
+    # 1. Transform mesh data to compensate for origin change
+    # We use the newly calculated local_offset.
+    obj.data.transform(Matrix.Translation(-translation_offset_local))
+
+    # 2. Update parent's world matrix to move the origin
     obj.matrix_world.translation = new_origin_world
 
-    # Adjust children's parent inverse matrices to keep them stationary
+    # 3. Adjust children's parent inverse matrices to keep them stationary
+    # This part remains the same and was already correct.
     if obj.children:
         for child in obj.children:
-            child.matrix_parent_inverse.translation += translation_offset
+            # We add the WORLD offset here, because this matrix operation
+            # is compensating for a world-space change of the parent.
+            child.matrix_parent_inverse.translation += translation_offset_world
 
 def classify_and_apply_objects(list selected_objects, collection):
     cdef double start_prep = time.perf_counter()
