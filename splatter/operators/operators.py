@@ -50,14 +50,13 @@ class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):
                         try:
                             target_pos = Vector((pos[0], pos[1], pos[2]))
                             
-                            # Calculate current center of the group to preserve relative positions
-                            current_center = sum((obj.location for obj in objects_in_group), Vector((0, 0, 0))) / len(objects_in_group)
-                            delta = target_pos - current_center
-                            
-                            # Move only parent objects in the group by the delta
-                            for obj in objects_in_group:
-                                if obj.parent is None:
-                                    obj.location += delta
+                            # Move only parent objects in the group directly to the engine-provided position
+                            parent_objs = [obj for obj in objects_in_group if obj.parent is None]
+                            if not parent_objs:
+                                continue
+
+                            for obj in parent_objs:
+                                obj.location = target_pos.copy()
                             
                             organized_count += 1
                         except Exception as e:

@@ -2,7 +2,7 @@
 
 from libc.stdint cimport uint32_t
 from libc.stddef cimport size_t
-from mathutils import Quaternion, Vector
+from mathutils import Quaternion, Vector, Matrix
 
 import numpy as np
 import time
@@ -10,6 +10,30 @@ import bpy
 
 from . import selection_utils, shm_utils, transform_utils, edition_utils
 from splatter import engine_state
+
+
+def set_origin_and_preserve_children(obj, new_origin_world):
+    """
+    Sets the origin of an object to a new world-space location while keeping
+    its children stationary by adjusting mesh data and parent inverse matrices.
+    """
+    if not hasattr(obj, 'data') or not hasattr(obj.data, 'transform'):
+        print(f"Warning: Object '{obj.name}' has no transformable data.")
+        return
+
+    old_origin_world = obj.matrix_world.translation.copy()
+    translation_offset = new_origin_world - old_origin_world
+
+    # Transform mesh data to compensate for origin change
+    obj.data.transform(Matrix.Translation(-translation_offset))
+
+    # Update parent's world matrix to move origin
+    obj.matrix_world.translation = new_origin_world
+
+    # Adjust children's parent inverse matrices to keep them stationary
+    if obj.children:
+        for child in obj.children:
+            child.matrix_parent_inverse.translation += translation_offset
 
 def classify_and_apply_objects(list selected_objects, collection):
     cdef double start_prep = time.perf_counter()
@@ -183,7 +207,9 @@ def classify_and_apply_objects(list selected_objects, collection):
     for i, group in enumerate(parent_groups):
         delta_quat = rots[i]
         first_obj = group[0]
-        cursor_loc = Vector(origin[i]) + first_obj.location
+        first_world_translation = first_obj.matrix_world.translation.copy()
+        target_origin = Vector(origin[i]) + first_world_translation
+        cursor_loc = target_origin.copy()
 
         
 
@@ -194,6 +220,9 @@ def classify_and_apply_objects(list selected_objects, collection):
             obj.rotation_quaternion = (delta_quat @ local_quat).normalized()
             obj.location = Vector(loc)
             obj_idx += 1
+
+        for obj in group:
+            set_origin_and_preserve_children(obj, target_origin)
 
         bpy.context.scene.cursor.location = cursor_loc
         # bpy.ops.object.select_all(action='DESELECT')
