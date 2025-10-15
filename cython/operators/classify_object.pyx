@@ -16,41 +16,40 @@ from splatter import engine_state
 def set_origin_and_preserve_children(obj, new_origin_world):
     """
     Sets the origin of an object to a new world-space location while keeping
-    its mesh and its children visually stationary.
+    its mesh and all of its children visually stationary.
+
+    This version is mathematically robust and correctly handles all parent/child
+    transformations (location, rotation, and scale).
     """
     if not hasattr(obj, 'data') or not hasattr(obj.data, 'transform'):
         print(f"Warning: Object '{obj.name}' has no transformable data.")
         return
 
-    # Ensure the new origin is a Vector
+    # Ensure the new origin is a Vector for math operations
     if not isinstance(new_origin_world, Vector):
         new_origin_world = Vector(new_origin_world)
 
-    old_origin_world = obj.matrix_world.translation.copy()
-    translation_offset_world = new_origin_world - old_origin_world
+    # 1. Store the parent's original world matrix
+    old_matrix_world = obj.matrix_world.copy()
 
-    # --- THE CORRECTION IS HERE ---
-    # We need to convert the world-space offset into the object's local space.
-    # This accounts for the object's rotation and scale.
-    # We multiply by the inverse of the object's 3x3 matrix (rotation & scale part).
+    # 2. Calculate the local translation offset needed for the mesh data
+    # This part correctly transforms the world offset into the object's local space
     inv_matrix = obj.matrix_world.to_3x3().inverted()
-    translation_offset_local = inv_matrix @ translation_offset_world
-    # --- END CORRECTION ---
+    world_translation_offset = new_origin_world - old_matrix_world.translation
+    local_translation_offset = inv_matrix @ world_translation_offset
 
-    # 1. Transform mesh data to compensate for origin change
-    # We use the newly calculated local_offset.
-    obj.data.transform(Matrix.Translation(-translation_offset_local))
+    # 3. Transform the mesh data in local space
+    obj.data.transform(Matrix.Translation(-local_translation_offset))
 
-    # 2. Update parent's world matrix to move the origin
+    # 4. Move the parent object's origin
     obj.matrix_world.translation = new_origin_world
 
-    # 3. Adjust children's parent inverse matrices to keep them stationary
-    # This part remains the same and was already correct.
+    correction_matrix = obj.matrix_world.inverted() @ old_matrix_world
+
     if obj.children:
         for child in obj.children:
-            # We add the WORLD offset here, because this matrix operation
-            # is compensating for a world-space change of the parent.
-            child.matrix_parent_inverse.translation += translation_offset_world
+            # The new parent_inverse is the correction applied to the old one.
+            child.matrix_parent_inverse = correction_matrix @ child.matrix_parent_inverse
 
 def classify_and_apply_objects(list selected_objects, collection):
     cdef double start_prep = time.perf_counter()
@@ -206,11 +205,12 @@ def classify_and_apply_objects(list selected_objects, collection):
         rotated_offsets_list = [(rotated_flat[j * 3], rotated_flat[j * 3 + 1], rotated_flat[j * 3 + 2]) for j in range(group_size)]
         all_rotated_offsets.append(rotated_offsets_list)
 
-        # Add the reference location to each rotated offset and collect as tuples
+        # Add the engine's origin offset to the reference location for each rotated offset and collect as tuples
         ref_vec = parent_groups[i][0].matrix_world.translation
-        rx = <float> ref_vec.x
-        ry = <float> ref_vec.y
-        rz = <float> ref_vec.z
+        origin_vec = Vector(origin[i])
+        rx = <float> (ref_vec.x + origin_vec.x)
+        ry = <float> (ref_vec.y + origin_vec.y)
+        rz = <float> (ref_vec.z + origin_vec.z)
         for j in range(len(group)):
             locs.append((rx + rotated_flat[j * 3], ry + rotated_flat[j * 3 + 1], rz + rotated_flat[j * 3 + 2]))
 
