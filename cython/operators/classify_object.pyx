@@ -18,23 +18,28 @@ def set_origin_and_preserve_children(obj, new_origin_world):
     Sets the origin of an object to a new world-space location while keeping
     its mesh and all of its children visually stationary.
 
-    This version is mathematically robust and correctly handles all parent/child
-    transformations (location, rotation, and scale).
     """
-    if not hasattr(obj, 'data') or not hasattr(obj.data, 'transform'):
-        print(f"Warning: Object '{obj.name}' has no transformable data.")
-        return
-
     old_matrix_world = obj.matrix_world.copy()
+
+    if not hasattr(obj, 'data') or not hasattr(obj.data, 'transform'):
+        # For empties (objects without mesh data), move directly to the origin while keeping children stationary
+        new_matrix = obj.matrix_world.copy()
+        new_matrix.translation = new_origin_world
+        obj.matrix_world = new_matrix
+
+        correction_matrix = obj.matrix_world.inverted() @ old_matrix_world
+
+        if obj.children:
+            for child in obj.children:
+                child.matrix_parent_inverse = correction_matrix @ child.matrix_parent_inverse
+        return
 
     inv_matrix = obj.matrix_world.to_3x3().inverted()
     world_translation_offset = new_origin_world - old_matrix_world.translation
     local_translation_offset = inv_matrix @ world_translation_offset
 
-    # 3. Transform the mesh data in local space
     obj.data.transform(Matrix.Translation(-local_translation_offset))
 
-    # 4. Move the parent object's origin while preserving rotation
     new_matrix = obj.matrix_world.copy()
     new_matrix.translation = new_origin_world
     obj.matrix_world = new_matrix
