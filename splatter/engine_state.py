@@ -11,6 +11,9 @@ _engine_license_mode = "UNKNOWN"
 # Membership snapshot returned by the engine: group name -> set of object names.
 _group_membership_snapshot: Dict[str, Set[str]] = {}
 
+# Flag to indicate if classification is in progress, to avoid marking as unsynced during operator runs.
+_is_performing_classification = False
+
 
 # ---------------------------------------------------------------------------
 # License helpers

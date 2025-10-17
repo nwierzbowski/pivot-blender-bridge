@@ -37,6 +37,3 @@ EDIT = "EDIT"
 INFO = "INFO"
 WARNING = "WARNING"
 ERROR = "ERROR"
-
-# Global flag for classification state
-_is_performing_classification = False

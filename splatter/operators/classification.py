@@ -2,9 +2,9 @@ import bpy
 import time
 
 from ..constants import PRE, FINISHED
-from .. import constants
 from ..lib import classify_object
 from ..group_manager import get_group_manager
+from .. import engine_state
 
 
 def get_all_mesh_objects_in_collection(coll):
@@ -78,7 +78,7 @@ def get_qualifying_objects_for_selected(selected_objects, objects_collection):
 
 
 def perform_classification(objects):
-    constants._is_performing_classification = True
+    engine_state._is_performing_classification = True
     startCPP = time.perf_counter()
     
     classify_object.classify_and_apply_objects(objects)

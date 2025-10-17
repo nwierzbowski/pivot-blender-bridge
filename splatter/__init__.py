@@ -7,7 +7,6 @@ from bpy.app.handlers import persistent
 
 from .classes import SceneAttributes
 from bpy.props import PointerProperty
-from . import constants
 
 from .operators.operators import (
     Splatter_OT_Organize_Classified_Objects,
@@ -68,8 +67,8 @@ def enforce_colors(scene, depsgraph):
 @persistent
 def unsync_mesh_changes(scene, depsgraph):
 
-    if (constants._is_performing_classification):
-        constants._is_performing_classification = False  # Reset after skipping
+    if (engine_state._is_performing_classification):
+        engine_state._is_performing_classification = False  # Reset after skipping
         return
 
     sync_mgr = sync_manager.get_sync_manager()
