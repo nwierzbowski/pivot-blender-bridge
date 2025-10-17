@@ -7,15 +7,13 @@ Responsibilities:
 """
 
 import bpy
-from typing import TYPE_CHECKING, Any, Dict, Iterator, Optional, Set
+from typing import Any, Dict, Iterator, Optional, Set
 
 from .collection_manager import get_collection_manager
 
 # Property keys for collection metadata
 GROUP_COLLECTION_PROP = "splatter_group_name"
 
-if TYPE_CHECKING:  # pragma: no cover - Blender types only exist at runtime.
-    from bpy.types import Collection, Object
 
 
 class GroupManager:
@@ -61,7 +59,7 @@ class GroupManager:
         return snapshot
 
     def _get_or_create_group_collection(self, obj: Any, group_name: str) -> Optional[Any]:
-        """Get or create a collection for the group."""
+        """Get or create a collection for the group, commandeering existing collections if needed."""
         root_collection = self.get_objects_collection()
         if not root_collection:
             return None
@@ -117,8 +115,8 @@ class GroupManager:
 
     # --- Convenience Methods ----------------------------------------------
 
-    def group_in_outliner(self, groups: list[list[Any]], group_names: list[str]) -> None:
-        """Create or get multiple group collections and assign objects to them."""
+    def ensure_group_collections(self, groups: list[list[Any]], group_names: list[str], color: str = 'COLOR_04') -> None:
+        """Ensure group collections exist and assign objects to them with the specified color."""
         for objects, group_name in zip(groups, group_names):
             if not objects:
                 continue
@@ -127,6 +125,9 @@ class GroupManager:
             group_collection = self._get_or_create_group_collection(objects[0], group_name)
             if not group_collection:
                 continue
+            
+            # Set the color for the group collection
+            group_collection.color_tag = color
             
             # Assign all objects to the collection
             self._assign_objects_to_collection(objects, group_collection)

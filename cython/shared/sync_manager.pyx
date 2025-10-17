@@ -34,13 +34,9 @@ cdef class SyncManager:
 
     cpdef void set_groups_synced(self, list full_groups, list group_names):
         """Create group collections, set colors, and mark as synced."""
-        group_manager = get_group_manager()
         
-        # Create group collections
-        group_manager.group_in_outliner(full_groups, group_names)
-        
-        # Set colors for all created groups
-        group_manager.set_group_colors(group_names)
+        # Create group collections and set colors
+        get_group_manager().ensure_group_collections(full_groups, group_names)
         
         # Mark groups as synced after successful creation
         cdef str name
