@@ -101,6 +101,16 @@ class SurfaceManager:
                 if other_children and other_children.find(group_collection.name) != -1:
                     other_children.unlink(group_collection)
 
+    def organize_groups_into_surfaces(self, group_collections: Dict[str, Any], group_names: list[str], surface_types: list[int]) -> None:
+        """Organize multiple group collections into the surface hierarchy using parallel lists."""
+        for idx, group_name in enumerate(group_names):
+            group_coll = group_collections.get(group_name)
+            if not group_coll:
+                continue
+            
+            surface_key = str(surface_types[idx])
+            self.organize_group_into_surface(group_coll, surface_key)
+
 
 # Global instance
 _surface_manager = SurfaceManager()

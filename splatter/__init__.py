@@ -20,7 +20,7 @@ from .ui import Splatter_PT_Main_Panel
 from . import engine
 from .group_manager import get_group_manager
 from .surface_manager import get_surface_manager
-from .lib.sync_manager import get_sync_manager
+from .lib import sync_manager
 from . import engine_state
 
 # Cache of each object's last-known scale to detect transform-only edits quickly.
@@ -42,9 +42,9 @@ def _forget_object_scales(object_names: set[str]) -> None:
 def _mark_group_unsynced(group_name: str) -> None:
     """Mark a group as unsynced and update its collection metadata."""
     group_manager = get_group_manager()
-    sync_manager = get_sync_manager()
+    sync_mgr = sync_manager.get_sync_manager()
     
-    sync_manager.set_group_unsynced(group_name)
+    sync_mgr.set_group_unsynced(group_name)
     
     # Update collection metadata
     for coll in group_manager.iter_group_collections():
@@ -76,7 +76,7 @@ def _cleanup_empty_group_collections() -> list[str]:
 def on_depsgraph_update_fast(scene, depsgraph):
     """Detect local changes and mark groups as out-of-sync with the engine."""
     group_manager = get_group_manager()
-    sync_manager = get_sync_manager()
+    sync_mgr = sync_manager.get_sync_manager()
 
     current_snapshot = group_manager.get_group_membership_snapshot()
     expected_snapshot = engine_state.get_group_membership_snapshot()
@@ -112,7 +112,7 @@ def on_depsgraph_update_fast(scene, depsgraph):
         _record_object_scales(added)
 
     # Keep unsynced highlighting alive even if Blender undo rewinds the property flag.
-    for group_name in sync_manager.get_unsynced_groups():
+    for group_name in sync_mgr.get_unsynced_groups():
         # Reapply unsynced marking to maintain visual indicator
         for coll in group_manager.iter_group_collections():
             if coll.get("splatter_group_name") == group_name:

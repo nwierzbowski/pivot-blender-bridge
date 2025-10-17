@@ -55,32 +55,6 @@ class GroupManager:
                 snapshot[group_name] = {obj.name for obj in objects}
         return snapshot
 
-    def iter_group_objects(self, group_name: str) -> Iterator[Any]:
-        """Iterate over objects in collections tagged with the given group name."""
-        for coll in self.iter_group_collections():
-            if coll.get(GROUP_COLLECTION_PROP) == group_name:
-                # Return objects from the first matching collection (groups assumed unique)
-                return iter(coll.objects)
-        return iter([])
-
-    def set_group_name(self, obj: Any, group_name: str, root_collection: Optional[Any] = None) -> bool:
-        """Assign an object to a group collection."""
-        coll = self._get_or_create_group_collection(obj, group_name, root_collection)
-        if not coll:
-            return False
-
-        if coll not in obj.users_collection:
-            coll.objects.link(obj)
-
-        if root_collection and root_collection is not coll:
-            try:
-                root_collection.objects.unlink(obj)
-            except RuntimeError:
-                pass
-
-        self._unlink_other_group_collections(obj, coll)
-        return True
-
     def _get_or_create_group_collection(self, obj: Any, group_name: str, root_collection: Optional[Any]) -> Optional[Any]:
         """Get or create a collection for the group."""
         if not root_collection:
@@ -119,6 +93,40 @@ class GroupManager:
             if coll.get(GROUP_COLLECTION_PROP) in group_names:
                 coll.color_tag = color
 
+    def iter_group_objects(self, group_name: str) -> Iterator[Any]:
+        """Iterate over objects in collections tagged with the given group name."""
+        for coll in self.iter_group_collections():
+            if coll.get(GROUP_COLLECTION_PROP) == group_name:
+                # Return objects from the first matching collection (groups assumed unique)
+                return iter(coll.objects)
+        return iter([])
+
+    def drop_group(self, group_name: str) -> None:
+        """Drop a group from being managed: reset color and remove group tag."""
+        for coll in self.iter_group_collections():
+            if coll.get(GROUP_COLLECTION_PROP) == group_name:
+                coll.color_tag = 'NONE'
+                del coll[GROUP_COLLECTION_PROP]
+                break
+
+    def set_group_name(self, obj: Any, group_name: str, root_collection: Optional[Any] = None) -> bool:
+        """Assign an object to a group collection."""
+        coll = self._get_or_create_group_collection(obj, group_name, root_collection)
+        if not coll:
+            return False
+
+        if coll not in obj.users_collection:
+            coll.objects.link(obj)
+
+        if root_collection and root_collection is not coll:
+            try:
+                root_collection.objects.unlink(obj)
+            except RuntimeError:
+                pass
+
+        self._unlink_other_group_collections(obj, coll)
+        return True
+
     def _unlink_other_group_collections(self, obj: Any, keep: Optional[Any]) -> None:
         """Unlink object from other group collections."""
         for coll in list(getattr(obj, "users_collection", []) or []):
@@ -128,34 +136,7 @@ class GroupManager:
                 except RuntimeError:
                     pass
 
-    def _get_group_collection_for_object(self, obj: Any, group_name: Optional[str]) -> Optional[Any]:
-        """Find the group collection for an object."""
-        if not group_name:
-            return None
-        for coll in getattr(obj, "users_collection", []) or []:
-            if coll.get(GROUP_COLLECTION_PROP) == group_name:
-                return coll
-        return None
-
-    def _ensure_group_collection(self, obj: Any, group_name: Optional[str], fallback_name: str) -> Optional[Any]:
-        """Ensure the object has a group collection."""
-        group_collection = self._get_group_collection_for_object(obj, group_name)
-        if group_collection is not None:
-            return group_collection
-
-        group_collection = bpy.data.collections.get(fallback_name)
-        if group_collection is None:
-            group_collection = bpy.data.collections.new(fallback_name)
-        if group_collection not in obj.users_collection:
-            group_collection.objects.link(obj)
-        self._tag_group_collection(group_collection, group_name or fallback_name)
-        return group_collection
-
     # --- Convenience Methods ----------------------------------------------
-
-    def get_group_collections(self) -> list[Any]:
-        """Return all group collections as a list."""
-        return list(self.iter_group_collections())
 
     def create_or_get_group_collection(self, objects: list[Any], group_name: str, root_collection: Optional[Any] = None) -> Optional[Any]:
         """Create or get a group collection and assign all objects to it.

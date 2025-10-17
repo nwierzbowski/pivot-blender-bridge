@@ -150,58 +150,6 @@ def _apply_object_transforms(parent_groups, all_original_rots, rots, locations, 
         bpy.context.scene.cursor.location = target_origin
 
 
-def _organize_groups_into_surfaces(full_groups, group_names, surface_types, parent_collection):
-    """Organize groups into surface collections from raw classification data."""
-    from splatter.surface_manager import get_surface_manager
-    from splatter.group_manager import get_group_manager
-    from . import sync_manager
-    
-    surface_manager = get_surface_manager()
-    group_manager = get_group_manager()
-    sync_manager = sync_manager.get_sync_manager()
-    
-    # Build mapping of group collections and surface assignments
-    group_collections = {}
-    group_surface_map = {}
-    
-    for idx, group in enumerate(full_groups):
-        if not group:
-            continue
-        
-        group_name = group_names[idx]
-        surface_key = str(surface_types[idx])
-        
-        # Create group collection
-        group_coll = group_manager.create_or_get_group_collection(group, group_name, parent_collection)
-        if group_coll:
-            group_collections[group_name] = group_coll
-            group_surface_map[group_name] = surface_key
-    
-    # Mark groups as synced after successful creation
-    for group_name in group_collections.keys():
-        sync_manager.set_group_synced(group_name)
-    
-    # Organize into surface hierarchy and apply metadata
-    for group_name, group_coll in group_collections.items():
-        if not group_coll:
-            continue
-        
-        surface_key = group_surface_map.get(group_name)
-        if not surface_key:
-            continue
-        
-        # Organize into surface collection
-        surface_manager.organize_group_into_surface(group_coll, surface_key)
-        
-        # # Update metadata
-        
-        # # Clear from sync tracking
-        # sync_manager.clear_group_unsynced(group_name)
-    
-    # Set colors for all created groups
-    group_manager.set_group_colors(list(group_collections.keys()))
-    
-    
 
 
 def classify_and_apply_objects(list selected_objects, collection):
@@ -218,6 +166,9 @@ def classify_and_apply_objects(list selected_objects, collection):
     6. Organize into surface classifications (Pro)
     """
     from splatter.engine import get_engine_communicator
+    from . import sync_manager
+    
+    sync_manager = sync_manager.get_sync_manager()
     
     start_time = time.perf_counter()
     
@@ -268,7 +219,13 @@ def classify_and_apply_objects(list selected_objects, collection):
     
     # --- Pro edition: organize into surface collections ---
     if edition_utils.is_pro_edition():
-        _organize_groups_into_surfaces(full_groups, group_names, surface_types, collection)
+        group_collections = sync_manager.organize_groups_into_surfaces(full_groups, group_names, surface_types, collection)
+        
+        # Organize into surface hierarchy
+        from splatter.surface_manager import get_surface_manager
+        surface_manager = get_surface_manager()
+        surface_manager.organize_groups_into_surfaces(group_collections, group_names, surface_types)
+        
         group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, group_names)
         engine_state.update_group_membership_snapshot(group_membership_snapshot, replace=True)
     
