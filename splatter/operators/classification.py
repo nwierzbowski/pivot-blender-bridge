@@ -3,6 +3,7 @@ import time
 
 from ..constants import PRE, FINISHED
 from ..lib import classify_object
+from ..group_manager import get_group_manager
 
 
 def get_all_mesh_objects_in_collection(coll):
@@ -75,10 +76,10 @@ def get_qualifying_objects_for_selected(selected_objects, objects_collection):
     return list(set(qualifying))  # remove duplicates
 
 
-def perform_classification(objects, objects_collection):
+def perform_classification(objects):
     startCPP = time.perf_counter()
     
-    classify_object.classify_and_apply_objects(objects, objects_collection)
+    classify_object.classify_and_apply_objects(objects)
     endCPP = time.perf_counter()
     elapsedCPP = endCPP - startCPP
     print(f"Total time elapsed: {(elapsedCPP) * 1000:.2f}ms")
@@ -93,13 +94,13 @@ class Splatter_OT_Classify_Selected(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         sel = getattr(context, "selected_objects", None) or []
-        objects_collection = context.scene.splatter.objects_collection or context.scene.collection
+        objects_collection = get_group_manager().get_objects_collection()
         return bool(get_qualifying_objects_for_selected(sel, objects_collection))
 
     def execute(self, context):
-        objects_collection = context.scene.splatter.objects_collection or context.scene.collection
+        objects_collection = get_group_manager().get_objects_collection()
         objects = get_qualifying_objects_for_selected(context.selected_objects, objects_collection)
-        perform_classification(objects, objects_collection)
+        perform_classification(objects)
         return {FINISHED}
 
 
@@ -112,13 +113,13 @@ class Splatter_OT_Classify_Active_Object(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         obj = context.active_object
-        objects_collection = context.scene.splatter.objects_collection or context.scene.collection
+        objects_collection = get_group_manager().get_objects_collection()
         return obj and obj in get_qualifying_objects_for_selected([obj], objects_collection)
 
     def execute(self, context):
-        objects_collection = context.scene.splatter.objects_collection or context.scene.collection
+        objects_collection = get_group_manager().get_objects_collection()
         objects = get_qualifying_objects_for_selected([context.active_object], objects_collection)
-        perform_classification(objects, objects_collection)
+        perform_classification(objects)
         return {FINISHED}
 
 
@@ -130,11 +131,11 @@ class Splatter_OT_Classify_All_Objects_In_Collection(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        objects_collection = context.scene.splatter.objects_collection or context.scene.collection
+        objects_collection = get_group_manager().get_objects_collection()
         return bool(get_all_mesh_objects_in_collection(objects_collection))
 
     def execute(self, context):
-        objects_collection = context.scene.splatter.objects_collection or context.scene.collection
+        objects_collection = get_group_manager().get_objects_collection()
         objects = get_all_mesh_objects_in_collection(objects_collection)
-        perform_classification(objects, objects_collection)
+        perform_classification(objects)
         return {FINISHED}

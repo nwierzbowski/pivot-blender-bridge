@@ -24,6 +24,11 @@ class GroupManager:
     def __init__(self) -> None:
         self._collection_manager = get_collection_manager()
 
+    def get_objects_collection(self) -> Optional[Any]:
+        """Get the objects collection from the scene's splatter properties."""
+        objects_collection = bpy.context.scene.splatter.objects_collection
+        return objects_collection if objects_collection else bpy.context.scene.collection
+
     def get_group_name(self, obj: Any) -> Optional[str]:
         """Get the group name for an object from its collections."""
         for coll in getattr(obj, "users_collection", []) or []:
@@ -55,8 +60,9 @@ class GroupManager:
                 snapshot[group_name] = {obj.name for obj in objects}
         return snapshot
 
-    def _get_or_create_group_collection(self, obj: Any, group_name: str, root_collection: Optional[Any]) -> Optional[Any]:
+    def _get_or_create_group_collection(self, obj: Any, group_name: str) -> Optional[Any]:
         """Get or create a collection for the group."""
+        root_collection = self.get_objects_collection()
         if not root_collection:
             return None
 
@@ -111,31 +117,31 @@ class GroupManager:
 
     # --- Convenience Methods ----------------------------------------------
 
-    def group_in_outliner(self, groups: list[list[Any]], group_names: list[str], root_collection: Optional[Any] = None) -> None:
+    def group_in_outliner(self, groups: list[list[Any]], group_names: list[str]) -> None:
         """Create or get multiple group collections and assign objects to them."""
         for objects, group_name in zip(groups, group_names):
-            if not objects or not root_collection:
+            if not objects:
                 continue
             
             # Get or create the collection once
-            group_collection = self._get_or_create_group_collection(objects[0], group_name, root_collection)
+            group_collection = self._get_or_create_group_collection(objects[0], group_name)
             if not group_collection:
                 continue
             
             # Assign all objects to the collection
-            self._assign_objects_to_collection(objects, group_collection, root_collection)
+            self._assign_objects_to_collection(objects, group_collection)
 
-    def _assign_objects_to_collection(self, objects: list[Any], group_collection: Any, root_collection: Optional[Any]) -> None:
+    def _assign_objects_to_collection(self, objects: list[Any], group_collection: Any) -> None:
         """Assign all objects to the collection."""
+        root_collection = self.get_objects_collection()
         for obj in objects:
             if group_collection not in obj.users_collection:
                 group_collection.objects.link(obj)
             
-            if root_collection and root_collection is not group_collection:
-                try:
-                    root_collection.objects.unlink(obj)
-                except RuntimeError:
-                    pass
+            try:
+                root_collection.objects.unlink(obj)
+            except RuntimeError:
+                pass
 
     def get_all_group_collections(self) -> Dict[str, Any]:
         """Get a dict of group_name -> collection for all current group collections."""

@@ -15,6 +15,7 @@ import bpy
 
 from . import selection_utils, shm_utils, transform_utils, edition_utils
 from splatter import engine_state
+from splatter.group_manager import get_group_manager
 
 # Collection metadata keys
 GROUP_COLLECTION_PROP = "splatter_group_name"
@@ -152,7 +153,7 @@ def _apply_object_transforms(parent_groups, all_original_rots, rots, locations, 
 
 
 
-def classify_and_apply_objects(list selected_objects, collection):
+def classify_and_apply_objects(list selected_objects):
     """
     Main pipeline: classify objects via engine, apply transformations, and organize into
     surface type collections (Pro edition only).
@@ -174,7 +175,7 @@ def classify_and_apply_objects(list selected_objects, collection):
     
     # --- Aggregation phase ---
     mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects = \
-        selection_utils.aggregate_object_groups(selected_objects, collection)
+        selection_utils.aggregate_object_groups(selected_objects)
     
     # --- Shared memory setup ---
     shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
@@ -219,7 +220,7 @@ def classify_and_apply_objects(list selected_objects, collection):
     
     # --- Pro edition: organize into surface collections ---
     if edition_utils.is_pro_edition():
-        sync_manager.set_groups_synced(full_groups, group_names, collection)
+        sync_manager.set_groups_synced(full_groups, group_names)
         
         # Organize into surface hierarchy
         from splatter.surface_manager import get_surface_manager

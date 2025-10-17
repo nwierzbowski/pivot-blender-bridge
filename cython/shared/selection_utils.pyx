@@ -57,7 +57,7 @@ cpdef list get_all_root_objects(object coll):
     return roots
 
 
-def aggregate_object_groups(list selected_objects, object collection):
+def aggregate_object_groups(list selected_objects):
     """Group the selection by collection boundaries and root parents."""
 
     if edition_utils.is_standard_edition() and len(selected_objects) != 1:
@@ -92,8 +92,9 @@ def aggregate_object_groups(list selected_objects, object collection):
     cdef list scene_roots
     cdef set seen_scene_roots
 
-    # Determine scene collection based on edition
-    scene_coll = collection
+    # Get the configured objects collection
+    from splatter.group_manager import get_group_manager
+    scene_coll = get_group_manager().get_objects_collection()
     depsgraph = bpy.context.evaluated_depsgraph_get()
 
     # Build a lookup that points every nested collection back to its top-level owner.

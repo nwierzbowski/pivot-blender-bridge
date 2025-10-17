@@ -32,12 +32,12 @@ cdef class SyncManager:
         """Return a set of group names that are out of sync."""
         return {name for name, synced in self._sync_state.items() if not synced}
 
-    cpdef void set_groups_synced(self, list full_groups, list group_names, object parent_collection):
+    cpdef void set_groups_synced(self, list full_groups, list group_names):
         """Create group collections, set colors, and mark as synced."""
         group_manager = get_group_manager()
         
         # Create group collections
-        group_manager.group_in_outliner(full_groups, group_names, parent_collection)
+        group_manager.group_in_outliner(full_groups, group_names)
         
         # Set colors for all created groups
         group_manager.set_group_colors(group_names)
