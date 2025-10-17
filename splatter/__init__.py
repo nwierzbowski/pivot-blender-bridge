@@ -3,8 +3,6 @@ import os
 import stat
 import sys
 
-from bpy.app.handlers import persistent
-
 from .classes import SceneAttributes
 from bpy.props import PointerProperty
 
@@ -18,88 +16,9 @@ from .operators.classification import (
 )
 from .ui import Splatter_PT_Main_Panel
 from . import engine
-from .group_manager import get_group_manager
 from .surface_manager import get_surface_manager
-from .lib import sync_manager
 from . import engine_state
-
-# Cache of each object's last-known scale to detect transform-only edits quickly.
-_previous_scales: dict[str, tuple[float, float, float]] = {}
-
-@persistent
-def on_depsgraph_update(scene, depsgraph):
-    """Orchestrate all depsgraph update handlers in guaranteed order."""
-    if engine_state._is_performing_classification:
-        engine_state._is_performing_classification = False
-    else:
-        detect_collection_hierarchy_changes(scene, depsgraph)
-        unsync_mesh_changes(scene, depsgraph)
-    enforce_colors(scene, depsgraph)
-
-
-def detect_collection_hierarchy_changes(scene, depsgraph):
-    """Detect changes in collection hierarchy and mark affected groups as out-of-sync with the engine."""
-    group_mgr = get_group_manager()
-    sync_mgr = sync_manager.get_sync_manager()
-
-    current_snapshot = group_mgr.get_group_membership_snapshot()
-    expected_snapshot = engine_state.get_group_membership_snapshot()
-    for group_name, expected_members in expected_snapshot.items():
-        current_members = current_snapshot.get(group_name, set())
-        if expected_members != current_members:
-            sync_mgr.set_group_unsynced(group_name)
-
-
-def enforce_colors(scene, depsgraph):
-    """Enforce correct color tags for group collections based on sync state."""
-    sync_mgr = sync_manager.get_sync_manager()
-    group_mgr = get_group_manager()
-    group_mgr.update_colors(sync_mgr.get_sync_state())
-
-
-def unsync_mesh_changes(scene, depsgraph):
-
-    sync_mgr = sync_manager.get_sync_manager()
-    group_mgr = get_group_manager()
-    expected_snapshot = engine_state.get_group_membership_snapshot()
-    current_snapshot = group_mgr.get_group_membership_snapshot()
-
-    selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
-    if selected_objects:
-        for update in depsgraph.updates:
-            
-
-            if not (update.is_updated_geometry or update.is_updated_transform):
-                continue
-
-            for obj in selected_objects:
-                if update.id.original not in (obj, obj.data):
-                    continue
-
-                group_name = group_mgr.get_group_name(obj)
-                if not group_name:
-                    break
-
-                expected_members = expected_snapshot.get(group_name)
-                current_members = current_snapshot.get(group_name, set())
-                member_count = len(expected_members) if expected_members is not None else len(current_members)
-
-                current_scale = tuple(obj.scale)
-                prev_scale = _previous_scales.get(obj.name)
-                scale_changed = prev_scale is not None and current_scale != prev_scale
-
-                should_mark_unsynced = (
-                    expected_members is None
-                    or (update.is_updated_geometry)
-                    or scale_changed
-                    or (update.is_updated_transform and not scale_changed and member_count > 1)
-                )
-
-                if should_mark_unsynced:
-                    sync_mgr.set_group_unsynced(group_name)
-
-                _previous_scales[obj.name] = current_scale
-                break
+from . import handlers
 
 bl_info = {
     "name": "Splatter: AI Powered Object Scattering",
@@ -157,12 +76,11 @@ def register():
         except Exception as e:
             print(f"[Splatter] Could not print Cython edition: {e}")
     
-    global _previous_scales
-    _previous_scales.clear()
+    handlers.clear_previous_scales()
     engine_state.update_group_membership_snapshot({}, replace=True)
 
-    if on_depsgraph_update not in bpy.app.handlers.depsgraph_update_post:
-        bpy.app.handlers.depsgraph_update_post.append(on_depsgraph_update)
+    if handlers.on_depsgraph_update not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(handlers.on_depsgraph_update)
 
 
 def unregister():
@@ -185,13 +103,12 @@ def unregister():
     engine.stop_engine()
 
     # Unregister edit mode hook
-    if on_depsgraph_update in bpy.app.handlers.depsgraph_update_post:
-        bpy.app.handlers.depsgraph_update_post.remove(on_depsgraph_update)
+    if handlers.on_depsgraph_update in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(handlers.on_depsgraph_update)
 
     engine_state.update_group_membership_snapshot({}, replace=True)
 
-    global _previous_scales
-    _previous_scales.clear()
+    handlers.clear_previous_scales()
 
 
 if __name__ == "__main__":
