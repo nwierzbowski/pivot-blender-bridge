@@ -105,8 +105,7 @@ class SurfaceManager:
         """Organize multiple group collections into the surface hierarchy using parallel lists."""
         from .group_manager import get_group_manager
         group_manager = get_group_manager()
-        all_collections = group_manager.get_group_collections_dict()
-        group_collections = {name: all_collections[name] for name in group_names}
+        group_collections = group_manager.get_group_collections_for_names(group_names)
         
         for idx, group_name in enumerate(group_names):
             group_coll = group_collections.get(group_name)

@@ -109,62 +109,46 @@ class GroupManager:
                 del coll[GROUP_COLLECTION_PROP]
                 break
 
-    def set_group_name(self, obj: Any, group_name: str, root_collection: Optional[Any] = None) -> bool:
-        """Assign an object to a group collection."""
-        coll = self._get_or_create_group_collection(obj, group_name, root_collection)
-        if not coll:
-            return False
+    # --- Convenience Methods ----------------------------------------------
 
-        if coll not in obj.users_collection:
-            coll.objects.link(obj)
+    def group_in_outliner(self, groups: list[list[Any]], group_names: list[str], root_collection: Optional[Any] = None) -> None:
+        """Create or get multiple group collections and assign objects to them."""
+        for objects, group_name in zip(groups, group_names):
+            if not objects or not root_collection:
+                continue
+            
+            # Get or create the collection once
+            group_collection = self._get_or_create_group_collection(objects[0], group_name, root_collection)
+            if not group_collection:
+                continue
+            
+            # Assign all objects to the collection
+            self._assign_objects_to_collection(objects, group_collection, root_collection)
 
-        if root_collection and root_collection is not coll:
-            try:
-                root_collection.objects.unlink(obj)
-            except RuntimeError:
-                pass
-
-        self._unlink_other_group_collections(obj, coll)
-        return True
-
-    def _unlink_other_group_collections(self, obj: Any, keep: Optional[Any]) -> None:
-        """Unlink object from other group collections."""
-        for coll in list(getattr(obj, "users_collection", []) or []):
-            if coll.get(GROUP_COLLECTION_PROP) and coll is not keep:
+    def _assign_objects_to_collection(self, objects: list[Any], group_collection: Any, root_collection: Optional[Any]) -> None:
+        """Assign all objects to the collection."""
+        for obj in objects:
+            if group_collection not in obj.users_collection:
+                group_collection.objects.link(obj)
+            
+            if root_collection and root_collection is not group_collection:
                 try:
-                    coll.objects.unlink(obj)
+                    root_collection.objects.unlink(obj)
                 except RuntimeError:
                     pass
 
-    # --- Convenience Methods ----------------------------------------------
-
-    def create_or_get_group_collection(self, objects: list[Any], group_name: str, root_collection: Optional[Any] = None) -> Optional[Any]:
-        """Create or get a group collection and assign all objects to it.
-        
-        Returns the group collection object, or None if failed.
-        """
-        if not objects or not root_collection:
-            return None
-        
-        # Get the collection
-        group_collection = self._get_or_create_group_collection(objects[0], group_name, root_collection)
-        if not group_collection:
-            return None
-        
-        # Assign all objects to it
-        for obj in objects:
-            self.set_group_name(obj, group_name, root_collection)
-        
-        return group_collection
-
-    def create_or_get_group_collections(self, groups: list[list[Any]], group_names: list[str], root_collection: Optional[Any] = None) -> None:
-        """Create or get multiple group collections and assign objects to them."""
-        for objects, group_name in zip(groups, group_names):
-            self.create_or_get_group_collection(objects, group_name, root_collection)
-
-    def get_group_collections_dict(self) -> Dict[str, Any]:
+    def get_all_group_collections(self) -> Dict[str, Any]:
         """Get a dict of group_name -> collection for all current group collections."""
         return {coll.get(GROUP_COLLECTION_PROP): coll for coll in self.iter_group_collections() if coll.get(GROUP_COLLECTION_PROP)}
+
+    def get_group_collections_for_names(self, group_names: list[str]) -> Dict[str, Any]:
+        """Get a dict of group_name -> collection for the specified group names."""
+        result = {}
+        for coll in self.iter_group_collections():
+            if group_name := coll.get(GROUP_COLLECTION_PROP):
+                if group_name in group_names:
+                    result[group_name] = coll
+        return result
 
 
 # Global instance

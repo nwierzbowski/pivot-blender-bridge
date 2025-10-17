@@ -37,7 +37,7 @@ cdef class SyncManager:
         group_manager = get_group_manager()
         
         # Create group collections
-        group_manager.create_or_get_group_collections(full_groups, group_names, parent_collection)
+        group_manager.group_in_outliner(full_groups, group_names, parent_collection)
         
         # Set colors for all created groups
         group_manager.set_group_colors(group_names)
