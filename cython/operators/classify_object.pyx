@@ -222,7 +222,7 @@ def classify_and_apply_objects(list selected_objects):
 
     if edition_utils.is_pro_edition():
         # Create group collections
-        get_group_manager().ensure_group_collections(full_groups, group_names)
+        get_group_manager().update_managed_group_names(group_names)
         sync_manager.get_sync_manager().set_groups_synced(group_names)
         # Organize into surface hierarchy
         from splatter.surface_manager import get_surface_manager

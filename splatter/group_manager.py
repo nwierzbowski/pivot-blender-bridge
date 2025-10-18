@@ -78,31 +78,6 @@ class GroupManager:
         """Check if the given collection is managed."""
         return collection.name in self._managed_collection_names
 
-    # --- Convenience Methods ----------------------------------------------
-
-    def ensure_group_collections(self, groups: list[list[Any]], group_names: list[str]) -> None:
-        """Ensure group collections exist and assign objects to them with the specified color."""
-        import time
-        get_create_time = 0.0
-        assign_time = 0.0
-        
-        for objects, group_name in zip(groups, group_names):
-            if not objects:
-                continue
-            self._managed_collection_names.add(group_name)
-            
-            # Get or create the collection once
-            get_create_start = time.perf_counter()
-            group_collection = bpy.data.collections[group_name]
-            get_create_time += time.perf_counter() - get_create_start
-            
-            # Assign all objects to the collection
-            assign_start = time.perf_counter()
-            self._collection_manager.assign_objects_to_collection(objects, group_collection)
-            assign_time += time.perf_counter() - assign_start
-        
-        print(f"ensure_group_collections: get_create={get_create_time*1000:.1f}ms, assign={assign_time*1000:.1f}ms")
-
 # Global instance
 _group_manager = GroupManager()
 
