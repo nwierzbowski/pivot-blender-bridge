@@ -56,29 +56,6 @@ class GroupManager:
             snapshot[coll.name] = {obj.name for obj in objects}
         return snapshot
 
-    def _get_or_create_group_collection(self, obj: Any, group_name: str) -> Optional[Any]:
-        """Get or create a collection for the group, commandeering existing collections if needed."""
-        root_collection = self.get_objects_collection()
-        # Check if this collection name is managed
-        if group_name in self._managed_collection_names:
-            # Search Blender's full collection list
-            if group_name in bpy.data.collections:
-                coll = bpy.data.collections[group_name]
-                return coll
-
-        # Handle collection-based groups
-        # if group_name.endswith("_C"):
-        top_coll = self._collection_manager.find_top_collection_for_object(obj, root_collection)
-        if top_coll:
-            top_coll.name = group_name
-            return top_coll
-        else:
-            # Create new collection
-            coll = bpy.data.collections.new(group_name)
-            root_collection.children.link(coll)
-            return coll
-
-
     def update_colors(self, sync_state: Dict[str, bool]) -> None:
         """Update color tags for collections based on sync state."""
         for coll in self.iter_group_collections():
@@ -107,7 +84,6 @@ class GroupManager:
         """Ensure group collections exist and assign objects to them with the specified color."""
         import time
         get_create_time = 0.0
-        unlink_time = 0.0
         assign_time = 0.0
         
         for objects, group_name in zip(groups, group_names):
@@ -117,20 +93,15 @@ class GroupManager:
             
             # Get or create the collection once
             get_create_start = time.perf_counter()
-            group_collection = self._get_or_create_group_collection(objects[0], group_name)
+            group_collection = bpy.data.collections[group_name]
             get_create_time += time.perf_counter() - get_create_start
-            
-            unlink_start = time.perf_counter()
-            for obj in objects:
-                self._collection_manager.ensure_object_unlink(self.get_objects_collection(), obj)
-            unlink_time += time.perf_counter() - unlink_start
             
             # Assign all objects to the collection
             assign_start = time.perf_counter()
             self._collection_manager.assign_objects_to_collection(objects, group_collection)
             assign_time += time.perf_counter() - assign_start
         
-        print(f"ensure_group_collections: get_create={get_create_time*1000:.1f}ms, unlink={unlink_time*1000:.1f}ms, assign={assign_time*1000:.1f}ms")
+        print(f"ensure_group_collections: get_create={get_create_time*1000:.1f}ms, assign={assign_time*1000:.1f}ms")
 
 # Global instance
 _group_manager = GroupManager()
