@@ -48,26 +48,31 @@ class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):
                 # Apply positions to each group using collection-based tracking
                 organized_count = 0
                 for group_name, pos in positions.items():
-                    objects_in_group = list(group_manager.iter_group_objects(group_name))
-                    if objects_in_group:
-                        try:
-                            target_pos = Vector((pos[0], pos[1], pos[2]))
-                            
-                            # Move only parent objects in the group directly to the engine-provided position
-                            parent_objs = [obj for obj in objects_in_group if obj.parent is None]
-                            if not parent_objs:
-                                continue
+                    if group_name not in bpy.data.collections:
+                        continue
+                    
+                    objects_in_group = bpy.data.collections[group_name].objects
+                    if not objects_in_group:
+                        continue
+                    
+                    try:
+                        target_pos = Vector((pos[0], pos[1], pos[2]))
+                        
+                        # Move only parent objects in the group directly to the engine-provided position
+                        parent_objs = [obj for obj in objects_in_group if obj.parent is None]
+                        if not parent_objs:
+                            continue
 
-                            for obj in parent_objs:
-                                obj.location = target_pos.copy()
-                            
-                            organized_count += 1
-                        except Exception as e:
-                            print(f"[Splatter] Failed to organize group '{group_name}': {e}")
-                            # print(f"  Raw position data: {pos} (type: {type(pos)})")
-                            # print(f"  Full positions response: {positions}")
-                            # print(f"  Full engine response: {response}")
-                            # Continue to next group instead of failing the whole operation
+                        for obj in parent_objs:
+                            obj.location = target_pos.copy()
+                        
+                        organized_count += 1
+                    except Exception as e:
+                        print(f"[Splatter] Failed to organize group '{group_name}': {e}")
+                        # print(f"  Raw position data: {pos} (type: {type(pos)})")
+                        # print(f"  Full positions response: {positions}")
+                        # print(f"  Full engine response: {response}")
+                        # Continue to next group instead of failing the whole operation
                 
                 self.report({"INFO"}, f"Organized {organized_count} object groups")
             else:

@@ -6,17 +6,14 @@ Responsibilities:
 """
 
 import bpy
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict, Optional
 
 from .collection_manager import get_collection_manager
+from .group_manager import get_group_manager
 
 # Property keys for collection metadata
 CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot"
 CLASSIFICATION_COLLECTION_PROP = "splatter_surface_type"
-GROUP_COLLECTION_PROP = "splatter_group_name"
-
-if TYPE_CHECKING:  # pragma: no cover - Blender types only exist at runtime.
-    from bpy.types import Collection, Object
 
 
 class SurfaceManager:
@@ -24,6 +21,7 @@ class SurfaceManager:
 
     def __init__(self) -> None:
         self._collection_manager = get_collection_manager()
+        self._group_manager = get_group_manager()
 
     def get_or_create_surface_collection(self, pivot_root: Any, surface_key: str) -> Optional[Any]:
         """Get or create a surface classification collection."""
@@ -61,8 +59,8 @@ class SurfaceManager:
                     continue
 
                 for group_coll in surface_coll.children:
-                    if group_name := group_coll.get(GROUP_COLLECTION_PROP):
-                        result[group_name] = surface_int
+                    if self._group_manager.is_managed_collection(group_coll):
+                        result[group_coll.name] = surface_int
 
         return result
 
@@ -103,12 +101,9 @@ class SurfaceManager:
 
     def organize_groups_into_surfaces(self, group_names: list[str], surface_types: list[int]) -> None:
         """Organize multiple group collections into the surface hierarchy using parallel lists."""
-        from .group_manager import get_group_manager
-        group_manager = get_group_manager()
-        group_collections = group_manager.get_group_collections_for_names(group_names)
         
         for idx, group_name in enumerate(group_names):
-            group_coll = group_collections.get(group_name)
+            group_coll = bpy.data.collections.get(group_name)
             if not group_coll:
                 continue
             

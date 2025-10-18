@@ -200,6 +200,8 @@ def classify_and_apply_objects(list selected_objects):
     final_response = engine.wait_for_response(1)
     engine_time = time.perf_counter() - engine_start
     
+    apply_start = time.perf_counter()
+    
     # Close shared memory in parent process
     for shm in shm_objects:
         shm.close()
@@ -214,21 +216,30 @@ def classify_and_apply_objects(list selected_objects):
     
     # --- Compute and apply transforms ---
     locations = _compute_object_locations(parent_groups, rots, all_parent_offsets)
+    apply_transforms_start = time.perf_counter()
     _apply_object_transforms(parent_groups, all_original_rots, rots, locations, origins)
+    apply_transforms_time = time.perf_counter() - apply_transforms_start
     
     # --- Pro edition: organize into surface collections ---
+    ensure_collections_time = 0.0
+    organize_other_time = 0.0
     if edition_utils.is_pro_edition():
-
-        sync_manager.get_sync_manager().set_groups_synced(group_names)
+        ensure_collections_start = time.perf_counter()
         # Create group collections
         get_group_manager().ensure_group_collections(full_groups, group_names)
+        ensure_collections_time = time.perf_counter() - ensure_collections_start
         
+        organize_other_start = time.perf_counter()
+        sync_manager.get_sync_manager().set_groups_synced(group_names)
         # Organize into surface hierarchy
         from splatter.surface_manager import get_surface_manager
         get_surface_manager().organize_groups_into_surfaces(group_names, surface_types)
         
         group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, group_names)
         engine_state.update_group_membership_snapshot(group_membership_snapshot, replace=False)
+        organize_other_time = time.perf_counter() - organize_other_start
+    
+    apply_time = time.perf_counter() - apply_start
     
     total_time = time.perf_counter() - start_time
-    print(f"classify_and_apply_objects: prep={prep_time*1000:.1f}ms, engine={engine_time*1000:.1f}ms, total={total_time*1000:.1f}ms")
+    print(f"classify_and_apply_objects: prep={prep_time*1000:.1f}ms, engine={engine_time*1000:.1f}ms, apply_transforms={apply_transforms_time*1000:.1f}ms, ensure_collections={ensure_collections_time*1000:.1f}ms, organize_other={organize_other_time*1000:.1f}ms, apply={apply_time*1000:.1f}ms, total={total_time*1000:.1f}ms")

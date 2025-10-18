@@ -4,20 +4,10 @@ import bpy
 from . import edition_utils
 
 
-cpdef object get_root_parent(object obj):
+cpdef object get_root_object(object obj):
     while obj.parent is not None:
         obj = obj.parent
     return obj
-
-
-# cpdef list get_all_mesh_descendants(object root):
-#     cdef list meshes = []
-#     if root.type == 'MESH' and len(root.data.vertices) != 0:
-#         meshes.append(root)
-#     for child in root.children:
-#         meshes.extend(get_all_mesh_descendants(child))
-#     return meshes
-
 
 cpdef tuple get_mesh_and_all_descendants(object root, object depsgraph):
     cdef list meshes = []
@@ -37,13 +27,6 @@ cpdef tuple get_mesh_and_all_descendants(object root, object depsgraph):
             descendants.append(child)
             stack.append(child)
     return meshes, descendants
-
-
-# cpdef list get_all_descendants(object root):
-#     cdef list descendants = [root]
-#     for child in root.children:
-#         descendants.extend(get_all_descendants(child))
-#     return descendants
 
 
 cpdef list get_all_root_objects(object coll):
@@ -70,7 +53,7 @@ def aggregate_object_groups(list selected_objects):
     cdef object child_coll
     cdef list stack
 
-    cdef set root_parents
+    cdef set root_objects
     cdef list mesh_groups
     cdef list parent_groups
     cdef list full_groups
@@ -79,19 +62,9 @@ def aggregate_object_groups(list selected_objects):
     cdef int total_edges
     cdef int total_objects
 
-    cdef object root
-    cdef list meshes
-    cdef list descendants
-    cdef list top_roots
-    cdef int group_verts
-    cdef int group_edges
-    cdef bint has_internal
-
-    cdef list selected_top_collections
-    cdef set seen_top_collections
-    cdef list scene_roots
-    cdef set seen_scene_roots
-
+    cdef object new_coll
+    cdef object processed_coll
+    cdef set collections_to_process
     # Get the configured objects collection
     from splatter.group_manager import get_group_manager
     scene_coll = get_group_manager().get_objects_collection()
@@ -109,7 +82,7 @@ def aggregate_object_groups(list selected_objects):
                 coll_to_top_map[child_coll] = current_top
                 stack.append((child_coll, current_top))
 
-    root_parents = set()
+    root_objects = set()
     mesh_groups = []
     parent_groups = []
     full_groups = []
@@ -118,60 +91,38 @@ def aggregate_object_groups(list selected_objects):
     total_edges = 0
     total_objects = 0
 
-    root = None
+    root_obj = None
     meshes = []
     descendants = []
     top_roots = []
     group_verts = 0
     group_edges = 0
-    has_internal = False
-
-    selected_top_collections = []
-    seen_top_collections = set()
-    scene_roots = []
-    seen_scene_roots = set()
 
     # Deduplicate root parents to avoid processing the same hierarchy multiple times.
     for obj in selected_objects:
-        root = get_root_parent(obj)
-        root_parents.add(root)
+        root_obj = get_root_object(obj)
+        root_objects.add(root_obj)
 
-    # Determine which roots belong purely to the scene and which are owned by collections.
-    for root in root_parents:
-        has_internal = False
-        for coll in root.users_collection:
-            if coll == scene_coll or coll not in coll_to_top_map:
-                continue
-            top_coll = coll_to_top_map[coll]
-            if top_coll not in seen_top_collections:
-                selected_top_collections.append(top_coll)
-                seen_top_collections.add(top_coll)
-            has_internal = True
-        if not has_internal and root not in seen_scene_roots:
-            scene_roots.append(root)
-            seen_scene_roots.add(root)
+    # First pass: accumulate collections to process, creating new ones where needed.
+    collections_to_process = set()
+    for root_obj in root_objects:
+        for coll in root_obj.users_collection:
+            if coll == scene_coll:
+                new_coll = bpy.data.collections.new(root_obj.name)
+                scene_coll.objects.unlink(root_obj)
+                scene_coll.children.link(new_coll)
+                new_coll.objects.link(root_obj)
+                collections_to_process.add(new_coll)
+            elif coll in coll_to_top_map:
+                collections_to_process.add(coll_to_top_map[coll])
 
-    # Add per-root groups for objects that only live at the scene level.
-    for root in scene_roots:
-        meshes, descendants = get_mesh_and_all_descendants(root, depsgraph)
-        group_verts = sum(len(m.evaluated_get(depsgraph).data.vertices) for m in meshes)
-        group_edges = sum(len(m.evaluated_get(depsgraph).data.edges) for m in meshes)
-        if group_verts > 0:
-            mesh_groups.append(meshes)
-            parent_groups.append([root])
-            full_groups.append(descendants)
-            group_names.append(root.name + "_O")
-            total_verts += group_verts
-            total_edges += group_edges
-            total_objects += len(meshes)
-
-    # Add collection-based groups by collapsing all of their root objects.
-    for top_coll in selected_top_collections:
-        top_roots = get_all_root_objects(top_coll)
+    # Second pass: build groups for each collection.
+    for processed_coll in collections_to_process:
+        top_roots = get_all_root_objects(processed_coll)
         meshes = []
         descendants = []
-        for root in top_roots:
-            root_meshes, root_descendants = get_mesh_and_all_descendants(root, depsgraph)
+        for root_obj in top_roots:
+            root_meshes, root_descendants = get_mesh_and_all_descendants(root_obj, depsgraph)
             meshes.extend(root_meshes)
             descendants.extend(root_descendants)
         group_verts = sum(len(m.evaluated_get(depsgraph).data.vertices) for m in meshes)
@@ -180,13 +131,7 @@ def aggregate_object_groups(list selected_objects):
             mesh_groups.append(meshes)
             parent_groups.append(top_roots)
             full_groups.append(descendants)
-
-            group_label = ""
-            if hasattr(top_coll, "get"):
-                group_label = top_coll.get("splatter_group_name", "")
-            if not group_label:
-                group_label = top_coll.name + "_C"
-            group_names.append(group_label)
+            group_names.append(processed_coll.name)
             total_verts += group_verts
             total_edges += group_edges
             total_objects += len(meshes)

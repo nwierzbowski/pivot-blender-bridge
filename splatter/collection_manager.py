@@ -35,6 +35,8 @@ class CollectionManager:
         if parent and child and parent.children.find(child.name) == -1:
             parent.children.link(child)
 
+
+
     def find_top_collection_for_object(self, obj: Any, root_collection: Any) -> Optional[Any]:
         """Find the top-level collection containing the object."""
         for child in root_collection.children:
@@ -44,16 +46,24 @@ class CollectionManager:
 
     def collection_contains_object(self, coll: Any, obj: Any) -> bool:
         """Check if collection contains object, recursively."""
-        try:
-            if coll.objects.find(obj.name) != -1:
-                return True
-        except (AttributeError, ReferenceError):
-            return False
+        if coll in obj.users_collection:
+            return True
 
         for child in coll.children:
             if self.collection_contains_object(child, obj):
                 return True
         return False
+
+    def assign_objects_to_collection(self, objects: list[Any], collection: Any) -> None:
+        """Assign all objects to the collection."""
+        for obj in objects:
+            if collection not in obj.users_collection:
+                collection.objects.link(obj)
+
+    def ensure_object_unlink(self, collection: Any, obj: Any) -> None:
+        """Ensure object is unlinked from collection."""
+        if collection in obj.users_collection:
+            collection.objects.unlink(obj)
 
 
 # Global instance
