@@ -2,6 +2,7 @@
 
 import bpy
 from . import edition_utils
+import time
 
 
 cpdef object get_root_object(object obj):
@@ -144,8 +145,13 @@ def aggregate_object_groups(list selected_objects):
             root_meshes, root_descendants = get_mesh_and_all_descendants(root_obj, depsgraph)
             meshes.extend(root_meshes)
             descendants.extend(root_descendants)
-        group_verts = sum(len(m.evaluated_get(depsgraph).data.vertices) for m in meshes)
-        group_edges = sum(len(m.evaluated_get(depsgraph).data.edges) for m in meshes)
+        group_verts = 0
+        group_edges = 0
+        for m in meshes:
+            eval_obj = m.evaluated_get(depsgraph)
+            eval_mesh = eval_obj.data
+            group_verts += len(eval_mesh.vertices)
+            group_edges += len(eval_mesh.edges)
         mesh_groups.append(meshes)
         parent_groups.append(top_roots)
         full_groups.append(descendants)
