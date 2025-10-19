@@ -128,20 +128,3 @@ class Splatter_OT_Classify_Active_Object(bpy.types.Operator):
         return {FINISHED}
 
 
-class Splatter_OT_Classify_All_Objects_In_Collection(bpy.types.Operator):
-    bl_idname = PRE.lower() + ".classify_all_objects_in_collection"
-    bl_label = "Classify Collection"
-    bl_description = "Classify all objects in Objects collection"
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        objects_collection = group_manager.get_group_manager().get_objects_collection()
-        return bool(get_all_mesh_objects_in_collection(objects_collection))
-
-    def execute(self, context):
-        sync_manager.cleanup_orphaned_groups()
-        objects_collection = group_manager.get_group_manager().get_objects_collection()
-        objects = get_all_mesh_objects_in_collection(objects_collection)
-        perform_classification(objects)
-        return {FINISHED}

@@ -14,7 +14,6 @@ from .operators.operators import (
 
 from .operators.classification import (
     Splatter_OT_Classify_Selected,
-    Splatter_OT_Classify_All_Objects_In_Collection,
     Splatter_OT_Classify_Active_Object,
 )
 
@@ -81,7 +80,6 @@ class Splatter_PT_Main_Panel(bpy.types.Panel):
         # Classification buttons
         row = layout.row()
         row.operator(Splatter_OT_Classify_Selected.bl_idname)
-        row.operator(Splatter_OT_Classify_All_Objects_In_Collection.bl_idname)
         
         # Organization button
         layout.operator(Splatter_OT_Organize_Classified_Objects.bl_idname)
