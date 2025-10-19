@@ -28,7 +28,7 @@ def cleanup_orphaned_groups():
             return None
 
         # Clean up locally
-        group_mgr.cleanup_orphaned_groups_locally()
+        group_mgr.clear_orphaned_groups()
 
         print(f"[Splatter] Cleaned up {dropped_count} orphaned groups")
         return dropped_count

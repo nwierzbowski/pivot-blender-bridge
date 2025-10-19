@@ -141,7 +141,16 @@ cdef class GroupManager:
         return list(self._orphaned_groups)
 
     cpdef void clear_orphaned_groups(self):
-        """Clear the orphaned set after processing all orphaned groups."""
+        """Clean up orphaned groups locally: remove from managed set and clear orphans.
+
+        This should be called after dropping from the engine to keep state consistent.
+        """
+        cdef list orphans = list(self._orphaned_groups)
+        if not orphans:
+            return
+
+        cdef int count = len(orphans)
+        self.drop_groups(orphans)
         self._orphaned_groups.clear()
 
     cpdef void add_orphaned_group(self, str group_name):
@@ -156,25 +165,6 @@ cdef class GroupManager:
     cdef bint _is_orphaned_internal(self, str group_name):
         """Internal fast check if a group is orphaned (for Cython code)."""
         return group_name in self._orphaned_groups
-
-    # ==================== Cleanup ====================
-
-    cpdef void cleanup_orphaned_groups_locally(self):
-        """Clean up orphaned groups locally: remove from managed set and clear orphans.
-
-        This should be called after dropping from the engine to keep state consistent.
-        """
-        cdef list orphans = list(self._orphaned_groups)
-        if not orphans:
-            return
-
-        # Remove from managed set locally
-        self.drop_groups(orphans)
-        
-        # Clear the orphaned groups set
-        self.clear_orphaned_groups()
-
-        print(f"[Splatter] Cleaned up {len(orphans)} orphaned groups locally")
 
 
 # Global instance
