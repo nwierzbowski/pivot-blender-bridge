@@ -27,9 +27,14 @@ cdef class GroupManager:
         objects_collection = bpy.context.scene.splatter.objects_collection
         return objects_collection if objects_collection else bpy.context.scene.collection
 
-    def get_group_name(self, obj: Any) -> Optional[str]:
+    cpdef str get_group_name(self, obj):
         """Get the group name for an object from its collections."""
-        for coll in getattr(obj, "users_collection", []) or []:
+        collections = getattr(obj, "users_collection", None)
+        if not collections:
+            return None
+        
+        cdef object coll
+        for coll in collections:
             if coll.name in self._sync_state:
                 return coll.name
         return None
@@ -136,9 +141,9 @@ cdef class GroupManager:
 
     # ==================== Orphaned Groups ====================
 
-    cpdef list get_orphaned_groups(self):
-        """Get the current list of orphaned groups."""
-        return list(self._orphaned_groups)
+    cpdef set get_orphaned_groups(self):
+        """Get the current set of orphaned groups."""
+        return self._orphaned_groups
 
     cpdef void clear_orphaned_groups(self):
         """Clean up orphaned groups locally: remove from managed set and clear orphans.
@@ -165,6 +170,10 @@ cdef class GroupManager:
     cdef bint _is_orphaned_internal(self, str group_name):
         """Internal fast check if a group is orphaned (for Cython code)."""
         return group_name in self._orphaned_groups
+
+    cpdef get_sync_state_keys(self):
+        """Get the keys of the sync state dict (managed group names)."""
+        return set(self._sync_state.keys())
 
 
 # Global instance
