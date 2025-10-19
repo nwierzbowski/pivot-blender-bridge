@@ -11,6 +11,7 @@ from ..constants import (
 )
 
 from .. import engine
+from ..surface_manager import get_surface_manager
 from ..lib import group_manager
 
 class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):
@@ -28,11 +29,10 @@ class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):
         sync_manager.cleanup_orphaned_groups()
         start_total = time.perf_counter()
         try:
-            group_mgr = group_manager.get_group_manager()
-            
-            classifications = group_mgr.collect_group_classifications()
+            surface_manager = get_surface_manager()
+            classifications = surface_manager.collect_group_classifications()
             if classifications:
-                sync_ok = group_mgr.sync_group_classifications(classifications)
+                sync_ok = surface_manager.sync_group_classifications(classifications)
                 if not sync_ok:
                     self.report({"WARNING"}, "Failed to sync classifications to engine; results may be outdated")
 

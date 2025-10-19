@@ -59,7 +59,7 @@ class SurfaceManager:
                     continue
 
                 for group_coll in surface_coll.children:
-                    if self._group_manager.is_managed_collection(group_coll):
+                    if self._group_manager.is_managed_collection(group_coll.name):
                         result[group_coll.name] = surface_int
 
         return result
