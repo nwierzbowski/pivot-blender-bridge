@@ -79,13 +79,14 @@ def get_qualifying_objects_for_selected(selected_objects, objects_collection):
 
 
 def perform_classification(objects):
-    engine_state._is_performing_classification = True
+    
     startCPP = time.perf_counter()
     
     classify_object.classify_and_apply_objects(objects)
     endCPP = time.perf_counter()
     elapsedCPP = endCPP - startCPP
     print(f"Total time elapsed: {(elapsedCPP) * 1000:.2f}ms")
+    engine_state._is_performing_classification = True
 
 
 class Splatter_OT_Classify_Selected(bpy.types.Operator):
