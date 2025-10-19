@@ -1,7 +1,18 @@
 """Group management for Blender collections.
 
 Responsibilities:
-- Manage group collections and their metadata
+- Manage group collec    def update_orphaned_groups(self) -> None:
+
+        objects_collection = self.get_objects_collection()
+        for coll_name in self._managed_collection_names:
+            if coll_name in self._orphaned_groups:
+                continue  # Already marked as orphaned
+            if coll_name not in bpy.data.collections:
+                self._orphaned_groups.add(coll_name)
+                continue
+            coll = bpy.data.collections[coll_name]
+            if coll not in objects_collection.children or not self._has_mesh_objects(coll):
+                self._orphaned_groups.add(coll_name)eir metadata
 - Handle group membership operations
 - Provide group-related queries and utilities
 """
@@ -17,6 +28,7 @@ class GroupManager:
     def __init__(self) -> None:
         self._collection_manager = get_collection_manager()
         self._managed_collection_names: Set[str] = set()
+        self._orphaned_groups: Set[str] = set()
 
     def get_objects_collection(self) -> Optional[Any]:
         """Get the objects collection from the scene's splatter properties."""
@@ -59,9 +71,11 @@ class GroupManager:
     def update_colors(self, sync_state: Dict[str, bool]) -> None:
         """Update color tags for collections based on sync state."""
         for coll in self.iter_group_collections():
-            group_name = coll.name
-            synced = sync_state.get(group_name, True)
-            
+            if coll.name in self._orphaned_groups:
+                coll.color_tag = "NONE"
+                continue
+            synced = sync_state.get(coll.name)
+
             # 1. Determine the color that it *should* be.
             correct_color = 'COLOR_04' if synced else 'COLOR_03'
             
@@ -70,9 +84,42 @@ class GroupManager:
                 # 3. Only perform the expensive write operation if it's wrong.
                 coll.color_tag = correct_color
 
-    def drop_group(self, group_name: str) -> None:
-        """Drop a group from being managed: remove from managed set."""
-        self._managed_collection_names.discard(group_name)
+    def _has_mesh_objects(self, coll: Any) -> bool:
+        """Check if the collection or its children contain any mesh objects."""
+        for obj in coll.objects:
+            if obj.type == 'MESH':
+                return True
+        for child in coll.children:
+            if self._has_mesh_objects(child):
+                return True
+        return False
+
+    def update_orphaned_groups(self) -> None:
+        """Update the set of orphaned groups by accumulating new orphans (non-existent or not children of objects_collection)."""
+        objects_collection = self.get_objects_collection()
+        for coll_name in self._managed_collection_names:
+            if coll_name in self._orphaned_groups:
+                continue  # Already marked as orphaned
+            if coll_name not in bpy.data.collections:
+                self._orphaned_groups.add(coll_name)
+                continue
+            coll = bpy.data.collections[coll_name]
+            if coll_name not in objects_collection.children or not self._has_mesh_objects(coll):
+                self._orphaned_groups.add(coll_name)
+            
+
+    def get_orphaned_groups(self) -> list[str]:
+        """Get the current list of orphaned groups."""
+        return list(self._orphaned_groups)
+
+    def clear_orphaned_groups(self, group_names: list[str]) -> None:
+        """Clear the orphaned set after processing all orphaned groups."""
+        self._orphaned_groups.clear()
+
+    def drop_groups(self, group_names: list[str]) -> None:
+        """Drop multiple groups from being managed: remove from managed set."""
+        for group_name in group_names:
+            self._managed_collection_names.discard(group_name)
 
     def is_managed_collection(self, collection: Any) -> bool:
         """Check if the given collection is managed."""

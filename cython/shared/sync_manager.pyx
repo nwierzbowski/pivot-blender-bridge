@@ -5,11 +5,6 @@ Responsibilities:
 - Manage sync state in memory (avoids Blender undo conflicts)
 """
 
-from typing import Dict
-
-from splatter.group_manager import get_group_manager
-
-
 cdef class SyncManager:
     """Manages synchronization state between Blender and the C++ engine.
     
@@ -40,6 +35,13 @@ cdef class SyncManager:
         for name in group_names:
             if name:
                 self._sync_state[name] = True
+
+    cpdef void drop_groups(self, list group_names):
+        """Remove groups from sync state."""
+        cdef str name
+        for name in group_names:
+            if name in self._sync_state:
+                del self._sync_state[name]
 
 
 # Global instance

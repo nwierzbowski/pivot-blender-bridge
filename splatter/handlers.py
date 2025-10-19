@@ -41,6 +41,7 @@ def enforce_colors(scene, depsgraph):
     """Enforce correct color tags for group collections based on sync state."""
     sync_mgr = sync_manager.get_sync_manager()
     group_mgr = get_group_manager()
+    group_mgr.update_orphaned_groups()
     group_mgr.update_colors(sync_mgr.get_sync_state())
 
 
