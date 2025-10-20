@@ -1,7 +1,6 @@
 import bpy
 import os
 import stat
-import sys
 
 from .classes import SceneAttributes
 from bpy.props import PointerProperty
@@ -14,9 +13,6 @@ from .operators.classification import (
     Splatter_OT_Classify_Active_Object,
 )
 from .ui import Splatter_PT_Main_Panel
-from . import engine
-from .surface_manager import get_surface_manager
-from . import engine_state
 from . import handlers
 
 bl_info = {
@@ -57,26 +53,11 @@ def register():
     except Exception as e:
         print(f"Note: Could not adjust permissions for engine binary during register: {e}")
 
-    # Start the splatter engine
-    engine_started = engine.start_engine()
-
-    if not engine_started:
-        print("[Splatter] Failed to start engine")
-    else:
-        # Print Cython edition for debugging
-
-        try:
-            lib_path = os.path.join(os.path.dirname(__file__), 'lib')
-            if lib_path not in sys.path:
-                sys.path.insert(0, lib_path)
-            from .lib import edition_utils
-            edition_utils.print_edition()
-        except Exception as e:
-            print(f"[Splatter] Could not print Cython edition: {e}")
-    
-    handlers.clear_previous_scales()
-    engine_state.update_group_membership_snapshot({}, replace=True)
-
+    # Register persistent handlers for engine lifecycle management
+    if handlers.on_load_pre not in bpy.app.handlers.load_pre:
+        bpy.app.handlers.load_pre.append(handlers.on_load_pre)
+    if handlers.on_load_post not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(handlers.on_load_post)
     if handlers.on_depsgraph_update not in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.append(handlers.on_depsgraph_update)
 
@@ -88,25 +69,16 @@ def unregister():
 
     del bpy.types.Scene.splatter
 
-    # Sync group classifications to engine before stopping
-    try:
-        surface_manager = get_surface_manager()
-        classifications = surface_manager.collect_group_classifications()
-        if classifications:
-            surface_manager.sync_group_classifications(classifications)
-    except Exception as e:
-        print(f"Failed to sync classifications before closing: {e}")
-
-    # Stop the splatter engine
-    engine.stop_engine()
-
-    # Unregister edit mode hook
+    # Unregister all persistent handlers
+    if handlers.on_load_pre in bpy.app.handlers.load_pre:
+        bpy.app.handlers.load_pre.remove(handlers.on_load_pre)
+    if handlers.on_load_post in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(handlers.on_load_post)
     if handlers.on_depsgraph_update in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(handlers.on_depsgraph_update)
 
-    engine_state.update_group_membership_snapshot({}, replace=True)
-
-    handlers.clear_previous_scales()
+    # Perform cleanup as if we're unloading a file
+    handlers.on_load_pre(None)
 
 
 if __name__ == "__main__":

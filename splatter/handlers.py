@@ -1,12 +1,18 @@
-# Depsgraph Update Handlers
-# ---------------------------
-# Handles Blender depsgraph updates for detecting scene changes and maintaining sync state.
+# Blender Event Handlers
+# -----------------------
+# Handles Blender lifecycle events including:
+# - File load/save events (load_pre, load_post)
+# - Depsgraph updates (on_depsgraph_update)
 
 import bpy
 from bpy.app.handlers import persistent
+import os
+import sys
 
 from . import engine_state
 from .lib import group_manager
+from . import engine
+from .surface_manager import get_surface_manager
 import time
 
 # Cache of each object's last-known scale to detect transform-only edits quickly.
@@ -162,4 +168,58 @@ def on_group_name_changed(collection, group_mgr):
     
     # Update the tracker with the new name
     name_tracker[collection] = new_name
+
+
+# File Load Handlers
+# ------------------
+# Manage engine lifecycle and state synchronization around file load/save events.
+
+@persistent
+def on_load_pre(scene):
+    """Executed before a new file is loaded.
+    
+    Shuts down the engine and syncs any pending classification state before file load.
+    """
+    try:
+        # Sync any pending group classifications to the engine before shutting down
+        surface_manager = get_surface_manager()
+        classifications = surface_manager.collect_group_classifications()
+        if classifications:
+            surface_manager.sync_group_classifications(classifications)
+    except Exception as e:
+        print(f"[Splatter] Failed to sync classifications before load: {e}")
+    
+    # Stop the splatter engine
+    engine.stop_engine()
+    
+    # Clear engine state tracking
+    engine_state.update_group_membership_snapshot({}, replace=True)
+    clear_previous_scales()
+    
+
+@persistent
+def on_load_post(scene):
+    """Executed after a new file has finished loading.
+    
+    Starts the engine up again for the new scene and initializes local tracked state.
+    """
+    # Initialize engine state for the new scene
+    engine_state.update_group_membership_snapshot({}, replace=True)
+    clear_previous_scales()
+    
+    # Start the splatter engine
+    engine_started = engine.start_engine()
+    
+    if not engine_started:
+        print("[Splatter] Failed to start engine after loading file")
+    else:
+        # Print Cython edition for debugging
+        try:
+            lib_path = os.path.join(os.path.dirname(__file__), 'lib')
+            if lib_path not in sys.path:
+                sys.path.insert(0, lib_path)
+            from .lib import edition_utils
+            edition_utils.print_edition()
+        except Exception as e:
+            print(f"[Splatter] Could not print Cython edition: {e}")
     
