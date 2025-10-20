@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 from .collection_manager import get_collection_manager
 from .lib import group_manager
+from .lib.classification import SURFACE_TYPE_NAMES
 
 # Property keys for collection metadata
 CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot"
@@ -22,6 +23,12 @@ class SurfaceManager:
     def __init__(self) -> None:
         self._collection_manager = get_collection_manager()
         self._group_manager = group_manager.get_group_manager()
+        # Build a mapping from surface key to display name
+        self._surface_key_to_name = SURFACE_TYPE_NAMES
+
+    def _get_surface_display_name(self, surface_key: str) -> str:
+        """Get the display name for a surface key."""
+        return self._surface_key_to_name.get(surface_key, surface_key)
 
     def get_or_create_surface_collection(self, pivot_root: Any, surface_key: str) -> Optional[Any]:
         """Get or create a surface classification collection."""
@@ -32,14 +39,17 @@ class SurfaceManager:
             if coll.get(CLASSIFICATION_COLLECTION_PROP) == surface_key:
                 return coll
 
+        # Get display name for the collection
+        collection_name = self._get_surface_display_name(surface_key)
+        
         # Try to reuse existing collection
-        if existing := bpy.data.collections.get(surface_key):
+        if existing := bpy.data.collections.get(collection_name):
             self._collection_manager.ensure_collection_link(pivot_root, existing)
             existing[CLASSIFICATION_COLLECTION_PROP] = surface_key
             return existing
 
         # Create new
-        surface_coll = bpy.data.collections.new(surface_key)
+        surface_coll = bpy.data.collections.new(collection_name)
         surface_coll[CLASSIFICATION_COLLECTION_PROP] = surface_key
         pivot_root.children.link(surface_coll)
         return surface_coll
