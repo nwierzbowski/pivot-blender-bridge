@@ -175,8 +175,8 @@ cdef class GroupManager:
         return set(self._sync_state.keys())
 
     cpdef bint has_existing_groups(self):
-        """Check if any groups exist."""
-        return bool(self._sync_state)
+        """Check if any non-orphaned groups exist."""
+        return len(self._sync_state) > len(self._orphaned_groups)
 
     cpdef void drop_groups(self, list group_names):
         """Drop multiple groups from being managed and unsubscribe from name changes."""
