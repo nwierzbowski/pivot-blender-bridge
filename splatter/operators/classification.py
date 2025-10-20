@@ -79,6 +79,9 @@ def get_qualifying_objects_for_selected(selected_objects, objects_collection):
 
 
 def perform_classification(objects):
+    # Exit edit mode if active to ensure mesh data is accessible
+    if bpy.context.mode == 'EDIT_MESH':
+        bpy.ops.object.mode_set(mode='OBJECT')
     
     startCPP = time.perf_counter()
     
