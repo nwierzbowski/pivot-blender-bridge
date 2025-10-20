@@ -10,11 +10,12 @@ from typing import Any, Dict, Optional
 
 from .collection_manager import get_collection_manager
 from .lib import group_manager
-from .lib.classification import SURFACE_TYPE_NAMES
+from .lib import classification
 
 # Property keys for collection metadata
 CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot Classifications"
 CLASSIFICATION_COLLECTION_PROP = "splatter_surface_type"
+CLASSIFICATION_MARKER_PROP = "splatter_is_classification_collection"
 
 
 class SurfaceManager:
@@ -27,7 +28,7 @@ class SurfaceManager:
 
     def _get_surface_display_name(self, surface_key: str) -> str:
         """Get the display name for a surface key."""
-        return SURFACE_TYPE_NAMES.get(surface_key, surface_key)
+        return classification.SURFACE_TYPE_NAMES.get(surface_key, surface_key)
 
     def get_or_create_surface_collection(self, pivot_root: Any, surface_key: str) -> Optional[Any]:
         """Get or create a surface classification collection."""
@@ -45,11 +46,13 @@ class SurfaceManager:
         if existing := bpy.data.collections.get(collection_name):
             self._collection_manager.ensure_collection_link(pivot_root, existing)
             existing[CLASSIFICATION_COLLECTION_PROP] = surface_key
+            existing[CLASSIFICATION_MARKER_PROP] = True
             return existing
 
         # Create new
         surface_coll = bpy.data.collections.new(collection_name)
         surface_coll[CLASSIFICATION_COLLECTION_PROP] = surface_key
+        surface_coll[CLASSIFICATION_MARKER_PROP] = True
         pivot_root.children.link(surface_coll)
         return surface_coll
 
@@ -92,6 +95,9 @@ class SurfaceManager:
         pivot_root = self._collection_manager.get_or_create_root_collection(CLASSIFICATION_ROOT_COLLECTION_NAME)
         if not pivot_root:
             return
+        
+        # Mark root as classification collection
+        pivot_root[CLASSIFICATION_MARKER_PROP] = True
         
         # Get/create surface collection
         surface_coll = self.get_or_create_surface_collection(pivot_root, surface_key)
