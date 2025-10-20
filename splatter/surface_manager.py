@@ -13,7 +13,7 @@ from .lib import group_manager
 from .lib.classification import SURFACE_TYPE_NAMES
 
 # Property keys for collection metadata
-CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot"
+CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot Classifications"
 CLASSIFICATION_COLLECTION_PROP = "splatter_surface_type"
 
 

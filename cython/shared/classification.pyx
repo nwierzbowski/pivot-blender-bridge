@@ -16,9 +16,3 @@ SURFACE_TYPE_NAMES = {
     str(SurfaceType_Wall): "Wall Objects",
     str(SurfaceType_Ceiling): "Ceiling Objects"
 }
-
-# SURFACE_TYPE_ITEMS = [
-#     (str(SurfaceType_Ground), "Ground", "Object belongs on the ground"),
-#     (str(SurfaceType_Wall), "Wall", "Object belongs on the wall"),
-#     (str(SurfaceType_Ceiling), "Ceiling", "Object belongs on the ceiling"),
-# ]
