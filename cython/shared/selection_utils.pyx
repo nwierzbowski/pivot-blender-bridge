@@ -95,13 +95,20 @@ def aggregate_object_groups(list selected_objects):
     for top_coll in scene_coll.children:
         if top_coll.get(CLASSIFICATION_MARKER_PROP, False) or top_coll.get(CLASSIFICATION_ROOT_MARKER_PROP, False):
             continue
-        coll_to_top_map[top_coll].append(top_coll)
+        invalid_found = False
+        temp_map = defaultdict(list)
         stack = [(top_coll, top_coll)]
         while stack:
             current_coll, current_top = stack.pop()
+            if current_coll.get(CLASSIFICATION_MARKER_PROP, False) or current_coll.get(CLASSIFICATION_ROOT_MARKER_PROP, False):
+                invalid_found = True
+                continue
+            temp_map[current_coll].append(current_top)
             for child_coll in current_coll.children:
-                coll_to_top_map[child_coll].append(current_top)
                 stack.append((child_coll, current_top))
+        if not invalid_found:
+            for coll, tops in temp_map.items():
+                coll_to_top_map[coll].extend(tops)
 
     root_objects = set()
     mesh_groups = []

@@ -15,12 +15,13 @@ LABEL_LICENSE_TYPE = "License:"
 
 # Marker property to identify classification collections
 CLASSIFICATION_MARKER_PROP = "splatter_is_classification_collection"
+CLASSIFICATION_ROOT_MARKER_PROP = "splatter_is_classification_root"
 
 def _is_descendant_of_classification_collection(coll):
     """Check if a collection is a descendant of any classification collection."""
     def check_parents(current_coll):
         for parent_coll in bpy.data.collections:
-            if parent_coll.get(CLASSIFICATION_MARKER_PROP, False):
+            if parent_coll.get(CLASSIFICATION_MARKER_PROP, False) or parent_coll.get(CLASSIFICATION_ROOT_MARKER_PROP, False):
                 if _is_in_subtree(current_coll, parent_coll):
                     return True
         return False
@@ -43,7 +44,7 @@ def poll_visible_collections(self, coll):
     We use .get() to avoid an error if the property doesn't exist.
     """
     # Check if this collection itself is marked
-    if coll.get(CLASSIFICATION_MARKER_PROP, False):
+    if coll.get(CLASSIFICATION_MARKER_PROP, False) or coll.get(CLASSIFICATION_ROOT_MARKER_PROP, False):
         return False
     
     # Check if this collection is a descendant of any classification collection
