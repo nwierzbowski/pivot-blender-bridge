@@ -93,7 +93,7 @@ def unsync_mesh_changes(scene, depsgraph):
     managed_group_names = group_mgr.get_sync_state_keys()  # Returns a set
     
     selected_objects = []
-    obj_to_group = {}
+    obj_to_groups = {}
     
     # Iterate managed collections to find selected objects (avoids checking all 220 objects)
     for group_name in managed_group_names:
@@ -105,8 +105,11 @@ def unsync_mesh_changes(scene, depsgraph):
         # Check only objects in this collection against selected set (O(1) lookups)
         for obj in coll.objects:
             if obj in all_selected_mesh_set:
-                selected_objects.append(obj)
-                obj_to_group[obj] = group_name
+                if obj not in selected_objects:
+                    selected_objects.append(obj)
+                if obj not in obj_to_groups:
+                    obj_to_groups[obj] = []
+                obj_to_groups[obj].append(group_name)
     
     if not selected_objects:
         return  # No selected objects in managed collections
@@ -131,31 +134,30 @@ def unsync_mesh_changes(scene, depsgraph):
         if obj is None:
             continue
 
-        group_name = obj_to_group.get(obj)
-        # Group name is guaranteed to be valid since we filtered selected_objects
+        group_names = obj_to_groups.get(obj, [])
+        for group_name in group_names:
+            expected_members = expected_snapshot.get(group_name)
+            current_members = current_snapshot.get(group_name, set())
+            member_count = len(expected_members) if expected_members is not None else len(current_members)
 
-        expected_members = expected_snapshot.get(group_name)
-        current_members = current_snapshot.get(group_name, set())
-        member_count = len(expected_members) if expected_members is not None else len(current_members)
+            current_scale = tuple(obj.scale)
+            prev_scale = _previous_scales.get(obj.name)
+            scale_changed = prev_scale is not None and current_scale != prev_scale
 
-        current_scale = tuple(obj.scale)
-        prev_scale = _previous_scales.get(obj.name)
-        scale_changed = prev_scale is not None and current_scale != prev_scale
+            current_rotation = tuple(obj.rotation_quaternion)
+            prev_rotation = _previous_rotations.get(obj.name)
+            rotation_changed = prev_rotation is not None and current_rotation != prev_rotation
 
-        current_rotation = tuple(obj.rotation_quaternion)
-        prev_rotation = _previous_rotations.get(obj.name)
-        rotation_changed = prev_rotation is not None and current_rotation != prev_rotation
+            should_mark_unsynced = (
+                expected_members is None
+                or update.is_updated_geometry
+                or scale_changed
+                or rotation_changed
+                or (update.is_updated_transform and member_count > 1)
+            )
 
-        should_mark_unsynced = (
-            expected_members is None
-            or update.is_updated_geometry
-            or scale_changed
-            or rotation_changed
-            or (update.is_updated_transform and member_count > 1)
-        )
-
-        if should_mark_unsynced:
-            group_mgr.set_group_unsynced(group_name)
+            if should_mark_unsynced:
+                group_mgr.set_group_unsynced(group_name)
 
         # Update scale and rotation caches for next handler invocation
         _previous_scales[obj.name] = current_scale
