@@ -16,7 +16,7 @@ from ..surface_manager import get_surface_manager
 from ..lib import group_manager
 
 class Splatter_OT_Organize_Classified_Objects(bpy.types.Operator):
-    bl_idname = PRE.lower() + ".organize_classified_objects"
+    bl_idname = "object." + PRE.lower() + "organize_classified_objects"
     license_type = engine_state.get_engine_license_status()
     bl_label = "Organize Viewport by Collection"
     bl_description = "Organize classified objects"

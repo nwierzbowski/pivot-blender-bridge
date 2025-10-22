@@ -97,7 +97,7 @@ def perform_classification(objects):
 
 
 class Splatter_OT_Classify_Selected(bpy.types.Operator):
-    bl_idname = PRE.lower() + ".classify_selected_objects"
+    bl_idname = "object." + PRE.lower() + "standardize_selected_objects"
     license_type = engine_state.get_engine_license_status()
     bl_label = "Standardize and Classify Selected"
     bl_description = "Classify selected objects"
@@ -117,7 +117,7 @@ class Splatter_OT_Classify_Selected(bpy.types.Operator):
 
 
 class Splatter_OT_Classify_Active_Object(bpy.types.Operator):
-    bl_idname = PRE.lower() + ".classify_active_object"
+    bl_idname = "object." + PRE.lower() + "standardize_active_object"
     bl_label = "Standardize Active Object"
     bl_description = "Classify the active object"
     bl_options = {"REGISTER", "UNDO"}
