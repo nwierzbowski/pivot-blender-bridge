@@ -88,9 +88,9 @@ class Splatter_PT_Pro_Panel(bpy.types.Panel):
         else:
             # Standard mode: show upgrade info
             layout.label(text="Unlock Your Full Pipeline:")
-            layout.label(text="- Multithreaded bulk object cleanup")
+            layout.label(text="- Multithreaded bulk standardization")
             layout.label(text="- Auto sort assets into collections")
-            layout.label(text="- Arrange viewport using collections")
+            layout.label(text="- Use collections to arrange viewport ")
             layout.separator()
             row = layout.row()
             row.operator(Splatter_OT_Upgrade_To_Pro.bl_idname, icon='WORLD')
