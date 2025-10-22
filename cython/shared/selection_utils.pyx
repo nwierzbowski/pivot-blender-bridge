@@ -166,6 +166,12 @@ def aggregate_object_groups(list selected_objects):
                 scene_coll.objects.unlink(root_obj)
                 scene_coll.children.link(new_coll)
                 new_coll.objects.link(root_obj)
+                # Move all descendants to the new collection as well
+                _, descendants = get_mesh_and_all_descendants(root_obj, depsgraph)
+                for obj in descendants:
+                    if obj != root_obj and scene_coll in obj.users_collection:
+                        scene_coll.objects.unlink(obj)
+                        new_coll.objects.link(obj)
                 collections_to_process.add(new_coll)
             elif coll in coll_to_top_map:
                 for top in coll_to_top_map[coll]:
