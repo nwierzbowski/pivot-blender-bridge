@@ -73,16 +73,21 @@ def register():
                 sys.path.insert(0, lib_path)
             from .lib import edition_utils
             edition_utils.print_edition()
+            is_pro = edition_utils.is_pro_edition()
         except Exception as e:
             print(f"[Splatter] Could not print Cython edition: {e}")
+            is_pro = False
 
     # Register persistent handlers for engine lifecycle management
     if handlers.on_load_pre not in bpy.app.handlers.load_pre:
         bpy.app.handlers.load_pre.append(handlers.on_load_pre)
     if handlers.on_load_post not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(handlers.on_load_post)
-    if handlers.on_depsgraph_update not in bpy.app.handlers.depsgraph_update_post:
-        bpy.app.handlers.depsgraph_update_post.append(handlers.on_depsgraph_update)
+    
+    # Only register depsgraph update handler for Pro edition
+    if is_pro:
+        if handlers.on_depsgraph_update not in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.append(handlers.on_depsgraph_update)
 
     
 
@@ -99,6 +104,7 @@ def unregister():
         bpy.app.handlers.load_pre.remove(handlers.on_load_pre)
     if handlers.on_load_post in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(handlers.on_load_post)
+    # Only remove depsgraph update handler if it's registered (was only added for Pro edition)
     if handlers.on_depsgraph_update in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(handlers.on_depsgraph_update)
 
