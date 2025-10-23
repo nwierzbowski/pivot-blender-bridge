@@ -276,7 +276,7 @@ def classify_and_apply_active_objects(list objects):
     # Engine will validate that multiple objects are only used in PRO edition
     command = {
         "id": 1,
-        "op": "classify_active",
+        "op": "classify_objects",
         "shm_verts": verts_shm_name,
         "shm_edges": edges_shm_name,
         "shm_rotations": rotations_shm_name,
