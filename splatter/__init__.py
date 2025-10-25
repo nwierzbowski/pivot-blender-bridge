@@ -21,12 +21,12 @@ from .ui import Splatter_PT_Standard_Panel, Splatter_PT_Pro_Panel, Splatter_PT_S
 from . import handlers
 
 bl_info = {
-    "name": "Splatter: AI Powered Object Scattering",
+    "name": "Pivot: Viewport Asset Organizer",
     "author": "Nick Wierzbowski",
     "version": (1, 0, 0),
     "blender": (4, 4, 0),  # Minimum Blender version
-    "location": "View3D > Sidebar > Splatter",
-    "description": "Performs scene segmentation, object classification, and intelligent scattering.",
+    "location": "View3D > Sidebar > Pivot",
+    "description": "Performs viewport formatting, standardization, and grouping.",
     "warning": "",
     "doc_url": "",
     "category": "3D View",

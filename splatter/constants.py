@@ -1,5 +1,5 @@
-PRE = "LBO_SPLATTER"
-CATEGORY = "Splatter"
+PRE = "LBO_PIVOT"
+CATEGORY = "Pivot"
 
 # License types
 LICENSE_STANDARD = "STANDARD"
