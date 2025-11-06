@@ -112,16 +112,26 @@ jobs:
           echo "CCACHE_MAXSIZE=500M" >> $GITHUB_ENV
           ccache --version
 
-      - name: Set up dependencies (macOS)
+      - name: Install dependencies - macOS
         if: runner.os == 'macOS'
         run: |
           brew update
-          # Remove conflicting Python symlinks before installing
-          rm -f /usr/local/bin/python3.11 /usr/local/bin/python3.11-config /usr/local/bin/2to3-3.11 /usr/local/bin/idle3.11 /usr/local/bin/pydoc3.11 2>/dev/null || true
+          # Remove conflicting symlinks before installing
+          rm -f /usr/local/bin/python3.11 /usr/local/bin/python3.11-config /usr/local/bin/python3 /usr/local/bin/pip3.11 2>/dev/null || true
+          rm -f /opt/homebrew/bin/python3.11 /opt/homebrew/bin/python3.11-config 2>/dev/null || true
           brew install cmake ninja python@3.11 ccache || brew link --overwrite python@3.11
-          # Install cython and numpy via pip with break-system-packages flag
-          /usr/local/Cellar/python@3.11/*/bin/python3.11 -m pip install --break-system-packages cython numpy
-          echo "/usr/local/bin" >> $GITHUB_PATH
+          # Find Python 3.11 from brew (works on both Intel and arm64)
+          PYTHON_311=$(which python3.11)
+          if [ -z "$PYTHON_311" ]; then
+            # Fallback to direct Cellar path lookup
+            PYTHON_311=$(find /usr/local/Cellar/python@3.11 /opt/homebrew/Cellar/python@3.11 -name "python3.11" -type f 2>/dev/null | head -1)
+          fi
+          if [ -z "$PYTHON_311" ]; then
+            echo "ERROR: Could not find python3.11"
+            exit 1
+          fi
+          $PYTHON_311 -m pip install --break-system-packages cython numpy
+        shell: bash
           
       - name: Create cython wrapper (macOS)
         if: runner.os == 'macOS'
@@ -181,10 +191,11 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           export PATH="/tmp/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
-          # Find Python 3.11 in Cellar
-          PYTHON_311=$(find /usr/local/Cellar/python@3.11 -name "python3.11" -type f 2>/dev/null | head -1)
+          # Find Python 3.11 from brew
+          PYTHON_311=$(which python3.11)
           if [ -z "$PYTHON_311" ]; then
-            PYTHON_311=$(find /opt/homebrew/Cellar/python@3.11 -name "python3.11" -type f 2>/dev/null | head -1)
+            # Fallback to direct Cellar path lookup (works on both Intel and arm64)
+            PYTHON_311=$(find /usr/local/Cellar/python@3.11 /opt/homebrew/Cellar/python@3.11 -name "python3.11" -type f 2>/dev/null | head -1)
           fi
           if [ -z "$PYTHON_311" ]; then
             echo "ERROR: Could not find python3.11"
