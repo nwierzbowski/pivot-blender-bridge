@@ -161,14 +161,6 @@ jobs:
         run: |
           choco install -y cmake ninja ccache
           pip install cython numpy
-          
-      - name: Set Python Path (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          REM Add Python installation directory to PATH so it takes precedence
-          echo C:\hostedtoolcache\windows\Python\3.11*\x64>> %GITHUB_PATH%
-          echo C:\hostedtoolcache\windows\Python\3.11*\x64\Scripts>> %GITHUB_PATH%
-        shell: cmd
 
       - name: Set up ccache (Windows)
         if: runner.os == 'Windows'

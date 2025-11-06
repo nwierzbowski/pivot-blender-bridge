@@ -51,10 +51,14 @@ foreach(mod_src ${CYTHON_MODULE_SOURCES})
             set_target_properties(${mod} PROPERTIES SUFFIX ".pyd")
         endif()
         target_link_libraries(${mod} PRIVATE Python3::Module)
+        # Explicitly add Python include directories
+        target_include_directories(${mod} PRIVATE ${Python3_INCLUDE_DIRS})
         # Numpy headers
         if(Python3_NumPy_INCLUDE_DIRS)
             target_include_directories(${mod} PRIVATE ${Python3_NumPy_INCLUDE_DIRS})
         endif()
+        # Define SIZEOF_VOID_P for Windows compatibility with Cython-generated code
+        target_compile_definitions(${mod} PRIVATE SIZEOF_VOID_P=${CMAKE_SIZEOF_VOID_P})
         # Include engine src for classification.h (needed for operator modules)
         target_include_directories(${mod} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core)
         # Link core library for operator modules
