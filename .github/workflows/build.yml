@@ -117,18 +117,23 @@ jobs:
         run: |
           brew update
           brew install cmake ninja python@3.11 ccache || true
-          # Find the actual Python 3.11 executable from Homebrew
-          PYTHON_311=$(find /usr/local/Cellar/python@3.11 -name "python3.11" -type f | head -1)
+          # Find the actual Python 3.11 executable from Homebrew (check both Intel and ARM locations)
+          PYTHON_311=$(find /usr/local/Cellar/python@3.11 -name "python3.11" -type f 2>/dev/null | head -1)
+          if [ -z "$PYTHON_311" ]; then
+            PYTHON_311=$(find /opt/homebrew/Cellar/python@3.11 -name "python3.11" -type f 2>/dev/null | head -1)
+          fi
           if [ ! -f "$PYTHON_311" ]; then
             echo "ERROR: Could not find python3.11 in Cellar"
+            find /usr/local/Cellar -name "python*" 2>/dev/null || true
+            find /opt/homebrew/Cellar -name "python*" 2>/dev/null || true
             exit 1
           fi
           echo "Found Python 3.11 at: $PYTHON_311"
           # Install cython and numpy
           $PYTHON_311 -m pip install --break-system-packages cython numpy
           # Create a symlink we can rely on
-          sudo mkdir -p /tmp/bin
-          sudo ln -sf $PYTHON_311 /tmp/bin/python3.11
+          mkdir -p /tmp/bin
+          ln -sf $PYTHON_311 /tmp/bin/python3.11
           echo "/tmp/bin" >> $GITHUB_PATH
           
       - name: Create cython wrapper (macOS)
