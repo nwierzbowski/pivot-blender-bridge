@@ -30,13 +30,13 @@ jobs:
           # Linux x86-64
           - os: linux
             arch: x86-64
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-22.04
             edition: PRO
             preset: pro-release
             
           - os: linux
             arch: x86-64
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-22.04
             edition: STANDARD
             preset: standard-release
 
