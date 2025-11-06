@@ -204,13 +204,17 @@ jobs:
       - name: Configure CMake (${{ matrix.edition }}) - Windows
         if: runner.os == 'Windows'
         run: |
-          REM Try to find Python 3.11 specifically
-          where python3.11 > nul 2>&1 && set PYTHON_CMD=python3.11 || set PYTHON_CMD=python
-          echo Using Python command: %PYTHON_CMD%
-          for /f "delims=" %%i in ('%PYTHON_CMD% -c "import sys; print(sys.executable)"') do set PYTHON_EXECUTABLE=%%i
-          for /f "delims=" %%i in ('%PYTHON_CMD% -c "import numpy; print(numpy.get_include())"') do set NUMPY_INCLUDE=%%i
-          where cython > cython_path.txt
-          set /p CYTHON_EXECUTABLE=<cython_path.txt
+          REM Find Python executable - try python first (most reliable)
+          for /f "delims=" %%i in ('python -c "import sys; print(sys.executable)"') do set PYTHON_EXECUTABLE=%%i
+          REM Get NumPy include directory
+          for /f "delims=" %%i in ('python -c "import numpy; print(numpy.get_include())"') do set NUMPY_INCLUDE=%%i
+          REM Find Cython
+          where cython > nul 2>&1 && (
+            for /f "delims=" %%i in ('where cython') do set CYTHON_EXECUTABLE=%%i
+          ) || (
+            echo ERROR: cython not found
+            exit /b 1
+          )
           echo Using Python: %PYTHON_EXECUTABLE%
           echo Using NumPy: %NUMPY_INCLUDE%
           echo Using Cython: %CYTHON_EXECUTABLE%
