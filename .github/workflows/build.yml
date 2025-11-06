@@ -118,8 +118,8 @@ jobs:
           brew update
           brew install cmake ninja python@3.11 ccache
           # Install cython and numpy via pip with break-system-packages flag
-          python3.11 -m pip install --break-system-packages cython numpy
-          echo "/opt/homebrew/bin" >> $GITHUB_PATH
+          /usr/local/bin/python3.11 -m pip install --break-system-packages cython numpy
+          echo "/usr/local/bin:/opt/homebrew/bin" >> $GITHUB_PATH
           
       - name: Create cython wrapper (macOS)
         if: runner.os == 'macOS'
@@ -127,7 +127,7 @@ jobs:
           mkdir -p /tmp/bin
           cat > /tmp/bin/cython << 'EOF'
           #!/bin/bash
-          exec python3.11 -m cython "$@"
+          exec /usr/local/bin/python3.11 -m cython "$@"
           EOF
           chmod +x /tmp/bin/cython
           echo "/tmp/bin" >> $GITHUB_PATH
@@ -170,8 +170,8 @@ jobs:
       - name: Configure CMake (${{ matrix.edition }}) - macOS
         if: runner.os == 'macOS'
         run: |
-          export PATH="/tmp/bin:/opt/homebrew/bin:$PATH"
-          PYTHON_EXECUTABLE=$(which python3.11)
+          export PATH="/tmp/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+          PYTHON_EXECUTABLE=/usr/local/bin/python3.11
           CYTHON_EXECUTABLE=$(which cython)
           echo "Using Python: $PYTHON_EXECUTABLE"
           echo "Using Cython: $CYTHON_EXECUTABLE"
