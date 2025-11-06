@@ -116,25 +116,12 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install cmake ninja python@3.11 ccache || true
-          # Find the actual Python 3.11 executable from Homebrew (check both Intel and ARM locations)
-          PYTHON_311=$(find /usr/local/Cellar/python@3.11 -name "python3.11" -type f 2>/dev/null | head -1)
-          if [ -z "$PYTHON_311" ]; then
-            PYTHON_311=$(find /opt/homebrew/Cellar/python@3.11 -name "python3.11" -type f 2>/dev/null | head -1)
-          fi
-          if [ ! -f "$PYTHON_311" ]; then
-            echo "ERROR: Could not find python3.11 in Cellar"
-            find /usr/local/Cellar -name "python*" 2>/dev/null || true
-            find /opt/homebrew/Cellar -name "python*" 2>/dev/null || true
-            exit 1
-          fi
-          echo "Found Python 3.11 at: $PYTHON_311"
-          # Install cython and numpy
-          $PYTHON_311 -m pip install --break-system-packages cython numpy
-          # Create a symlink we can rely on
-          mkdir -p /tmp/bin
-          ln -sf $PYTHON_311 /tmp/bin/python3.11
-          echo "/tmp/bin" >> $GITHUB_PATH
+          # Remove conflicting Python symlinks before installing
+          rm -f /usr/local/bin/python3.11 /usr/local/bin/python3.11-config /usr/local/bin/2to3-3.11 /usr/local/bin/idle3.11 /usr/local/bin/pydoc3.11 2>/dev/null || true
+          brew install cmake ninja python@3.11 ccache || brew link --overwrite python@3.11
+          # Install cython and numpy via pip with break-system-packages flag
+          /usr/local/Cellar/python@3.11/*/bin/python3.11 -m pip install --break-system-packages cython numpy
+          echo "/usr/local/bin" >> $GITHUB_PATH
           
       - name: Create cython wrapper (macOS)
         if: runner.os == 'macOS'
@@ -194,6 +181,18 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           export PATH="/tmp/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+          # Find Python 3.11 in Cellar
+          PYTHON_311=$(find /usr/local/Cellar/python@3.11 -name "python3.11" -type f 2>/dev/null | head -1)
+          if [ -z "$PYTHON_311" ]; then
+            PYTHON_311=$(find /opt/homebrew/Cellar/python@3.11 -name "python3.11" -type f 2>/dev/null | head -1)
+          fi
+          if [ -z "$PYTHON_311" ]; then
+            echo "ERROR: Could not find python3.11"
+            exit 1
+          fi
+          # Create symlink if it doesn't exist
+          mkdir -p /tmp/bin
+          ln -sf $PYTHON_311 /tmp/bin/python3.11 2>/dev/null || true
           PYTHON_EXECUTABLE=/tmp/bin/python3.11
           CYTHON_EXECUTABLE=$(which cython)
           # Get NumPy include directory
