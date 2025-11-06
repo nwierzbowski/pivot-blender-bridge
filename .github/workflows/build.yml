@@ -150,19 +150,24 @@ jobs:
           echo "CCACHE_MAXSIZE=500M" >> $GITHUB_ENV
           ccache --version
 
+      - name: Set up Python 3.11 (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Set up dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
           choco install -y cmake ninja ccache
-          choco install -y python --version=3.11.0 || choco install -y python311
           pip install cython numpy
           
       - name: Set Python Path (Windows)
         if: runner.os == 'Windows'
         run: |
           REM Add Python installation directory to PATH so it takes precedence
-          echo C:\Python311>> %GITHUB_PATH%
-          echo C:\Python311\Scripts>> %GITHUB_PATH%
+          echo C:\hostedtoolcache\windows\Python\3.11*\x64>> %GITHUB_PATH%
+          echo C:\hostedtoolcache\windows\Python\3.11*\x64\Scripts>> %GITHUB_PATH%
         shell: cmd
 
       - name: Set up ccache (Windows)
@@ -222,25 +227,15 @@ jobs:
       - name: Configure CMake (${{ matrix.edition }}) - Windows
         if: runner.os == 'Windows'
         run: |
-          REM Find Python 3.11 - check multiple possible locations
-          set PYTHON_EXECUTABLE=
-          if exist "C:\Python311\python.exe" (
-            set PYTHON_EXECUTABLE=C:\Python311\python.exe
-          ) else if exist "C:\hostedtoolcache\windows\Python\3.11*\x64\python.exe" (
-            for /f "delims=" %%i in ('dir /b /s "C:\hostedtoolcache\windows\Python\3.11*\x64\python.exe" 2^>nul ^| findstr /R ".*" ^| head -1') do set PYTHON_EXECUTABLE=%%i
-          ) else (
-            for /f "delims=" %%i in ('where python.exe') do (
-              %%i --version 2>&1 | findstr "3.11" >nul && set PYTHON_EXECUTABLE=%%i && goto found_python
-            )
+          REM Find Python 3.11 from setup-python action
+          for /f "delims=" %%i in ('where python.exe') do (
+            %%i --version 2>&1 | findstr "3.11" >nul && set PYTHON_EXECUTABLE=%%i && goto found_python
           )
           :found_python
           if not defined PYTHON_EXECUTABLE (
             echo ERROR: Python 3.11 not found
-            echo Searching for any Python...
-            where python.exe
             exit /b 1
           )
-          REM Verify Python version
           echo Found Python at: %PYTHON_EXECUTABLE%
           %PYTHON_EXECUTABLE% --version
           REM Get NumPy include directory
