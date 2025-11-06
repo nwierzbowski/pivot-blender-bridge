@@ -222,13 +222,27 @@ jobs:
       - name: Configure CMake (${{ matrix.edition }}) - Windows
         if: runner.os == 'Windows'
         run: |
-          REM Use explicit Python 3.11 path
-          set PYTHON_EXECUTABLE=C:\Python311\python.exe
-          REM Verify Python 3.11 is available
-          %PYTHON_EXECUTABLE% --version || (
-            echo ERROR: Python 3.11 not found at %PYTHON_EXECUTABLE%
+          REM Find Python 3.11 - check multiple possible locations
+          set PYTHON_EXECUTABLE=
+          if exist "C:\Python311\python.exe" (
+            set PYTHON_EXECUTABLE=C:\Python311\python.exe
+          ) else if exist "C:\hostedtoolcache\windows\Python\3.11*\x64\python.exe" (
+            for /f "delims=" %%i in ('dir /b /s "C:\hostedtoolcache\windows\Python\3.11*\x64\python.exe" 2^>nul ^| findstr /R ".*" ^| head -1') do set PYTHON_EXECUTABLE=%%i
+          ) else (
+            for /f "delims=" %%i in ('where python.exe') do (
+              %%i --version 2>&1 | findstr "3.11" >nul && set PYTHON_EXECUTABLE=%%i && goto found_python
+            )
+          )
+          :found_python
+          if not defined PYTHON_EXECUTABLE (
+            echo ERROR: Python 3.11 not found
+            echo Searching for any Python...
+            where python.exe
             exit /b 1
           )
+          REM Verify Python version
+          echo Found Python at: %PYTHON_EXECUTABLE%
+          %PYTHON_EXECUTABLE% --version
           REM Get NumPy include directory
           for /f "delims=" %%i in ('%PYTHON_EXECUTABLE% -c "import numpy; print(numpy.get_include())"') do set NUMPY_INCLUDE=%%i
           REM Get Python include directory
