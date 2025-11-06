@@ -116,8 +116,21 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install cmake ninja python3 cython numpy ccache
+          brew install cmake ninja python3 ccache
+          # Install cython and numpy via pip to ensure they're available
+          python3 -m pip install cython numpy
           echo "/opt/homebrew/bin" >> $GITHUB_PATH
+          
+      - name: Create cython wrapper (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p /tmp/bin
+          cat > /tmp/bin/cython << 'EOF'
+          #!/bin/bash
+          exec python3 -m cython "$@"
+          EOF
+          chmod +x /tmp/bin/cython
+          echo "/tmp/bin" >> $GITHUB_PATH
 
       - name: Set up ccache (macOS)
         if: runner.os == 'macOS'
@@ -157,9 +170,11 @@ jobs:
       - name: Configure CMake (${{ matrix.edition }}) - macOS
         if: runner.os == 'macOS'
         run: |
-          export PATH="/opt/homebrew/bin:$PATH"
-          PYTHON_EXECUTABLE=$(which python3.14 || which python3)
+          export PATH="/tmp/bin:/opt/homebrew/bin:$PATH"
+          PYTHON_EXECUTABLE=$(which python3)
           CYTHON_EXECUTABLE=$(which cython)
+          echo "Using Python: $PYTHON_EXECUTABLE"
+          echo "Using Cython: $CYTHON_EXECUTABLE"
           cmake --preset=${{ matrix.edition == 'PRO' && 'pro' || 'standard' }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DPython_EXECUTABLE=$PYTHON_EXECUTABLE -DCYTHON_EXECUTABLE=$CYTHON_EXECUTABLE
         shell: bash
 
