@@ -187,9 +187,17 @@ jobs:
           export PATH="/tmp/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
           PYTHON_EXECUTABLE=/tmp/bin/python3.11
           CYTHON_EXECUTABLE=$(which cython)
+          # Get NumPy include directory
+          NUMPY_INCLUDE=$($PYTHON_EXECUTABLE -c "import numpy; print(numpy.get_include())")
           echo "Using Python: $PYTHON_EXECUTABLE"
           echo "Using Cython: $CYTHON_EXECUTABLE"
-          cmake --preset=${{ matrix.edition == 'PRO' && 'pro' || 'standard' }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DPython_EXECUTABLE=$PYTHON_EXECUTABLE -DCYTHON_EXECUTABLE=$CYTHON_EXECUTABLE
+          echo "Using NumPy include: $NUMPY_INCLUDE"
+          cmake --preset=${{ matrix.edition == 'PRO' && 'pro' || 'standard' }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DPython3_EXECUTABLE=$PYTHON_EXECUTABLE \
+            -DPython3_NumPy_INCLUDE_DIR=$NUMPY_INCLUDE \
+            -DCYTHON_EXECUTABLE=$CYTHON_EXECUTABLE
         shell: bash
 
       - name: Configure CMake (${{ matrix.edition }}) - Windows
