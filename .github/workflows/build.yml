@@ -159,6 +159,14 @@ jobs:
           choco install -y cmake ninja ccache
           choco install -y python --version=3.11.0 || choco install -y python311
           pip install cython numpy
+          
+      - name: Set Python Path (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          REM Add Python installation directory to PATH so it takes precedence
+          echo C:\Python311>> %GITHUB_PATH%
+          echo C:\Python311\Scripts>> %GITHUB_PATH%
+        shell: cmd
 
       - name: Set up ccache (Windows)
         if: runner.os == 'Windows'
@@ -204,10 +212,12 @@ jobs:
       - name: Configure CMake (${{ matrix.edition }}) - Windows
         if: runner.os == 'Windows'
         run: |
-          REM Find Python executable - try python first (most reliable)
+          REM Find Python 3.11 executable
           for /f "delims=" %%i in ('python -c "import sys; print(sys.executable)"') do set PYTHON_EXECUTABLE=%%i
           REM Get NumPy include directory
           for /f "delims=" %%i in ('python -c "import numpy; print(numpy.get_include())"') do set NUMPY_INCLUDE=%%i
+          REM Get Python include directory
+          for /f "delims=" %%i in ('python -c "import sysconfig; print(sysconfig.get_path(\"include\"))"') do set PYTHON_INCLUDE=%%i
           REM Find Cython
           where cython > nul 2>&1 && (
             for /f "delims=" %%i in ('where cython') do set CYTHON_EXECUTABLE=%%i
@@ -216,9 +226,16 @@ jobs:
             exit /b 1
           )
           echo Using Python: %PYTHON_EXECUTABLE%
+          echo Using Python Include: %PYTHON_INCLUDE%
           echo Using NumPy: %NUMPY_INCLUDE%
           echo Using Cython: %CYTHON_EXECUTABLE%
-          cmake --preset=${{ matrix.edition == 'PRO' && 'pro' || 'standard' }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DPython3_EXECUTABLE=%PYTHON_EXECUTABLE% -DPython3_NumPy_INCLUDE_DIR=%NUMPY_INCLUDE% -DCYTHON_EXECUTABLE=%CYTHON_EXECUTABLE%
+          cmake --preset=${{ matrix.edition == 'PRO' && 'pro' || 'standard' }} ^
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
+            -DPython3_EXECUTABLE=%PYTHON_EXECUTABLE% ^
+            -DPython3_INCLUDE_DIR=%PYTHON_INCLUDE% ^
+            -DPython3_NumPy_INCLUDE_DIR=%NUMPY_INCLUDE% ^
+            -DCYTHON_EXECUTABLE=%CYTHON_EXECUTABLE%
         shell: cmd
 
       - name: Build (${{ matrix.edition }})

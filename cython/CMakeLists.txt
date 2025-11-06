@@ -31,7 +31,7 @@ foreach(mod_src ${CYTHON_MODULE_SOURCES})
         if(EXISTS ${PXD_FILE})
             add_custom_command(
                 OUTPUT ${OUT}
-                COMMAND ${CYTHON_EXECUTABLE} --cplus -a -I ${CMAKE_CURRENT_BINARY_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -o ${OUT} ${SRC}
+                COMMAND ${CYTHON_EXECUTABLE} --cplus -a -I ${CMAKE_CURRENT_BINARY_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -I ${Python3_INCLUDE_DIRS} -o ${OUT} ${SRC}
                 BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${mod}.html
                 DEPENDS ${SRC} ${PXD_FILE} ${EDITION_FLAGS_FILE}
                 COMMENT "Cythonizing ${SRC} with HTML annotations"
@@ -39,7 +39,7 @@ foreach(mod_src ${CYTHON_MODULE_SOURCES})
         else()
             add_custom_command(
                 OUTPUT ${OUT}
-                COMMAND ${CYTHON_EXECUTABLE} --cplus -a -I ${CMAKE_CURRENT_BINARY_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -o ${OUT} ${SRC}
+                COMMAND ${CYTHON_EXECUTABLE} --cplus -a -I ${CMAKE_CURRENT_BINARY_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -I ${Python3_INCLUDE_DIRS} -o ${OUT} ${SRC}
                 BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${mod}.html
                 DEPENDS ${SRC} ${EDITION_FLAGS_FILE}
                 COMMENT "Cythonizing ${SRC} with HTML annotations"
