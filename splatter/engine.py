@@ -17,11 +17,51 @@ import subprocess
 import atexit
 import json
 import select
+import platform
 from typing import Dict, Any, Optional, Tuple
 
 # Command IDs for engine communication
 COMMAND_SET_GROUP_CLASSIFICATIONS = 4
 COMMAND_DROP_GROUPS = 5
+
+
+def get_engine_binary_path() -> str:
+    """Get the path to the correct engine binary for this platform/architecture.
+    
+    Returns:
+        str: Path to the splatter_engine executable
+    """
+    addon_root = os.path.dirname(os.path.dirname(__file__))
+    bin_dir = os.path.join(addon_root, 'splatter', 'bin')
+    
+    # Detect OS and architecture
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    
+    # Map architecture names
+    if machine in ('x86_64', 'amd64'):
+        arch = 'x86-64'
+    elif machine in ('aarch64', 'arm64'):
+        arch = 'arm64'
+    else:
+        # Fallback to current architecture
+        arch = machine
+    
+    # Determine binary name
+    if system == 'windows':
+        exe_name = 'splatter_engine.exe'
+    else:
+        exe_name = 'splatter_engine'
+    
+    # Try platform-specific subdirectory first (future-proofing)
+    platform_dir = os.path.join(bin_dir, f'{system}-{arch}')
+    platform_binary = os.path.join(platform_dir, exe_name)
+    if os.path.exists(platform_binary):
+        return platform_binary
+    
+    # Fallback to root bin directory (current structure)
+    fallback_binary = os.path.join(bin_dir, exe_name)
+    return fallback_binary
 
 
 class SplatterEngine:
@@ -48,11 +88,8 @@ class SplatterEngine:
             return True
 
         try:
-            # Get the path to the executable relative to this file
-            addon_dir = os.path.dirname(os.path.dirname(__file__))  # Go up from splatter/
-            # Resolve engine binary name based on OS
-            engine_name = 'splatter_engine.exe' if os.name == 'nt' else 'splatter_engine'
-            engine_path = os.path.join(addon_dir, 'splatter', 'bin', engine_name)
+            # Get the path to the executable for this platform/architecture
+            engine_path = get_engine_binary_path()
             print(f"Engine path: {engine_path}")
 
             # Check if executable exists
