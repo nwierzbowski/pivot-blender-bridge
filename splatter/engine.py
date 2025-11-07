@@ -53,15 +53,38 @@ def get_engine_binary_path() -> str:
     else:
         exe_name = 'splatter_engine'
     
-    # Try platform-specific subdirectory first (future-proofing)
-    platform_dir = os.path.join(bin_dir, f'{system}-{arch}')
+    # Platform identifier for directories
+    platform_id = f'{system}-{arch}'
+    
+    # Try platform-specific subdirectory first
+    platform_dir = os.path.join(bin_dir, platform_id)
     platform_binary = os.path.join(platform_dir, exe_name)
     if os.path.exists(platform_binary):
         return platform_binary
     
-    # Fallback to root bin directory (current structure)
+    # Fallback to root bin directory (legacy structure)
     fallback_binary = os.path.join(bin_dir, exe_name)
     return fallback_binary
+
+
+def get_platform_id() -> str:
+    """Get platform identifier for module loading (e.g., 'linux-x86-64', 'macos-arm64').
+    
+    Returns:
+        str: Platform identifier string
+    """
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    
+    # Map architecture names
+    if machine in ('x86_64', 'amd64'):
+        arch = 'x86-64'
+    elif machine in ('aarch64', 'arm64'):
+        arch = 'arm64'
+    else:
+        arch = machine
+    
+    return f'{system}-{arch}'
 
 
 class SplatterEngine:

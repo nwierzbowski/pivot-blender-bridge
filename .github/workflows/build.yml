@@ -302,14 +302,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: splatter-engine-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.edition }}
-          path: splatter/bin/splatter_engine*
+          path: |
+            splatter/bin/
+            splatter/lib/
           retention-days: 30
 
   create-release:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
       - name: Checkout code
@@ -320,11 +322,50 @@ jobs:
         with:
           path: artifacts
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Create universal addon package
+        run: |
+          mkdir -p universal-addon/bin universal-addon/lib
+          
+          # Extract and organize binaries from all platform artifacts
+          for artifact_dir in artifacts/*/; do
+            if [[ -d "$artifact_dir" ]]; then
+              echo "Processing $artifact_dir"
+              
+              # Extract platform from artifact name (e.g., splatter-engine-linux-x86-64-PRO -> linux-x86-64)
+              artifact_name=$(basename "$artifact_dir")
+              platform=$(echo "$artifact_name" | sed -E 's/splatter-engine-([^-]+-[^-]+)-.*/\1/')
+              
+              # Copy engine binary to platform-specific directory
+              mkdir -p "universal-addon/bin/$platform"
+              if [[ -f "$artifact_dir/splatter/bin/splatter_engine" ]]; then
+                cp "$artifact_dir/splatter/bin/splatter_engine" "universal-addon/bin/$platform/"
+              fi
+              
+              # Copy Cython modules to platform-specific directory
+              mkdir -p "universal-addon/lib/$platform"
+              if [[ -d "$artifact_dir/splatter/lib" ]]; then
+                echo "Copying Cython modules for $platform"
+                cp -r "$artifact_dir/splatter/lib/"* "universal-addon/lib/$platform/" 2>/dev/null || true
+              fi
+            fi
+          done
+          
+          # Verify we got binaries and modules for at least one platform
+          if [[ ! -f "universal-addon/bin/linux-x86-64/splatter_engine" ]]; then
+            echo "ERROR: No engine binaries found!"
+            exit 1
+          fi
+          
+          # Create the universal zip with bin/ and lib/ at root
+          cd universal-addon
+          zip -r ../splatter-binaries-universal.zip .
+          cd ..
+          
+          echo "Created universal binaries package: splatter-binaries-universal.zip"
+
+      - name: Upload universal addon
+        uses: actions/upload-artifact@v4
         with:
-          files: artifacts/**/*
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: splatter-binaries-universal
+          path: splatter-binaries-universal.zip
+          retention-days: 30

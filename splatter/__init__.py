@@ -48,6 +48,27 @@ classesToRegister = (
 def register():
     global _standard_panel_registered
     print(f"Registering {bl_info.get('name')} version {bl_info.get('version')}")
+    
+    # Add platform-specific lib directory to sys.path for Cython module loading
+    try:
+        from . import engine
+        platform_id = engine.get_platform_id()
+        addon_root = os.path.dirname(__file__)
+        platform_lib_dir = os.path.join(addon_root, 'lib', platform_id)
+        
+        if os.path.isdir(platform_lib_dir):
+            if platform_lib_dir not in sys.path:
+                sys.path.insert(0, platform_lib_dir)
+            print(f"[Splatter] Added platform-specific lib path: {platform_lib_dir}")
+        else:
+            # Fallback to root lib directory for legacy structure
+            root_lib_dir = os.path.join(addon_root, 'lib')
+            if root_lib_dir not in sys.path:
+                sys.path.insert(0, root_lib_dir)
+            print(f"[Splatter] Added legacy lib path: {root_lib_dir}")
+    except Exception as e:
+        print(f"[Splatter] Warning: Could not set up lib path: {e}")
+    
     for cls in classesToRegister:
         bpy.utils.register_class(cls)
     bpy.types.Scene.splatter = PointerProperty(type=SceneAttributes)
