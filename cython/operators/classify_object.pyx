@@ -201,8 +201,17 @@ def classify_and_apply_groups(list selected_objects):
     
     # Close shared memory in parent process
     for shm in shm_objects:
+        try:
+            shm_name = getattr(shm, "name", "<unknown>")
+        except Exception:
+            shm_name = "<unknown>"
+        print(f"[Splatter][shm][close] name={shm_name}")
         shm.close()
     
+    if not bool(final_response.get("ok", True)):
+        error_msg = final_response.get("error", "Unknown engine error during classify_groups")
+        raise RuntimeError(f"classify_groups failed: {error_msg}")
+
     # --- Extract engine results ---
     groups = final_response["groups"]
     rots = [Quaternion(groups[name]["rot"]) for name in group_names]
@@ -294,8 +303,17 @@ def classify_and_apply_active_objects(list objects):
     
     # Close shared memory in parent process
     for shm in shm_objects:
+        try:
+            shm_name = getattr(shm, "name", "<unknown>")
+        except Exception:
+            shm_name = "<unknown>"
+        print(f"[Splatter][shm][close] name={shm_name}")
         shm.close()
     
+    if not bool(final_response.get("ok", True)):
+        error_msg = final_response.get("error", "Unknown engine error during classify_objects")
+        raise RuntimeError(f"classify_objects failed: {error_msg}")
+
     # --- Extract engine results ---
     # Engine returns results as a dict keyed by object name
     results = final_response.get("results", {})

@@ -317,27 +317,40 @@ jobs:
           for artifact_dir in artifacts/*/; do
             if [[ -d "$artifact_dir" ]]; then
               echo "Processing $artifact_dir"
-              
-              # Extract platform from artifact name (e.g., splatter-engine-linux-x86-64-PRO -> linux-x86-64)
               artifact_name=$(basename "$artifact_dir")
+              # Normalize artifact name (e.g., splatter-engine-windows-x86-64-PRO)
               platform=$(echo "$artifact_name" | sed -E 's/splatter-engine-([^-]+-[^-]+)-.*/\1/')
-              
+              edition=$(echo "$artifact_name" | sed -E 's/.*-([A-Z]+)$/\1/')
+
+              src_root="$artifact_dir"
+              if [[ -d "$artifact_dir/splatter" ]]; then
+                src_root="$artifact_dir/splatter"
+              fi
+
               # Copy engine binary to platform-specific directory
               mkdir -p "universal-addon/bin/$platform"
-              engine_path=$(find "$artifact_dir/splatter/bin" -maxdepth 2 -type f \( -name 'splatter_engine' -o -name 'splatter_engine.exe' \) | head -n1)
+              engine_path=$(find "$src_root/bin" -maxdepth 3 -type f \( -name 'splatter_engine' -o -name 'splatter_engine.exe' \) | head -n1)
               if [[ -n "$engine_path" ]]; then
-                echo "Copying engine from $engine_path"
-                cp "$engine_path" "universal-addon/bin/$platform/"
+                dest_engine="universal-addon/bin/$platform/splatter_engine"
+                if [[ $engine_path == *.exe ]]; then
+                  dest_engine+=".exe"
+                fi
+                echo "Copying engine from $engine_path -> $dest_engine"
+                cp "$engine_path" "$dest_engine"
+              else
+                echo "WARNING: No engine binary found in $artifact_dir"
               fi
-              
+
               # Copy Cython modules to platform-specific directory
               mkdir -p "universal-addon/lib/$platform"
-              if [[ -d "$artifact_dir/splatter/lib/$platform" ]]; then
+              if [[ -d "$src_root/lib/$platform" ]]; then
                 echo "Copying Cython modules for $platform"
-                cp -r "$artifact_dir/splatter/lib/$platform/"* "universal-addon/lib/$platform/" 2>/dev/null || true
-              elif [[ -d "$artifact_dir/splatter/lib" ]]; then
+                cp -r "$src_root/lib/$platform/"* "universal-addon/lib/$platform/" 2>/dev/null || true
+              elif [[ -d "$src_root/lib" ]]; then
                 echo "Copying all Cython modules (no platform subdir) for $platform"
-                cp -r "$artifact_dir/splatter/lib/"* "universal-addon/lib/$platform/" 2>/dev/null || true
+                cp -r "$src_root/lib/"* "universal-addon/lib/$platform/" 2>/dev/null || true
+              else
+                echo "WARNING: No Cython modules found for $platform"
               fi
             fi
           done

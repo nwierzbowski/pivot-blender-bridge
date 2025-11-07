@@ -24,10 +24,15 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     scales_shm_name = f"sp_s_{uid}"
     offsets_shm_name = f"sp_o_{uid}"
 
+    print(f"[Splatter][shm][create] verts name={verts_shm_name} size={verts_size}")
     verts_shm = shared_memory.SharedMemory(create=True, size=verts_size, name=verts_shm_name)
+    print(f"[Splatter][shm][create] edges name={edges_shm_name} size={edges_size}")
     edges_shm = shared_memory.SharedMemory(create=True, size=edges_size, name=edges_shm_name)
+    print(f"[Splatter][shm][create] rotations name={rotations_shm_name} size={rotations_size}")
     rotations_shm = shared_memory.SharedMemory(create=True, size=rotations_size, name=rotations_shm_name)
+    print(f"[Splatter][shm][create] scales name={scales_shm_name} size={scales_size}")
     scales_shm = shared_memory.SharedMemory(create=True, size=scales_size, name=scales_shm_name)
+    print(f"[Splatter][shm][create] offsets name={offsets_shm_name} size={offsets_size}")
     offsets_shm = shared_memory.SharedMemory(create=True, size=offsets_size, name=offsets_shm_name)
 
     cdef cnp.ndarray all_verts = np.ndarray((verts_size // 4,), dtype=np.float32, buffer=verts_shm.buf)
@@ -184,6 +189,7 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
     face_sizes_shm_name = f"sp_fs_{uid_faces}"
 
     try:
+        print(f"[Splatter][shm][create] face_sizes name={face_sizes_shm_name} size={face_sizes_size}")
         face_sizes_shm = shared_memory.SharedMemory(create=True, size=face_sizes_size, name=face_sizes_shm_name)
         shm_face_sizes_buf = np.ndarray((total_faces_count,), dtype=np.uint32, buffer=face_sizes_shm.buf)
 
@@ -222,6 +228,7 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
 
         faces_shm_name = f"sp_f_{uid_faces}"
         faces_size = <size_t>total_face_vertices * 4
+        print(f"[Splatter][shm][create] faces name={faces_shm_name} size={faces_size}")
         faces_shm = shared_memory.SharedMemory(create=True, size=faces_size, name=faces_shm_name)
         shm_faces_buf = np.ndarray((total_face_vertices,), dtype=np.uint32, buffer=faces_shm.buf)
 
@@ -250,9 +257,17 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
 
     except Exception:
         if faces_shm is not None:
+            try:
+                print(f"[Splatter][shm][close] faces name={faces_shm.name}")
+            except Exception:
+                pass
             faces_shm.close()
             faces_shm.unlink()
         if face_sizes_shm is not None:
+            try:
+                print(f"[Splatter][shm][close] face_sizes name={face_sizes_shm.name}")
+            except Exception:
+                pass
             face_sizes_shm.close()
             face_sizes_shm.unlink()
         raise
