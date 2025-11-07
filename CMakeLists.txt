@@ -76,6 +76,10 @@ _splatter_prepare_dir("${SPLATTER_LIB_DIR}")
 
 # Shared dependencies (available to subprojects)
 include(FetchContent)
+# Disable Eigen extras we don't use; keeps Windows builds from probing Fortran toolchains
+set(EIGEN_TEST_FORTRAN OFF CACHE BOOL "Disable Eigen Fortran tests" FORCE)
+set(EIGEN_BUILD_TESTING OFF CACHE BOOL "Disable Eigen self-tests" FORCE)
+set(EIGEN_BUILD_DOC OFF CACHE BOOL "Disable Eigen documentation build" FORCE)
 FetchContent_Declare(
     Eigen
     GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
