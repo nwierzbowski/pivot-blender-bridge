@@ -68,9 +68,9 @@ def enforce_colors(scene, depsgraph):
                     if coll_name in bpy.data.collections:
                         bpy.data.collections[coll_name].color_tag = 'NONE'
                 group_mgr.drop_groups(orphaned_groups)
-                print(f"[Splatter] Dropped {dropped_count} orphaned groups from engine")
+                print(f"[Pivot] Dropped {dropped_count} orphaned groups from engine")
         except Exception as e:
-            print(f"[Splatter] Error handling orphaned groups: {e}")
+            print(f"[Pivot] Error handling orphaned groups: {e}")
     
     # Update colors for remaining managed groups
     group_mgr.update_colors()
@@ -204,9 +204,9 @@ def on_load_pre(scene):
         if classifications:
             surface_manager.sync_group_classifications(classifications)
     except Exception as e:
-        print(f"[Splatter] Failed to sync classifications before load: {e}")
+        print(f"[Pivot] Failed to sync classifications before load: {e}")
     
-    # Stop the splatter engine
+    # Stop the pivot engine
     
     
 

@@ -1,7 +1,7 @@
 """
-Splatter Engine Management Module
+Pivot Engine Management Module
 
-This module provides a unified interface for managing the C++ splatter engine subprocess.
+This module provides a unified interface for managing the C++ pivot engine subprocess.
 
 Responsibilities:
 - Process lifecycle management (start/stop subprocess)
@@ -29,7 +29,7 @@ def get_engine_binary_path() -> str:
     """Get the path to the correct engine binary for this platform/architecture.
     
     Returns:
-        str: Path to the splatter_engine executable
+        str: Path to the pivot_engine executable
     """
     addon_root = os.path.dirname(os.path.dirname(__file__))
     bin_dir = os.path.join(addon_root, 'splatter', 'bin')
@@ -49,9 +49,9 @@ def get_engine_binary_path() -> str:
     
     # Determine binary name
     if system == 'windows':
-        exe_name = 'splatter_engine.exe'
+        exe_name = 'pivot_engine.exe'
     else:
-        exe_name = 'splatter_engine'
+        exe_name = 'pivot_engine'
     
     # Platform identifier for directories
     platform_id = f'{system}-{arch}'
@@ -87,8 +87,8 @@ def get_platform_id() -> str:
     return f'{system}-{arch}'
 
 
-class SplatterEngine:
-    """Unified interface for the C++ splatter engine subprocess.
+class PivotEngine:
+    """Unified interface for the C++ pivot engine subprocess.
 
     This class encapsulates all engine-related functionality:
     - Process lifecycle management (start/stop)
@@ -101,13 +101,13 @@ class SplatterEngine:
         self._is_running = False
 
     def start(self) -> bool:
-        """Start the splatter engine executable.
+        """Start the pivot engine executable.
 
         Returns:
             bool: True if started successfully, False otherwise
         """
         if self._is_running:
-            print("Splatter engine is already running")
+            print("Pivot engine is already running")
             return True
 
         try:
@@ -120,7 +120,7 @@ class SplatterEngine:
                 print(f"Warning: Engine executable not found at {engine_path}")
                 return False
 
-            print(f"Starting splatter engine: {engine_path}")
+            print(f"Starting pivot engine: {engine_path}")
 
             # Start the engine process
             self._process = subprocess.Popen(
@@ -134,22 +134,22 @@ class SplatterEngine:
             )
 
             self._is_running = True
-            print("Splatter engine started successfully")
+            print("Pivot engine started successfully")
             return True
 
         except Exception as e:
-            print(f"Failed to start splatter engine: {e}")
+            print(f"Failed to start pivot engine: {e}")
             self._process = None
             self._is_running = False
             return False
 
     def stop(self) -> None:
-        """Stop the splatter engine executable."""
+        """Stop the pivot engine executable."""
         if not self._is_running or self._process is None:
             return
 
         try:
-            print("Stopping splatter engine...")
+            print("Stopping pivot engine...")
 
             # Send quit command to the engine
             if self._process.poll() is None:  # Process is still running
@@ -168,12 +168,12 @@ class SplatterEngine:
                         self._process.kill()
                         self._process.wait()
 
-            print("Splatter engine stopped")
+            print("Pivot engine stopped")
             self._process = None
             self._is_running = False
 
         except Exception as e:
-            print(f"Error stopping splatter engine: {e}")
+            print(f"Error stopping pivot engine: {e}")
             if self._process:
                 try:
                     self._process.kill()
@@ -338,20 +338,20 @@ class SplatterEngine:
 
 
 # Global engine instance
-_engine_instance = SplatterEngine()
+_engine_instance = PivotEngine()
 
 
 def start_engine() -> bool:
-    """Start the splatter engine (convenience function)."""
+    """Start the pivot engine (convenience function)."""
     return _engine_instance.start()
 
 
 def stop_engine() -> None:
-    """Stop the splatter engine (convenience function)."""
+    """Stop the pivot engine (convenience function)."""
     _engine_instance.stop()
 
 
-def get_engine_communicator() -> SplatterEngine:
+def get_engine_communicator() -> PivotEngine:
     """Get the engine instance for communication."""
     if not _engine_instance.is_running():
         raise RuntimeError("Engine process not started. Make sure the addon is properly registered.")

@@ -35,7 +35,7 @@ class Splatter_PT_Status_Panel(bpy.types.Panel):
                 license_type = engine.sync_license_mode()
                 set_engine_license_status(license_type)
             except Exception as e:
-                print(f"[Splatter] Failed to sync license: {e}")
+                print(f"[Pivot] Failed to sync license: {e}")
                 license_type = "UNKNOWN"
         
         # Show license selector
@@ -69,7 +69,7 @@ class Splatter_PT_Pro_Panel(bpy.types.Panel):
                 license_type = engine.sync_license_mode()
                 set_engine_license_status(license_type)
             except Exception as e:
-                print(f"[Splatter] Failed to sync license: {e}")
+                print(f"[Pivot] Failed to sync license: {e}")
                 license_type = "UNKNOWN"
         
         enabled = (license_type == LICENSE_PRO)

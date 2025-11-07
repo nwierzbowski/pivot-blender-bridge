@@ -14,8 +14,8 @@ LABEL_SURFACE_TYPE = "Surface:"
 LABEL_LICENSE_TYPE = "License:"
 
 # Marker property to identify classification collections
-CLASSIFICATION_MARKER_PROP = "splatter_is_classification_collection"
-CLASSIFICATION_ROOT_MARKER_PROP = "splatter_is_classification_root"
+CLASSIFICATION_MARKER_PROP = "pivot_is_classification_collection"
+CLASSIFICATION_ROOT_MARKER_PROP = "pivot_is_classification_root"
 
 def _is_descendant_of_classification_collection(coll):
     """Check if a collection is a descendant of any classification collection."""

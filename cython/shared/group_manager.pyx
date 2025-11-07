@@ -114,11 +114,11 @@ cdef class GroupManager:
         """Subscribe to name changes for a collection."""
         try:
             if not collection:
-                print(f"[Splatter] Collection is None")
+                print(f"[Pivot] Collection is None")
                 return
             
             if not hasattr(collection, 'name'):
-                print(f"[Splatter] Collection has no name attribute")
+                print(f"[Pivot] Collection has no name attribute")
                 return
                 
             collection_name = collection.name
@@ -134,10 +134,10 @@ cdef class GroupManager:
             )
             
             self._name_tracker[collection] = collection_name
-            print(f"[Splatter] Successfully subscribed to '{collection_name}'")
+            print(f"[Pivot] Successfully subscribed to '{collection_name}'")
             
         except Exception as e:
-            print(f"[Splatter] Failed to subscribe to name changes: {e}")
+            print(f"[Pivot] Failed to subscribe to name changes: {e}")
             import traceback
             traceback.print_exc()
 

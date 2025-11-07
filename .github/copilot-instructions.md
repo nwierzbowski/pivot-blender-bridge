@@ -1,7 +1,7 @@
-# Copilot Instructions for Splatter Project
+# Copilot Instructions for Pivot Project
 
 ## Architecture Overview
-Splatter is a Blender add-on for AI-powered object scattering. It uses a hybrid Python/C++ architecture:
+Pivot is a Blender add-on for AI-powered object organization. It uses a hybrid Python/C++ architecture:
 - **Python layer** (`splatter/`): Blender addon UI, data preparation, and IPC client.
 - **C++ engine** (`engine/`): High-performance geometric computations (COG via convex hulls, slicing).
 - **Communication**: JSON over stdin/stdout for control; shared memory (Boost.Interprocess) for large data arrays.
@@ -13,9 +13,9 @@ Key data flows:
 - Example: `prepare_op.cpp` maps shared memory, calls `prepare_object_batch` in `engine.cpp`.
 
 ## Build and Run
-- **Build engine**: `cmake --preset=default && cmake --build --preset=default-release` (outputs to `splatter/bin/splatter_engine`).
+- **Build engine**: `cmake --preset=default && cmake --build --preset=default-release` (outputs to `splatter/bin/pivot_engine`).
 - **Run addon**: Install `splatter/` as Blender addon; engine auto-starts via subprocess.
-- **Debug C++**: Use gdb on `splatter_engine`; attach to running process.
+- **Debug C++**: Use gdb on `pivot_engine`; attach to running process.
 - **Debug Python**: Use Blender's text editor/console for addon scripts.
 - **Dependencies**: Boost (IPC), Eigen (math), CMake/Ninja. Install via `apt` or build deps.
 

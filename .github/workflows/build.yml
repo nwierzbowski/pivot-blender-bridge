@@ -1,4 +1,4 @@
-name: Build Splatter Engine
+name: Build Pivot Engine
 
 on:
   push:

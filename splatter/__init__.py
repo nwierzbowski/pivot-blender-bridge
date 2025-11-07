@@ -53,7 +53,7 @@ def register():
     try:
         engine.stop_engine()
     except Exception as e:
-        print(f"[Splatter] Note: Could not stop engine during register: {e}")
+        print(f"[Pivot] Note: Could not stop engine during register: {e}")
     
     # Force reload of Cython modules to pick up new edition binary
     cython_modules = [
@@ -68,9 +68,9 @@ def register():
         if mod_name in sys.modules:
             try:
                 importlib.reload(sys.modules[mod_name])
-                print(f"[Splatter] Reloaded {mod_name}")
+                print(f"[Pivot] Reloaded {mod_name}")
             except Exception as e:
-                print(f"[Splatter] Warning: Could not reload {mod_name}: {e}")
+                print(f"[Pivot] Warning: Could not reload {mod_name}: {e}")
     
     # Add platform-specific lib directory to sys.path for Cython module loading
     try:
@@ -81,15 +81,15 @@ def register():
         if os.path.isdir(platform_lib_dir):
             if platform_lib_dir not in sys.path:
                 sys.path.insert(0, platform_lib_dir)
-            print(f"[Splatter] Added platform-specific lib path: {platform_lib_dir}")
+            print(f"[Pivot] Added platform-specific lib path: {platform_lib_dir}")
         else:
             # Fallback to root lib directory for legacy structure
             root_lib_dir = os.path.join(addon_root, 'lib')
             if root_lib_dir not in sys.path:
                 sys.path.insert(0, root_lib_dir)
-            print(f"[Splatter] Added legacy lib path: {root_lib_dir}")
+            print(f"[Pivot] Added legacy lib path: {root_lib_dir}")
     except Exception as e:
-        print(f"[Splatter] Warning: Could not set up lib path: {e}")
+        print(f"[Pivot] Warning: Could not set up lib path: {e}")
     
     for cls in classesToRegister:
         bpy.utils.register_class(cls)
@@ -104,15 +104,15 @@ def register():
             st = os.stat(engine_path)
             if not (st.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
                 os.chmod(engine_path, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-                print("Fixed executable permissions on splatter engine binary (register)")
+                print("Fixed executable permissions on pivot engine binary (register)")
     except Exception as e:
         print(f"Note: Could not adjust permissions for engine binary during register: {e}")
 
-    # Start the splatter engine
+    # Start the pivot engine
     engine_started = engine.start_engine()
     
     if not engine_started:
-        print("[Splatter] Failed to start engine after loading file")
+        print("[Pivot] Failed to start engine after loading file")
         is_pro = False  # Default to standard if engine fails
     else:
         # Print Cython edition for debugging
@@ -121,7 +121,7 @@ def register():
             edition_utils.print_edition()
             is_pro = edition_utils.is_pro_edition()
         except Exception as e:
-            print(f"[Splatter] Could not print Cython edition: {e}")
+            print(f"[Pivot] Could not print Cython edition: {e}")
             is_pro = False
 
     bpy.utils.register_class(Splatter_PT_Status_Panel)

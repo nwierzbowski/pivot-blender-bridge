@@ -13,8 +13,8 @@ def is_standard_edition() -> bool:
 def print_edition() -> None:
     """Print the edition this Cython module was compiled for (testing helper)."""
     if pivot_pro:
-        print("[Splatter][Cython] Compile-time branch: PRO edition")
+        print("[Pivot][Cython] Compile-time branch: PRO edition")
     elif pivot_standard:
-        print("[Splatter][Cython] Compile-time branch: STANDARD edition")
+        print("[Pivot][Cython] Compile-time branch: STANDARD edition")
     else:
-        print("[Splatter][Cython] Compile-time branch: UNKNOWN edition")
+        print("[Pivot][Cython] Compile-time branch: UNKNOWN edition")
