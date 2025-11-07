@@ -3,8 +3,7 @@ import bpy
 import os
 import stat
 
-from splatter import engine
-
+from . import engine
 from .classes import SceneAttributes
 from bpy.props import PointerProperty
 
@@ -51,7 +50,6 @@ def register():
     
     # Add platform-specific lib directory to sys.path for Cython module loading
     try:
-        from . import engine
         platform_id = engine.get_platform_id()
         addon_root = os.path.dirname(__file__)
         platform_lib_dir = os.path.join(addon_root, 'lib', platform_id)
@@ -77,8 +75,8 @@ def register():
 
     # Ensure engine binary is executable after zip install (zip extraction often drops exec bits)
     try:
-        engine_path = os.path.join(os.path.dirname(__file__), 'bin', 'splatter_engine')
-        if os.path.exists(engine_path) and os.name != 'nt':
+        engine_path = engine.get_engine_binary_path()
+        if engine_path and os.path.exists(engine_path) and os.name != 'nt':
             st = os.stat(engine_path)
             if not (st.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
                 os.chmod(engine_path, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -95,9 +93,6 @@ def register():
     else:
         # Print Cython edition for debugging
         try:
-            lib_path = os.path.join(os.path.dirname(__file__), 'lib')
-            if lib_path not in sys.path:
-                sys.path.insert(0, lib_path)
             from .lib import edition_utils
             edition_utils.print_edition()
             is_pro = edition_utils.is_pro_edition()
