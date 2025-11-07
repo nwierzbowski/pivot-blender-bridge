@@ -121,7 +121,7 @@ if(NOT Eigen_POPULATED)
 endif()
 
 if(NOT TARGET Eigen3::Eigen)
-    add_library(Eigen3::Eigen INTERFACE IMPORTED)
+    add_library(Eigen3::Eigen INTERFACE IMPORTED GLOBAL)
     set_target_properties(Eigen3::Eigen PROPERTIES
         INTERFACE_INCLUDE_DIRECTORIES "${Eigen_SOURCE_DIR}"
     )
