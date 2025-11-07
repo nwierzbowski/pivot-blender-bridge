@@ -205,7 +205,6 @@ def classify_and_apply_groups(list selected_objects):
             shm_name = getattr(shm, "name", "<unknown>")
         except Exception:
             shm_name = "<unknown>"
-        print(f"[Pivot][shm][close] name={shm_name}")
         shm.close()
     
     if not bool(final_response.get("ok", True)):
@@ -315,7 +314,6 @@ def classify_and_apply_active_objects(list objects):
             shm_name = getattr(shm, "name", "<unknown>")
         except Exception:
             shm_name = "<unknown>"
-        print(f"[Pivot][shm][close] name={shm_name}")
         shm.close()
     
     if not bool(final_response.get("ok", True)):
