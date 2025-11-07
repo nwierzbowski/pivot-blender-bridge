@@ -2,7 +2,7 @@ name: Build Pivot Engine
 
 on:
   push:
-    branches: [main, dev, dev2]
+    branches: [main]
     paths:
       - 'engine/**'
       - 'core/**'
@@ -11,7 +11,7 @@ on:
       - 'CMakePresets.json'
       - '.github/workflows/build.yml'
   pull_request:
-    branches: [main, dev, dev2]
+    branches: [main]
     paths:
       - 'engine/**'
       - 'core/**'
