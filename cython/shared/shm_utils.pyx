@@ -15,11 +15,14 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     scales_size = total_objects * 3 * 4
     offsets_size = total_objects * 3 * 4
 
-    verts_shm_name = f"splatter_verts_{uuid.uuid4().hex}"
-    edges_shm_name = f"splatter_edges_{uuid.uuid4().hex}"
-    rotations_shm_name = f"splatter_rotations_{uuid.uuid4().hex}"
-    scales_shm_name = f"splatter_scales_{uuid.uuid4().hex}"
-    offsets_shm_name = f"splatter_offsets_{uuid.uuid4().hex}"
+    # macOS has a 31-char limit for POSIX shared memory names
+    # Use short prefixes and truncate UUID to fit within the limit
+    uid = uuid.uuid4().hex[:16]  # Use first 16 chars of UUID
+    verts_shm_name = f"sp_v_{uid}"
+    edges_shm_name = f"sp_e_{uid}"
+    rotations_shm_name = f"sp_r_{uid}"
+    scales_shm_name = f"sp_s_{uid}"
+    offsets_shm_name = f"sp_o_{uid}"
 
     verts_shm = shared_memory.SharedMemory(create=True, size=verts_size, name=verts_shm_name)
     edges_shm = shared_memory.SharedMemory(create=True, size=edges_size, name=edges_shm_name)
@@ -176,7 +179,9 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
 
     cdef size_t face_sizes_size = <size_t>total_faces_count * 4
 
-    face_sizes_shm_name = f"splatter_face_sizes_{uuid.uuid4().hex}"
+    # macOS has a 31-char limit for POSIX shared memory names
+    uid_faces = uuid.uuid4().hex[:16]
+    face_sizes_shm_name = f"sp_fs_{uid_faces}"
 
     try:
         face_sizes_shm = shared_memory.SharedMemory(create=True, size=face_sizes_size, name=face_sizes_shm_name)
@@ -215,7 +220,7 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
         if total_face_vertices == 0:
             raise ValueError("prepare_face_data: collected faces but no vertex indices recorded")
 
-        faces_shm_name = f"splatter_faces_{uuid.uuid4().hex}"
+        faces_shm_name = f"sp_f_{uid_faces}"
         faces_size = <size_t>total_face_vertices * 4
         faces_shm = shared_memory.SharedMemory(create=True, size=faces_size, name=faces_shm_name)
         shm_faces_buf = np.ndarray((total_face_vertices,), dtype=np.uint32, buffer=faces_shm.buf)

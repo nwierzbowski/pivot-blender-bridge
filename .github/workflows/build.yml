@@ -155,20 +155,21 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          architecture: 'x64'
 
       - name: Set up dependencies (Windows)
         if: runner.os == 'Windows'
-        run: |
-          choco install -y cmake ninja ccache
-          pip install cython numpy
-
-      - name: Set up ccache (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          echo "CCACHE_DIR=$env:USERPROFILE\.ccache" >> $env:GITHUB_ENV
-          echo "CCACHE_MAXSIZE=500M" >> $env:GITHUB_ENV
-          ccache --version
         shell: pwsh
+        run: |
+          choco install -y ninja
+          & "$env:pythonLocation\python.exe" -m pip install --upgrade pip
+          & "$env:pythonLocation\python.exe" -m pip install cython numpy
+
+      - name: Set up MSVC toolchain (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - name: Set up CMake (all platforms)
         uses: jwlawson/actions-setup-cmake@v2
@@ -181,7 +182,7 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           export PYTHON_EXECUTABLE=/usr/bin/python3.11
           CYTHON_EXECUTABLE=$(which cython)
-          cmake --preset=${{ matrix.edition == 'PRO' && 'pro' || 'standard' }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DPython_EXECUTABLE=$PYTHON_EXECUTABLE -DCYTHON_EXECUTABLE=$CYTHON_EXECUTABLE
+          cmake --preset=${{ matrix.edition == 'PRO' && 'pro' || 'standard' }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DPython3_EXECUTABLE=$PYTHON_EXECUTABLE -DCYTHON_EXECUTABLE=$CYTHON_EXECUTABLE
         shell: bash
 
       - name: Configure CMake (${{ matrix.edition }}) - macOS
@@ -218,69 +219,38 @@ jobs:
 
       - name: Configure CMake (${{ matrix.edition }}) - Windows
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          REM Initialize MSVC environment (x64)
-          for /f "delims=" %%i in ('vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath') do set VSINSTALLDIR=%%i
-          if not defined VSINSTALLDIR (
-            echo ERROR: Unable to locate a suitable Visual Studio installation
-            exit /b 1
-          )
-          call "%VSINSTALLDIR%\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul
-          if errorlevel 1 (
-            echo ERROR: vcvarsall.bat failed to initialize the MSVC environment
-            exit /b 1
-          )
-          set "CL_COMPILER="
-          for /f "delims=" %%i in ('where cl.exe 2^>nul') do (
-            if not defined CL_COMPILER (
-              set "CL_COMPILER=%%i"
-            )
-          )
-          if not defined CL_COMPILER (
-            echo ERROR: Unable to locate cl.exe after initializing MSVC environment
-            exit /b 1
-          )
-          REM Find Python 3.11 from setup-python action
-          for /f "delims=" %%i in ('where python.exe') do (
-            %%i --version 2>&1 | findstr "3.11" >nul && set PYTHON_EXECUTABLE=%%i && goto found_python
-          )
-          :found_python
-          if not defined PYTHON_EXECUTABLE (
-            echo ERROR: Python 3.11 not found
-            exit /b 1
-          )
-          echo Found Python at: %PYTHON_EXECUTABLE%
-          %PYTHON_EXECUTABLE% --version
-          REM Get NumPy include directory
-          for /f "delims=" %%i in ('%PYTHON_EXECUTABLE% -c "import numpy; print(numpy.get_include())"') do set NUMPY_INCLUDE=%%i
-          REM Get Python include directory
-          for /f "delims=" %%i in ('%PYTHON_EXECUTABLE% -c "import sysconfig; print(sysconfig.get_path(\"include\"))"') do set PYTHON_INCLUDE=%%i
-          REM Find Cython
-          where cython > nul 2>&1 && (
-            for /f "delims=" %%i in ('where cython') do set CYTHON_EXECUTABLE=%%i
-          ) || (
-            echo ERROR: cython not found
-            exit /b 1
-          )
-          echo Using MSVC: %CL_COMPILER%
-          echo Using Python: %PYTHON_EXECUTABLE%
-          echo Using Python Include: %PYTHON_INCLUDE%
-          echo Using NumPy: %NUMPY_INCLUDE%
-          echo Using Cython: %CYTHON_EXECUTABLE%
-          cmake --preset=${{ matrix.edition == 'PRO' && 'pro' || 'standard' }} ^
-            -DCMAKE_C_COMPILER="%CL_COMPILER%" ^
-            -DCMAKE_CXX_COMPILER="%CL_COMPILER%" ^
-            -DPython3_EXECUTABLE=%PYTHON_EXECUTABLE% ^
-            -DPython3_INCLUDE_DIR=%PYTHON_INCLUDE% ^
-            -DPython3_NumPy_INCLUDE_DIR=%NUMPY_INCLUDE% ^
-            -DCYTHON_EXECUTABLE=%CYTHON_EXECUTABLE%
-        shell: cmd
+          if ('${{ matrix.edition }}' -eq 'PRO') {
+            $preset = 'pro'
+          } else {
+            $preset = 'standard'
+          }
+          $python = Join-Path $env:pythonLocation 'python.exe'
+          $cython = Join-Path $env:pythonLocation 'Scripts\cython.exe'
+          if (-not (Test-Path $cython)) {
+            throw "cython executable not found at $cython"
+          }
+          cmake --preset=$preset `
+            "-DPython3_ROOT_DIR=$env:pythonLocation" `
+            "-DPython3_EXECUTABLE=$python" `
+            "-DPython3_FIND_STRATEGY=LOCATION" `
+            "-DPython3_FIND_REGISTRY=NEVER" `
+            "-DPython3_FIND_VIRTUALENV=FIRST" `
+            "-DCYTHON_EXECUTABLE=$cython"
 
-      - name: Build (${{ matrix.edition }})
+      - name: Build (${{ matrix.edition }}) - Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cmake --build --preset=${{ matrix.preset }}
+
+      - name: Build (${{ matrix.edition }}) - Linux/macOS
+        if: runner.os != 'Windows'
         run: cmake --build --preset=${{ matrix.preset }}
         shell: bash
 
       - name: Show ccache stats
+        if: runner.os != 'Windows'
         run: ccache --show-stats
         shell: bash
 
@@ -299,9 +269,13 @@ jobs:
 
       - name: Verify binary (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          powershell -Command "file splatter/bin/splatter_engine.exe" || dir splatter\bin\splatter_engine.exe
-        shell: bash
+          if (Test-Path "splatter\bin\splatter_engine.exe") {
+            Get-Item "splatter\bin\splatter_engine.exe"
+          } else {
+            Write-Error "splatter\\bin\\splatter_engine.exe not found"
+          }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
