@@ -67,17 +67,17 @@ jobs:
             preset: standard-release
 
           # Windows x86-64
-          - os: windows
-            arch: x86-64
-            runs-on: windows-latest
-            edition: PRO
-            preset: pro-release
+          # - os: windows
+          #   arch: x86-64
+          #   runs-on: windows-latest
+          #   edition: PRO
+          #   preset: pro-release
             
-          - os: windows
-            arch: x86-64
-            runs-on: windows-latest
-            edition: STANDARD
-            preset: standard-release
+          # - os: windows
+          #   arch: x86-64
+          #   runs-on: windows-latest
+          #   edition: STANDARD
+          #   preset: standard-release
 
     steps:
       - name: Checkout code
