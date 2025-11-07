@@ -257,13 +257,20 @@ jobs:
       - name: Verify binary (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
-          file splatter/bin/splatter_engine
+          engine_path=$(find splatter/bin -maxdepth 2 -type f -name splatter_engine -print -quit)
+          if [ -z "$engine_path" ]; then
+            echo "ERROR: Engine binary not found under splatter/bin"
+            ls -R splatter/bin || true
+            exit 1
+          fi
+          echo "Using engine binary: $engine_path"
+          file "$engine_path"
           if command -v ldd &> /dev/null; then
             echo "=== Dynamic dependencies ==="
-            ldd splatter/bin/splatter_engine || true
+            ldd "$engine_path" || true
           elif command -v otool &> /dev/null; then
             echo "=== Dynamic dependencies (macOS) ==="
-            otool -L splatter/bin/splatter_engine || true
+            otool -L "$engine_path" || true
           fi
         shell: bash
 
@@ -271,10 +278,11 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          if (Test-Path "splatter\bin\splatter_engine.exe") {
-            Get-Item "splatter\bin\splatter_engine.exe"
+          $enginePath = Get-ChildItem -Path "splatter\bin" -Filter "splatter_engine.exe" -File -Recurse | Select-Object -First 1
+          if ($null -ne $enginePath) {
+            Get-Item $enginePath.FullName
           } else {
-            Write-Error "splatter\\bin\\splatter_engine.exe not found"
+            Write-Error "splatter\\bin\\splatter_engine.exe not found in any subdirectory"
           }
 
       - name: Upload artifact
@@ -316,21 +324,26 @@ jobs:
               
               # Copy engine binary to platform-specific directory
               mkdir -p "universal-addon/bin/$platform"
-              if [[ -f "$artifact_dir/splatter/bin/splatter_engine" ]]; then
-                cp "$artifact_dir/splatter/bin/splatter_engine" "universal-addon/bin/$platform/"
+              engine_path=$(find "$artifact_dir/splatter/bin" -maxdepth 2 -type f \( -name 'splatter_engine' -o -name 'splatter_engine.exe' \) | head -n1)
+              if [[ -n "$engine_path" ]]; then
+                echo "Copying engine from $engine_path"
+                cp "$engine_path" "universal-addon/bin/$platform/"
               fi
               
               # Copy Cython modules to platform-specific directory
               mkdir -p "universal-addon/lib/$platform"
-              if [[ -d "$artifact_dir/splatter/lib" ]]; then
+              if [[ -d "$artifact_dir/splatter/lib/$platform" ]]; then
                 echo "Copying Cython modules for $platform"
+                cp -r "$artifact_dir/splatter/lib/$platform/"* "universal-addon/lib/$platform/" 2>/dev/null || true
+              elif [[ -d "$artifact_dir/splatter/lib" ]]; then
+                echo "Copying all Cython modules (no platform subdir) for $platform"
                 cp -r "$artifact_dir/splatter/lib/"* "universal-addon/lib/$platform/" 2>/dev/null || true
               fi
             fi
           done
           
           # Verify we got binaries and modules for at least one platform
-          if [[ ! -f "universal-addon/bin/linux-x86-64/splatter_engine" ]]; then
+          if [[ -z $(find universal-addon/bin -type f -name 'splatter_engine*' -print -quit) ]]; then
             echo "ERROR: No engine binaries found!"
             exit 1
           fi
