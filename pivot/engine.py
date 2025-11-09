@@ -21,7 +21,7 @@ import platform
 from typing import Dict, Any, Optional, Tuple
 
 # Command IDs for engine communication
-COMMAND_SET_GROUP_CLASSIFICATIONS = 4
+COMMAND_SET_SURFACE_TYPES = 4
 COMMAND_DROP_GROUPS = 5
 COMMAND_CLASSIFY_GROUPS = 1
 COMMAND_CLASSIFY_OBJECTS = 1
@@ -293,8 +293,8 @@ class PivotEngine:
 
         try:
             command = {
-                "id": COMMAND_SET_GROUP_CLASSIFICATIONS,
-                "op": "set_group_classifications",
+                "id": COMMAND_SET_SURFACE_TYPES,
+                "op": "set_surface_types",
                 "classifications": payload
             }
             response = self.send_command(command)
