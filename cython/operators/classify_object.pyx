@@ -200,10 +200,6 @@ def classify_and_apply_groups(list selected_objects):
         
         # Close shared memory in parent process
         for shm in shm_objects:
-            try:
-                shm_name = getattr(shm, "name", "<unknown>")
-            except Exception:
-                shm_name = "<unknown>"
             shm.close()
         
         if not bool(final_response.get("ok", True)):
@@ -319,9 +315,11 @@ def classify_and_apply_active_objects(list objects):
     for shm in shm_objects:
         try:
             shm_name = getattr(shm, "name", "<unknown>")
-        except Exception:
-            shm_name = "<unknown>"
-        shm.close()
+            shm.close()
+        except Exception as e:
+            shm_name = getattr(shm, "name", "<unknown>")
+            print(f"Warning: Failed to close shared memory segment '{shm_name}': {e}")
+            # Continue with other segments even if one fails
     
     if not bool(final_response.get("ok", True)):
         error_msg = final_response.get("error", "Unknown engine error during classify_objects")
