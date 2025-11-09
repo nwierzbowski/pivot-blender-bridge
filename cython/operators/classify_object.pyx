@@ -174,64 +174,71 @@ def classify_and_apply_groups(list selected_objects):
     # --- Aggregation phase ---
     mesh_groups, parent_groups, full_groups, group_names, total_verts, total_edges, total_objects = \
         selection_utils.aggregate_object_groups(selected_objects)
-    
-    if not group_names:
-        return
-    
-    # --- Shared memory setup ---
-    shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
-        total_verts, total_edges, total_objects, mesh_groups)
-    
-    verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
-    vert_counts_mv, edge_counts_mv, object_counts_mv, offsets_mv = count_memory_views
-    
-    # --- Extract transforms and rotation modes ---
-    all_parent_offsets, all_original_rots = _prepare_object_transforms(
-        parent_groups, mesh_groups, offsets_mv)
-    
-    # --- Engine communication ---
-    command = _build_classify_groups_command(
-        verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
-        vert_counts_mv, edge_counts_mv, object_counts_mv, group_names)
-    
-    engine = get_engine_communicator()
-    engine.send_command_async(command)
-    
-    final_response = engine.wait_for_response(1)
-    
-    # Close shared memory in parent process
-    for shm in shm_objects:
-        try:
-            shm_name = getattr(shm, "name", "<unknown>")
-        except Exception:
-            shm_name = "<unknown>"
-        shm.close()
-    
-    if not bool(final_response.get("ok", True)):
-        error_msg = final_response.get("error", "Unknown engine error during classify_groups")
-        raise RuntimeError(f"classify_groups failed: {error_msg}")
-
-    # --- Extract engine results ---
-    groups = final_response["groups"]
-    rots = [Quaternion(groups[name]["rot"]) for name in group_names]
-    origins = [tuple(groups[name]["origin"]) for name in group_names]
-    surface_types = [groups[name]["surface_type"] for name in group_names]
-    
-    # --- Compute and apply transforms ---
-    locations = _compute_object_locations(parent_groups, rots, all_parent_offsets)
-    _apply_object_transforms(parent_groups, all_original_rots, rots, locations, origins)
-    
-    # --- Organize into surface collections ---
-    # Create group collections and mark as synced
     core_group_mgr = group_manager.get_group_manager()
-    core_group_mgr.update_managed_group_names(group_names)
-    core_group_mgr.set_groups_synced(group_names)
-    # Organize into surface hierarchy
-    from pivot.surface_manager import get_surface_manager
-    get_surface_manager().organize_groups_into_surfaces(group_names, surface_types)
     
-    group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, group_names)
-    engine_state.update_group_membership_snapshot(group_membership_snapshot, replace=False)
+    if group_names:
+        # --- Shared memory setup ---
+        shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
+            total_verts, total_edges, total_objects, mesh_groups)
+        
+        verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
+        vert_counts_mv, edge_counts_mv, object_counts_mv, offsets_mv = count_memory_views
+        
+        # --- Extract transforms and rotation modes ---
+        all_parent_offsets, all_original_rots = _prepare_object_transforms(
+            parent_groups, mesh_groups, offsets_mv)
+        
+        # --- Engine communication ---
+        command = _build_classify_groups_command(
+            verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
+            vert_counts_mv, edge_counts_mv, object_counts_mv, group_names)
+        
+        engine = get_engine_communicator()
+        engine.send_command_async(command)
+        
+        final_response = engine.wait_for_response(1)
+        
+        # Close shared memory in parent process
+        for shm in shm_objects:
+            try:
+                shm_name = getattr(shm, "name", "<unknown>")
+            except Exception:
+                shm_name = "<unknown>"
+            shm.close()
+        
+        if not bool(final_response.get("ok", True)):
+            error_msg = final_response.get("error", "Unknown engine error during classify_groups")
+            raise RuntimeError(f"classify_groups failed: {error_msg}")
+
+        groups = final_response["groups"]
+        
+        # --- Extract and apply transforms ---
+        group_names = list(groups.keys())
+        rots = [Quaternion(groups[name]["rot"]) for name in group_names]
+        origins = [tuple(groups[name]["origin"]) for name in group_names]
+        
+        # --- Compute and apply transforms ---
+        locations = _compute_object_locations(parent_groups, rots, all_parent_offsets)
+        _apply_object_transforms(parent_groups, all_original_rots, rots, locations, origins)
+        
+        # Build group membership snapshot
+        group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, group_names)
+        engine_state.update_group_membership_snapshot(group_membership_snapshot, replace=False)
+
+    # Always get surface types for ALL stored groups (for organization)
+    all_surface_types = get_stored_group_surface_types()
+
+    # --- Always organize ALL groups using surface types ---
+    if all_surface_types:
+        all_group_names = list(all_surface_types.keys())
+        surface_types = [all_surface_types[name]["surface_type"] for name in all_group_names]
+        
+        core_group_mgr.update_managed_group_names(all_group_names)
+        core_group_mgr.set_groups_synced(all_group_names)
+        
+        from pivot.surface_manager import get_surface_manager
+        get_surface_manager().organize_groups_into_surfaces(
+            core_group_mgr.get_managed_group_names_set(), surface_types)
 
 
 def classify_and_apply_active_objects(list objects):
@@ -329,3 +336,34 @@ def classify_and_apply_active_objects(list objects):
     # --- Compute and apply transforms ---
     locations = _compute_object_locations(parent_groups, rots, all_parent_offsets)
     _apply_object_transforms(parent_groups, all_original_rots, rots, locations, origins)
+
+
+def get_stored_group_surface_types():
+    """
+    Retrieve surface types for all stored groups from the engine.
+    
+    This function is called when standardizing with zero unsynced objects selected,
+    to fetch the cached surface type classifications for all stored groups.
+    
+    Returns:
+        dict: Mapping of group names to their surface types in the same format as classify_groups.
+              Example: {"group1": {"surface_type": "0"}, "group2": {"surface_type": "1"}}
+              Returns empty dict if no groups are stored.
+    
+    Raises:
+        RuntimeError: If communication with the engine fails.
+    """
+    engine = get_engine_communicator()
+    
+    command = {
+        "id": 2,
+        "op": "get_group_surface_types"
+    }
+    
+    response = engine.send_command(command)
+    
+    if not bool(response.get("ok", True)):
+        error_msg = response.get("error", "Unknown engine error during get_group_surface_types")
+        raise RuntimeError(f"get_group_surface_types failed: {error_msg}")
+    
+    return response.get("groups", {})
