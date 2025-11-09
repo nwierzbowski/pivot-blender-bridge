@@ -82,12 +82,6 @@ def register():
             if platform_lib_dir not in sys.path:
                 sys.path.insert(0, platform_lib_dir)
             print(f"[Pivot] Added platform-specific lib path: {platform_lib_dir}")
-        else:
-            # Fallback to root lib directory for legacy structure
-            root_lib_dir = os.path.join(addon_root, 'lib')
-            if root_lib_dir not in sys.path:
-                sys.path.insert(0, root_lib_dir)
-            print(f"[Pivot] Added legacy lib path: {root_lib_dir}")
     except Exception as e:
         print(f"[Pivot] Warning: Could not set up lib path: {e}")
     
