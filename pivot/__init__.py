@@ -2,7 +2,6 @@ import sys
 import bpy
 import os
 import stat
-import importlib
 
 from . import engine
 from .classes import SceneAttributes
@@ -49,28 +48,11 @@ def register():
     global _standard_panel_registered
     print(f"Registering {bl_info.get('name')} version {bl_info.get('version')}")
     
-    # Stop any running engine from previous edition before reloading modules
+    # Stop any running engine from previous edition
     try:
         engine.stop_engine()
     except Exception as e:
         print(f"[Pivot] Note: Could not stop engine during register: {e}")
-    
-    # Force reload of Cython modules to pick up new edition binary
-    cython_modules = [
-        'pivot.lib.edition_utils',
-        'pivot.lib.operators.classify_object',
-        'pivot.lib.operators.selection_utils',
-        'pivot.lib.shared.shm_utils',
-        'pivot.lib.shared.transform_utils',
-        'pivot.lib.shared.group_manager',
-    ]
-    for mod_name in cython_modules:
-        if mod_name in sys.modules:
-            try:
-                importlib.reload(sys.modules[mod_name])
-                print(f"[Pivot] Reloaded {mod_name}")
-            except Exception as e:
-                print(f"[Pivot] Warning: Could not reload {mod_name}: {e}")
     
     # Add platform-specific lib directory to sys.path for Cython module loading
     try:
@@ -88,8 +70,6 @@ def register():
     for cls in classesToRegister:
         bpy.utils.register_class(cls)
     bpy.types.Scene.pivot = PointerProperty(type=SceneAttributes)
-
-    
 
     # Ensure engine binary is executable after zip install (zip extraction often drops exec bits)
     try:
@@ -164,6 +144,18 @@ def unregister():
     # Only remove depsgraph update handler if it's registered (was only added for Pro edition)
     if handlers.on_depsgraph_update in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(handlers.on_depsgraph_update)
+
+    # Remove platform-specific lib directory from sys.path
+    try:
+        platform_id = engine.get_platform_id()
+        addon_root = os.path.dirname(__file__)
+        platform_lib_dir = os.path.join(addon_root, 'lib', platform_id)
+        
+        if platform_lib_dir in sys.path:
+            sys.path.remove(platform_lib_dir)
+            print(f"[Pivot] Removed platform-specific lib path: {platform_lib_dir}")
+    except Exception as e:
+        print(f"[Pivot] Warning: Could not remove lib path: {e}")
 
     # Perform cleanup as if we're unloading a file
     handlers.on_load_pre(None)
