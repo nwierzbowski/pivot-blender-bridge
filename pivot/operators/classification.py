@@ -2,7 +2,7 @@ import bpy
 import time
 
 from ..constants import LICENSE_PRO, LICENSE_STANDARD, PRE, FINISHED
-from ..lib import classify_object
+from ..lib import standardize
 from ..lib import group_manager
 from .. import engine_state
 from ..surface_manager import CLASSIFICATION_ROOT_MARKER_PROP
@@ -112,7 +112,7 @@ class Pivot_OT_Standardize_Selected_Groups(bpy.types.Operator):
         
         objects_collection = group_manager.get_group_manager().get_objects_collection()
         objects = get_qualifying_objects_for_selected(context.selected_objects, objects_collection)
-        classify_object.standardize_groups(objects)
+        standardize.standardize_groups(objects)
         
         endTime = time.perf_counter()
         elapsed = endTime - startTime
@@ -148,7 +148,7 @@ class Pivot_OT_Standardize_Selected_Objects(bpy.types.Operator):
         
         objects_collection = group_manager.get_group_manager().get_objects_collection()
         objects = get_qualifying_objects_for_selected(context.selected_objects, objects_collection)
-        classify_object.standardize_objects(objects)
+        standardize.standardize_objects(objects)
         
         endTime = time.perf_counter()
         elapsed = endTime - startTime
@@ -184,7 +184,7 @@ class Pivot_OT_Standardize_Active_Object(bpy.types.Operator):
         objects_collection = group_manager.get_group_manager().get_objects_collection()
         obj = context.active_object
         if obj and obj in get_qualifying_objects_for_selected([obj], objects_collection):
-            classify_object.standardize_objects([obj])
+            standardize.standardize_objects([obj])
         
         endTime = time.perf_counter()
         elapsed = endTime - startTime
