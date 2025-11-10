@@ -22,8 +22,17 @@ CLASSIFICATION_COLLECTION_PROP = "pivot_surface_type"
 
 
 
+def _setup_pivots_for_groups(parent_groups, group_names, origins):
+    """Set up pivot empties for all groups."""
+    for i, parent_group in enumerate(parent_groups):
+        first_world_loc = parent_group[0].matrix_world.translation.copy()
+        target_origin = Vector(origins[i]) + first_world_loc
+        _create_or_reuse_empty_for_group(parent_group, group_names[i], target_origin)
+
+
+
 def _create_or_reuse_empty_for_group(parent_group, group_name, target_origin):
-    """Create a new empty or reuse an existing one in the group, and return it positioned at target_origin."""
+    """Create a new empty or reuse an existing one in the group, position it, and parent the group objects to it."""
     # First, check if there's already an empty in the group
     empty = None
     for obj in parent_group:
@@ -38,6 +47,13 @@ def _create_or_reuse_empty_for_group(parent_group, group_name, target_origin):
         group_collection.objects.link(empty)
     
     empty.location = target_origin
+    
+    # Parent the group objects to the empty
+    for obj in parent_group:
+        if obj != empty:
+            obj.parent = empty
+            obj.matrix_parent_inverse = Matrix.Translation(-target_origin)
+    
     return empty
 
 
@@ -216,17 +232,7 @@ def standardize_groups(list selected_objects):
         _apply_object_transforms(parent_groups, all_original_rots, rots, locations, origins)
         
         # --- Set origins ---
-        for i, parent_group in enumerate(parent_groups):
-            first_world_loc = parent_group[0].matrix_world.translation.copy()
-            target_origin = Vector(origins[i]) + first_world_loc
-            
-            # Create an empty at the target origin and parent the group objects to it
-            empty = _create_or_reuse_empty_for_group(parent_group, group_names[i], target_origin)
-            
-            for obj in parent_group:
-                if obj != empty:
-                    obj.parent = empty
-                    obj.matrix_parent_inverse = Matrix.Translation(-target_origin)
+        _setup_pivots_for_groups(parent_groups, group_names, origins)
         
         # Build group membership snapshot
         group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, group_names)
