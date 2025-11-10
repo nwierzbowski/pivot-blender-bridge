@@ -22,6 +22,26 @@ CLASSIFICATION_COLLECTION_PROP = "pivot_surface_type"
 
 
 
+def _create_or_reuse_empty_for_group(parent_group, group_name, target_origin):
+    """Create a new empty or reuse an existing one in the group, and return it positioned at target_origin."""
+    # First, check if there's already an empty in the group
+    empty = None
+    for obj in parent_group:
+        if obj.type == 'EMPTY':
+            empty = obj
+            break
+    
+    if empty is None:
+        empty = bpy.data.objects.new(f"{group_name}_pivot", None)
+        # Add empty to the same collection as the group objects
+        group_collection = parent_group[0].users_collection[0] if parent_group[0].users_collection else bpy.context.scene.collection
+        group_collection.objects.link(empty)
+    
+    empty.location = target_origin
+    return empty
+
+
+
 def set_origin_and_preserve_children(obj, new_origin_world):
     """Move object origin to new_origin_world while preserving visual placement of mesh and children."""
     old_matrix = obj.matrix_world.copy()
@@ -124,8 +144,6 @@ def _apply_object_transforms(parent_groups, all_original_rots, rots, locations, 
             translation_matrix = Matrix.Translation(new_location)
             obj.matrix_world = translation_matrix @ rotation_matrix @ scale_matrix
             
-            # Adjust origin to target while preserving visual placement
-            set_origin_and_preserve_children(obj, target_origin)
             obj_idx += 1
         
         # Update scene cursor for feedback
@@ -196,6 +214,19 @@ def standardize_groups(list selected_objects):
         # --- Compute and apply transforms ---
         locations = _compute_object_locations(parent_groups, rots, all_parent_offsets)
         _apply_object_transforms(parent_groups, all_original_rots, rots, locations, origins)
+        
+        # --- Set origins ---
+        for i, parent_group in enumerate(parent_groups):
+            first_world_loc = parent_group[0].matrix_world.translation.copy()
+            target_origin = Vector(origins[i]) + first_world_loc
+            
+            # Create an empty at the target origin and parent the group objects to it
+            empty = _create_or_reuse_empty_for_group(parent_group, group_names[i], target_origin)
+            
+            for obj in parent_group:
+                if obj != empty:
+                    obj.parent = empty
+                    obj.matrix_parent_inverse = Matrix.Translation(-target_origin)
         
         # Build group membership snapshot
         group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, group_names)
@@ -311,3 +342,10 @@ def standardize_objects(list objects):
     # --- Compute and apply transforms ---
     locations = _compute_object_locations(parent_groups, rots, all_parent_offsets)
     _apply_object_transforms(parent_groups, all_original_rots, rots, locations, origins)
+    
+    # --- Set origins ---
+    for i, parent_group in enumerate(parent_groups):
+        first_world_loc = parent_group[0].matrix_world.translation.copy()
+        target_origin = Vector(origins[i]) + first_world_loc
+        for obj in parent_group:
+            set_origin_and_preserve_children(obj, target_origin)
