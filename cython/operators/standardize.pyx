@@ -22,40 +22,70 @@ CLASSIFICATION_COLLECTION_PROP = "pivot_surface_type"
 
 
 
-def _setup_pivots_for_groups(parent_groups, group_names, origins):
-    """Set up pivot empties for all groups."""
+def _setup_pivots_for_groups_return_empties(parent_groups, group_names, origins, first_world_locs):
+    """Set up one pivot empty per group with smart empty detection/creation."""
+    pivots = []
     for i, parent_group in enumerate(parent_groups):
-        first_world_loc = parent_group[0].matrix_world.translation.copy()
-        target_origin = Vector(origins[i]) + first_world_loc
-        _create_or_reuse_empty_for_group(parent_group, group_names[i], target_origin)
+        target_origin = Vector(origins[i]) + first_world_locs[i]
+        empty = _get_or_create_pivot_empty(parent_group, group_names[i], target_origin)
+        pivots.append(empty)
+    return pivots
 
 
-
-def _create_or_reuse_empty_for_group(parent_group, group_name, target_origin):
-    """Create a new empty or reuse an existing one in the group, position it, and parent the group objects to it."""
-    # First, check if there's already an empty in the group
-    empty = None
-    for obj in parent_group:
-        if obj.type == 'EMPTY':
-            empty = obj
-            break
+def _get_or_create_pivot_empty(parent_group, group_name, target_origin):
+    """
+    Get or create a single pivot empty for the group.
+    - If group's collection has exactly one empty, reuse it
+    - If group's collection has no empties, create one
+    - If group's collection has multiple empties, create a new one and parent existing empties to it
+    Only parent the parent objects (from parent_group) to the pivot; children inherit automatically.
+    Returns: the pivot empty (which is NOT added to parent_group)
+    """
+    # Get the collection containing the first object
+    group_collection = parent_group[0].users_collection[0] if parent_group[0].users_collection else bpy.context.scene.collection
     
-    if empty is None:
+    # Find all empties in the collection
+    empties_in_collection = [obj for obj in group_collection.objects if obj.type == 'EMPTY']
+    
+    # Determine which empty to use
+    if len(empties_in_collection) == 1:
+        # Exactly one empty: reuse it
+        empty = empties_in_collection[0]
+    else:
+        # Zero or multiple empties: create a new one
         empty = bpy.data.objects.new(f"{group_name}_pivot", None)
-        # Add empty to the same collection as the group objects
-        group_collection = parent_group[0].users_collection[0] if parent_group[0].users_collection else bpy.context.scene.collection
         group_collection.objects.link(empty)
+        empty.rotation_mode = 'QUATERNION'
+        
+        # If there were multiple empties, parent them to the new pivot
+        if len(empties_in_collection) > 1:
+            for existing_empty in empties_in_collection:
+                existing_empty.parent = empty
+                existing_empty.matrix_parent_inverse = Matrix.Translation(-target_origin)
     
+    # Position the pivot
     empty.location = target_origin
     
-    # Parent the group objects to the empty
+    # Parent ALL parent objects to the pivot (meshes, lamps, cameras, etc.)
     for obj in parent_group:
-        if obj != empty:
+        if obj.type != 'EMPTY':  # Skip any empties in parent_group (to avoid self-parenting issues)
             obj.parent = empty
             obj.matrix_parent_inverse = Matrix.Translation(-target_origin)
     
     return empty
 
+
+def _apply_transforms_to_pivots(pivots, rots, all_parent_offsets, all_original_rots):
+    """Apply group rotations by modifying children's matrix_parent_inverse.
+    Pivot empty stays unrotated, but children appear rotated relative to it."""
+    
+    for i, pivot in enumerate(pivots):
+        delta_quat = rots[i]
+        # Apply rotation to each child's matrix_parent_inverse
+        # This rotates the children relative to the pivot without rotating the pivot itself
+        for child in pivot.children:
+            rotation_matrix = delta_quat.to_matrix().to_4x4()
+            child.matrix_parent_inverse = rotation_matrix @ child.matrix_parent_inverse
 
 
 def set_origin_and_preserve_children(obj, new_origin_world):
@@ -79,8 +109,9 @@ def set_origin_and_preserve_children(obj, new_origin_world):
 
 def _prepare_object_transforms(parent_groups, mesh_groups, offsets_mv):
     """
-    Extract offset transforms and rotation modes for all groups.
+    Extract offset transforms for all groups.
     Returns: (all_parent_offsets, all_original_rots)
+    Note: all_original_rots is kept for API compatibility but not used when applying via pivot rotation.
     """
     all_parent_offsets = []
     all_original_rots = []
@@ -97,11 +128,9 @@ def _prepare_object_transforms(parent_groups, mesh_groups, offsets_mv):
         parent_offsets = transform_utils.compute_offset_transforms(parent_group, mesh_group, group_offsets_slice)
         all_parent_offsets.append(parent_offsets)
         
+        # Set rotation mode for all parent objects
         for obj in parent_group:
             obj.rotation_mode = 'QUATERNION'
-            # Use world-space rotation to handle objects that may not be root objects
-            world_quat = obj.matrix_world.to_quaternion()
-            all_original_rots.append(world_quat)
         
         current_offset_idx += group_offset_size
     
@@ -174,11 +203,12 @@ def standardize_groups(list selected_objects):
     
     This function handles group guessing and collection hierarchy:
     1. Aggregate objects into groups by collection boundaries and root parents
-    2. Marshal mesh data into shared memory
-    3. Send classify_groups command to engine (performs group-level operations)
-    4. Compute new transforms from engine response
-    5. Apply transforms to objects
-    6. Organize results into surface type collections
+    2. Set up pivot empties and ensure proper collection organization
+    3. Marshal mesh data into shared memory
+    4. Send classify_groups command to engine (performs group-level operations)
+    5. Compute new transforms from engine response
+    6. Apply transforms to objects
+    7. Organize results into surface type collections
     
     Args:
         selected_objects: List of Blender objects selected by the user
@@ -193,6 +223,13 @@ def standardize_groups(list selected_objects):
     engine = get_engine_communicator()
     
     if group_names:
+        # --- Set up pivots and ensure proper collections BEFORE engine communication ---
+        # We need to compute origins in pre-transform space, so use first object locations as approximation
+        first_world_locs = [parent_group[0].matrix_world.translation.copy() for parent_group in parent_groups]
+        # Create temporary origins at first object locations (will be updated by engine)
+        temp_origins = [tuple(loc) for loc in first_world_locs]
+        pivots = _setup_pivots_for_groups_return_empties(parent_groups, group_names, temp_origins, first_world_locs)
+        
         # --- Shared memory setup ---
         shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
             total_verts, total_edges, total_objects, mesh_groups)
@@ -227,12 +264,21 @@ def standardize_groups(list selected_objects):
         rots = [Quaternion(groups[name]["rot"]) for name in group_names]
         origins = [tuple(groups[name]["origin"]) for name in group_names]
         
-        # --- Compute and apply transforms ---
-        locations = _compute_object_locations(parent_groups, rots, all_parent_offsets)
-        _apply_object_transforms(parent_groups, all_original_rots, rots, locations, origins)
+        # --- Update pivot positions with actual origins from engine ---
+        for i, pivot in enumerate(pivots):
+            old_pivot_loc = pivot.location.copy()
+            new_pivot_loc = Vector(origins[i]) + first_world_locs[i]
+            pivot_movement = new_pivot_loc - old_pivot_loc
+            
+            # Move all children by the opposite amount to keep them visually in place
+            for child in pivot.children:
+                child.matrix_world.translation -= pivot_movement
+            
+            # Now update the pivot location
+            pivot.location = new_pivot_loc
         
-        # --- Set origins ---
-        _setup_pivots_for_groups(parent_groups, group_names, origins)
+        # --- Apply transforms to PIVOTS (objects follow via parenting) ---
+        _apply_transforms_to_pivots(pivots, rots, all_parent_offsets, all_original_rots)
         
         # Build group membership snapshot
         group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, group_names)
@@ -315,6 +361,13 @@ def standardize_objects(list objects):
     all_parent_offsets, all_original_rots = _prepare_object_transforms(
         parent_groups, mesh_groups, offsets_mv)
     
+    # --- Set up pivots BEFORE engine communication ---
+    first_world_locs = [parent_group[0].matrix_world.translation.copy() for parent_group in parent_groups]
+    object_names = [obj.name for obj in mesh_objects]
+    # Create temporary origins (will be updated by engine)
+    temp_origins = [tuple(loc) for loc in first_world_locs]
+    pivots = _setup_pivots_for_groups_return_empties(parent_groups, object_names, temp_origins, first_world_locs)
+    
     # --- Engine communication: unified array format ---
     # Engine will validate that multiple objects are only used in PRO edition
     engine = get_engine_communicator()
@@ -345,13 +398,18 @@ def standardize_objects(list objects):
     rots = [Quaternion(results[obj.name]["rot"]) for obj in mesh_objects if obj.name in results]
     origins = [tuple(results[obj.name]["origin"]) for obj in mesh_objects if obj.name in results]
     
-    # --- Compute and apply transforms ---
-    locations = _compute_object_locations(parent_groups, rots, all_parent_offsets)
-    _apply_object_transforms(parent_groups, all_original_rots, rots, locations, origins)
+    # --- Update pivot positions with actual origins from engine ---
+    for i, pivot in enumerate(pivots):
+        old_pivot_loc = pivot.location.copy()
+        new_pivot_loc = Vector(origins[i]) + first_world_locs[i]
+        pivot_movement = new_pivot_loc - old_pivot_loc
+        
+        # Move all children by the opposite amount to keep them visually in place
+        for child in pivot.children:
+            child.matrix_world.translation -= pivot_movement
+        
+        # Now update the pivot location
+        pivot.location = new_pivot_loc
     
-    # --- Set origins ---
-    for i, parent_group in enumerate(parent_groups):
-        first_world_loc = parent_group[0].matrix_world.translation.copy()
-        target_origin = Vector(origins[i]) + first_world_loc
-        for obj in parent_group:
-            set_origin_and_preserve_children(obj, target_origin)
+    # --- Apply transforms to PIVOTS (objects follow via parenting) ---
+    _apply_transforms_to_pivots(pivots, rots, all_parent_offsets, all_original_rots)
