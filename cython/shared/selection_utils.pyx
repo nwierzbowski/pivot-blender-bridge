@@ -233,8 +233,8 @@ def _get_or_create_pivot_empty(parent_group, group_name, target_origin):
     # Get the collection containing the first object
     group_collection = parent_group[0].users_collection[0] if parent_group[0].users_collection else bpy.context.scene.collection
     
-    # Find all empties in the collection
-    empties_in_collection = [obj for obj in group_collection.objects if obj.type == 'EMPTY']
+    # Find all empties in the parent_group (root objects of the group)
+    empties_in_collection = [obj for obj in parent_group if obj.type == 'EMPTY']
     
     # Determine which empty to use
     if len(empties_in_collection) == 1:
@@ -245,19 +245,13 @@ def _get_or_create_pivot_empty(parent_group, group_name, target_origin):
         # Zero or multiple empties: create a new one
         empty = bpy.data.objects.new(f"{group_name}_pivot", None)
         group_collection.objects.link(empty)
-        
-        # If there were multiple empties, parent them to the new pivot
-        if len(empties_in_collection) > 1:
-            for existing_empty in empties_in_collection:
-                existing_empty.parent = empty
-                existing_empty.matrix_parent_inverse = Matrix.Translation(-target_origin)
 
     # Reset rotation and scale by setting matrix_world to pure translation to target_origin
     empty.matrix_world = Matrix.Translation(target_origin)
     
-    # Parent ALL parent objects to the pivot (meshes, lamps, cameras, etc.)
+    # Parent all objects in parent_group to the pivot (except the pivot itself)
     for obj in parent_group:
-        if obj.type != 'EMPTY':  # Skip any empties in parent_group (to avoid self-parenting issues)
+        if obj != empty:  # Avoid self-parenting
             obj.parent = empty
             obj.matrix_parent_inverse = Matrix.Translation(-target_origin)
     
