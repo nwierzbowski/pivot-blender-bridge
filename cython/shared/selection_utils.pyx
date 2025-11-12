@@ -205,13 +205,12 @@ def aggregate_object_groups(list selected_objects):
 
     # Create pivots for all groups
     first_world_locs = [parent_group[0].matrix_world.translation.copy() for parent_group in parent_groups]
-    temp_origins = [tuple(loc) for loc in first_world_locs]
-    pivots = _setup_pivots_for_groups_return_empties(parent_groups, group_names, temp_origins, first_world_locs)
+    pivots = _setup_pivots_for_groups_return_empties(parent_groups, group_names, first_world_locs)
 
     return mesh_groups, full_groups, group_names, total_verts, total_edges, total_objects, pivots
 
 
-def _setup_pivots_for_groups_return_empties(parent_groups, group_names, origins, first_world_locs):
+def _setup_pivots_for_groups_return_empties(parent_groups, group_names, first_world_locs):
     """Set up one pivot empty per group with smart empty detection/creation."""
     pivots = []
     for i, parent_group in enumerate(parent_groups):
