@@ -6,10 +6,8 @@ import bpy
 import platform
 from libc.stdint cimport uint32_t
 from libc.stddef cimport size_t
-from mathutils import Vector
 
 def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t total_objects, list mesh_groups, list pivots):
-    cdef uint32_t num_groups = len(mesh_groups)
     depsgraph = bpy.context.evaluated_depsgraph_get()
     verts_size = total_verts * 3 * 4  # float32 = 4 bytes
     edges_size = total_edges * 2 * 4  # uint32 = 4 bytes
