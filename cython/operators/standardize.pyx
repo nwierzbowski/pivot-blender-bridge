@@ -212,16 +212,9 @@ def standardize_objects(list objects):
     if total_verts == 0:
         return
     
-    # --- Set up pivots BEFORE shared memory setup ---
-    parent_groups = [[obj] for obj in mesh_objects]  # Define parent_groups here
-    object_names = [obj.name for obj in mesh_objects]
-    # Create temporary origins (will be updated by engine)
-    temp_origins = [tuple(parent_group[0].matrix_world.translation) for parent_group in parent_groups]
-    pivots = _setup_pivots_for_groups_return_empties(parent_groups, object_names, temp_origins, [parent_group[0].matrix_world.translation for parent_group in parent_groups])
-    
     # --- Shared memory setup ---
     shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
-        total_verts, total_edges, len(mesh_objects), mesh_groups, pivots)
+        total_verts, total_edges, len(mesh_objects), mesh_groups, [])  # No pivots for objects
     
     verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
     vert_counts_mv, edge_counts_mv, object_counts_mv, offsets_mv = count_memory_views
@@ -260,6 +253,21 @@ def standardize_objects(list objects):
     results = final_response.get("results", {})
     rots = [Quaternion(results[obj.name]["rot"]) for obj in mesh_objects if obj.name in results]
     origins = [tuple(results[obj.name]["origin"]) for obj in mesh_objects if obj.name in results]
+    print(origins)
     
-    # --- Apply transforms to PIVOTS (objects follow via parenting) ---
-    _apply_transforms_to_pivots(pivots, origins, rots)
+    # --- Apply transforms directly to objects ---
+    for i, obj in enumerate(mesh_objects):
+        if i < len(rots) and i < len(origins):
+            rot = rots[i]
+            # Engine returns origin relative to object's old position - convert to world space
+            origin = obj.matrix_world.translation + Vector(origins[i])
+            
+            # First move to new origin
+            set_origin_and_preserve_children(obj, origin)
+            
+            # Then apply rotation around the new origin (current position)
+            rotation_matrix = rot.to_matrix().to_4x4()
+            current_pos = obj.matrix_world.translation
+            # Transform to rotate around current position: T(pos) @ R @ T(-pos)
+            transform = Matrix.Translation(current_pos) @ rotation_matrix @ Matrix.Translation(-current_pos)
+            obj.matrix_world = transform @ obj.matrix_world

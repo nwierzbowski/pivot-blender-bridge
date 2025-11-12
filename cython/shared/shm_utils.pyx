@@ -6,6 +6,7 @@ import bpy
 import platform
 from libc.stdint cimport uint32_t
 from libc.stddef cimport size_t
+from mathutils import Vector
 
 def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t total_objects, list mesh_groups, list pivots):
     cdef uint32_t num_groups = len(mesh_groups)
@@ -77,9 +78,15 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     for group in mesh_groups:
         vert_offset = 0
         edge_offset = 0
-        pivot = pivots[group_idx]  # Get the corresponding pivot for this group
+        if pivots and group_idx < len(pivots):
+            pivot_pos = pivots[group_idx].matrix_world.translation  # Use pivot position for groups
+        else:
+            pivot_pos = group[0].matrix_world.translation  # Use first object's position for individual objects
         # Get reference position from first object in group
         for obj in group:
+            if not (pivots and group_idx < len(pivots)):
+                pivot_pos = obj.matrix_world.translation  # Use object's own position as reference
+
             quat = obj.matrix_world.to_3x3().to_quaternion()
             rotations[idx_rot] = quat.w
             rotations[idx_rot + 1] = quat.x
@@ -93,8 +100,8 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
             scales[idx_scale + 2] = scale_vec.z
             idx_scale += 3
 
-            trans_vec = obj.matrix_world.translation - pivot.matrix_world.translation
-            # Offset relative to the pivot
+            trans_vec = obj.matrix_world.translation - pivot_pos
+            # Offset relative to the pivot or object's own position
 
             offsets[idx_offset] = trans_vec.x
             offsets[idx_offset + 1] = trans_vec.y
