@@ -1,7 +1,7 @@
 # selection_utils.pyx - selection and grouping helpers for Blender objects
 
 import bpy
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Quaternion
 from . import edition_utils
 from pivot.surface_manager import CLASSIFICATION_MARKER_PROP, CLASSIFICATION_ROOT_MARKER_PROP
 from collections import defaultdict
@@ -240,20 +240,20 @@ def _get_or_create_pivot_empty(parent_group, group_name, target_origin):
     if len(empties_in_collection) == 1:
         # Exactly one empty: reuse it
         empty = empties_in_collection[0]
+        
     else:
         # Zero or multiple empties: create a new one
         empty = bpy.data.objects.new(f"{group_name}_pivot", None)
         group_collection.objects.link(empty)
-        empty.rotation_mode = 'QUATERNION'
         
         # If there were multiple empties, parent them to the new pivot
         if len(empties_in_collection) > 1:
             for existing_empty in empties_in_collection:
                 existing_empty.parent = empty
                 existing_empty.matrix_parent_inverse = Matrix.Translation(-target_origin)
-    
-    # Position the pivot
-    empty.location = target_origin
+
+    # Reset rotation and scale by setting matrix_world to pure translation to target_origin
+    empty.matrix_world = Matrix.Translation(target_origin)
     
     # Parent ALL parent objects to the pivot (meshes, lamps, cameras, etc.)
     for obj in parent_group:

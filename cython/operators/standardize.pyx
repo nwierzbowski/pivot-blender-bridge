@@ -36,16 +36,27 @@ def _get_or_create_pivot_empty(parent_group, group_name, target_origin):
     return selection_utils._get_or_create_pivot_empty(parent_group, group_name, target_origin)
 
 
-def _apply_transforms_to_pivots(pivots, rots):
-    """Apply group rotations by modifying children's matrix_parent_inverse.
-    Pivot empty stays unrotated, but children appear rotated relative to it."""
+def _apply_transforms_to_pivots(pivots, origins, rots):
+    """Apply position and rotation transforms to pivots.
+    Updates pivot positions with origins, then applies rotations by modifying children's matrix_local."""
 
     for i, pivot in enumerate(pivots):
-        delta_quat = rots[i]
-        # Apply rotation to each child's matrix_parent_inverse
-        # This rotates the children relative to the pivot without rotating the pivot itself
+        # Update pivot position with actual origin from engine
+        old_pivot_loc = pivot.location.copy()
+        new_pivot_loc = Vector(origins[i]) + pivot.matrix_world.translation
+        pivot_movement = new_pivot_loc - old_pivot_loc
+        
+        # Move all children by the opposite amount to keep them visually in place
         for child in pivot.children:
-            rotation_matrix = delta_quat.to_matrix().to_4x4()
+            child.matrix_world.translation -= pivot_movement
+        
+        # Now update the pivot location
+        pivot.location = new_pivot_loc
+        
+        # Apply rotation to each child's matrix_local
+        delta_quat = rots[i]
+        rotation_matrix = delta_quat.to_matrix().to_4x4()
+        for child in pivot.children:
             child.matrix_local = rotation_matrix @ child.matrix_local
 
 
@@ -129,21 +140,8 @@ def standardize_groups(list selected_objects):
         rots = [Quaternion(groups[name]["rot"]) for name in group_names]
         origins = [tuple(groups[name]["origin"]) for name in group_names]
         
-        # --- Update pivot positions with actual origins from engine ---
-        for i, pivot in enumerate(pivots):
-            old_pivot_loc = pivot.location.copy()
-            new_pivot_loc = Vector(origins[i]) + pivot.matrix_world.translation
-            pivot_movement = new_pivot_loc - old_pivot_loc
-            
-            # Move all children by the opposite amount to keep them visually in place
-            for child in pivot.children:
-                child.matrix_world.translation -= pivot_movement
-            
-            # Now update the pivot location
-            pivot.location = new_pivot_loc
-        
         # --- Apply transforms to PIVOTS (objects follow via parenting) ---
-        _apply_transforms_to_pivots(pivots, rots)
+        _apply_transforms_to_pivots(pivots, origins, rots)
         
         # Build group membership snapshot
         group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, group_names)
@@ -263,18 +261,5 @@ def standardize_objects(list objects):
     rots = [Quaternion(results[obj.name]["rot"]) for obj in mesh_objects if obj.name in results]
     origins = [tuple(results[obj.name]["origin"]) for obj in mesh_objects if obj.name in results]
     
-    # --- Update pivot positions with actual origins from engine ---
-    for i, pivot in enumerate(pivots):
-        old_pivot_loc = pivot.location.copy()
-        new_pivot_loc = Vector(origins[i]) + pivots[i].matrix_world.translation
-        pivot_movement = new_pivot_loc - old_pivot_loc
-        
-        # Move all children by the opposite amount to keep them visually in place
-        for child in pivot.children:
-            child.matrix_world.translation -= pivot_movement
-        
-        # Now update the pivot location
-        pivot.location = new_pivot_loc
-    
     # --- Apply transforms to PIVOTS (objects follow via parenting) ---
-    _apply_transforms_to_pivots(pivots, rots)
+    _apply_transforms_to_pivots(pivots, origins, rots)
