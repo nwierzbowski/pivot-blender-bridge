@@ -249,8 +249,8 @@ def _get_or_create_pivot_empty(parent_group, group_name, target_origin):
         empty = bpy.data.objects.new(f"{group_name}_pivot", None)
         group_collection.objects.link(empty)
 
-    # Reset rotation and scale by setting matrix_world to pure translation to target_origin
-    empty.matrix_world = Matrix.Translation(target_origin)
+    # Reset rotation by setting matrix_world to preserve translation and scale, but reset rotation to identity
+    empty.matrix_world = Matrix.LocRotScale(target_origin, None, empty.matrix_world.to_scale())
     
     # Parent all objects in parent_group to the pivot (except the pivot itself)
     for obj in parent_group:

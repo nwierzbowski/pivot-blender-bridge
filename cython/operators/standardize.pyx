@@ -113,10 +113,6 @@ def standardize_groups(list selected_objects):
         verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
         vert_counts_mv, edge_counts_mv, object_counts_mv, offsets_mv = count_memory_views
         
-        # --- Extract transforms and rotation modes ---
-        # all_parent_offsets, all_original_rots = _prepare_object_transforms(
-        #     parent_groups, mesh_groups, offsets_mv)
-        
         # --- Engine communication ---
         command = engine.build_standardize_groups_command(
             verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
@@ -218,11 +214,6 @@ def standardize_objects(list objects):
     
     verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
     vert_counts_mv, edge_counts_mv, object_counts_mv, offsets_mv = count_memory_views
-    
-    # --- Extract transforms and rotation modes ---
-    # parent_groups = [[obj] for obj in mesh_objects]  # Remove duplicate definition
-    # all_parent_offsets, all_original_rots = _prepare_object_transforms(
-    #     parent_groups, mesh_groups, offsets_mv)
     
     # --- Engine communication: unified array format ---
     # Engine will validate that multiple objects are only used in PRO edition
