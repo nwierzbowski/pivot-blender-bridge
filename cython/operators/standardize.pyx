@@ -152,7 +152,7 @@ def standardize_groups(list selected_objects):
         raise RuntimeError(f"get_surface_types failed: {error_msg}")
     
     all_surface_types = surface_types_response.get("groups", {})
-    print(all_surface_types)
+    # print(all_surface_types)
 
     # --- Always organize ALL groups using surface types ---
     if all_surface_types:
@@ -251,7 +251,6 @@ def standardize_objects(list objects):
     results = final_response.get("results", {})
     rots = [Quaternion(results[obj.name]["rot"]) for obj in mesh_objects if obj.name in results]
     origins = [tuple(results[obj.name]["origin"]) for obj in mesh_objects if obj.name in results]
-    print(origins)
     
     # --- Apply transforms directly to objects ---
     for i, obj in enumerate(mesh_objects):
@@ -269,3 +268,6 @@ def standardize_objects(list objects):
             # Transform to rotate around current position: T(pos) @ R @ T(-pos)
             transform = Matrix.Translation(current_pos) @ rotation_matrix @ Matrix.Translation(-current_pos)
             obj.matrix_world = transform @ obj.matrix_world
+            
+            # Set 3D cursor to this object's origin
+            bpy.context.scene.cursor.location = obj.matrix_world.translation
