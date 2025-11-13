@@ -251,6 +251,7 @@ def standardize_objects(list objects):
     results = final_response.get("results", {})
     rots = [Quaternion(results[obj.name]["rot"]) for obj in mesh_objects if obj.name in results]
     origins = [tuple(results[obj.name]["origin"]) for obj in mesh_objects if obj.name in results]
+    print(origins)
     
     # --- Apply transforms directly to objects ---
     for i, obj in enumerate(mesh_objects):
