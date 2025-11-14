@@ -1,3 +1,3 @@
 #pragma once
 
-enum class SurfaceType { Ground, Wall, Ceiling };
+enum class SurfaceType { Ground, Wall, Ceiling, Unknown };
