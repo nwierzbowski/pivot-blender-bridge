@@ -130,6 +130,18 @@ if(NOT TARGET Eigen3::Eigen)
     )
 endif()
 
+FetchContent_Declare(
+    cimg
+    GIT_REPOSITORY https://github.com/dtschump/CImg.git
+    GIT_TAG v.3.4.0
+    GIT_SHALLOW TRUE
+)
+FetchContent_GetProperties(cimg)
+if(NOT cimg_POPULATED)
+    FetchContent_Populate(cimg)
+endif()
+set(CIMG_INCLUDE_DIR "${cimg_SOURCE_DIR}" CACHE INTERNAL "CImg include directory")
+
 # Required Boost libs for IPC and JSON
 cmake_policy(SET CMP0167 NEW) # Suppress FindBoost deprecation warning
 find_package(Boost 1.75 QUIET COMPONENTS interprocess json)
