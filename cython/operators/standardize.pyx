@@ -1,4 +1,4 @@
-# classify_object.pyx - Classifies and applies transformations to Blender objects.
+# standardize.pyx - Classifies and applies transformations to Blender objects.
 #
 # This module handles:
 # - Communicating with the C++ engine to compute object classifications
