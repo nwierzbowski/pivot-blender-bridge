@@ -43,10 +43,11 @@ def _apply_transforms_to_pivots(pivots, origins, rots, cogs):
     for i, pivot in enumerate(pivots):
         delta_quat = rots[i]
         rotation_matrix = delta_quat.to_matrix().to_4x4()
+        
         target_origin = pivot.matrix_world.translation + Vector(cogs[i]) - rotation_matrix @ Vector(cogs[i]) + Vector(origins[i])
 
         for child in pivot.children:
-            child.matrix_local = (Matrix.Translation(Vector(origins[i])).inverted() @ Matrix.Translation(rotation_matrix @ Vector(cogs[i]))) @ rotation_matrix @ Matrix.Translation(Vector(cogs[i])).inverted() @ child.matrix_local 
+            child.matrix_local = Matrix.Translation(rotation_matrix @ Vector(cogs[i]) - Vector(origins[i])) @ rotation_matrix @ Matrix.Translation(-Vector(cogs[i])) @ child.matrix_local 
 
         pivot.matrix_world.translation = target_origin
         
