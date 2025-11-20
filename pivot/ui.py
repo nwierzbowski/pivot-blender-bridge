@@ -5,14 +5,14 @@ from .operators.operators import (
     Pivot_OT_Upgrade_To_Pro,
 )
 
-from .operators.classification import (
-    Pivot_OT_Standardize_Selected_Groups,
+from .operators.group_classification import Pivot_OT_Standardize_Selected_Groups
+from .operators.object_classification import (
     Pivot_OT_Standardize_Selected_Objects,
     Pivot_OT_Standardize_Active_Object,
 )
 
 from .constants import PRE, CATEGORY, LICENSE_PRO
-from .classes import LABEL_OBJECTS_COLLECTION, LABEL_ROOM_COLLECTION, LABEL_SURFACE_TYPE, LABEL_LICENSE_TYPE
+from .classes import LABEL_ORIGIN_METHOD, LABEL_SURFACE_TYPE
 from .engine_state import get_engine_license_status, set_engine_license_status
 from . import engine
 
@@ -45,6 +45,26 @@ class Pivot_PT_Status_Panel(bpy.types.Panel):
         """Draw the license type display (read-only)."""
         row = layout.row()
         row.label(text=f"License: {license_type}")
+
+class Pivot_PT_Configuration_Panel(bpy.types.Panel):
+    bl_label = "Pivot Configuration"
+    bl_idname = PRE + "_PT_configuration_panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = CATEGORY  # Tab name in the N-Panel
+
+    def draw(self, context):
+        layout = self.layout
+        
+        # Configuration options
+        row = layout.row()
+        row.label(text=LABEL_SURFACE_TYPE)
+        row = layout.row()
+        row.prop(bpy.context.scene.pivot, "surface_type", expand=True)
+        row = layout.row()
+        row.label(text=LABEL_ORIGIN_METHOD)
+        row = layout.row()
+        row.prop(bpy.context.scene.pivot, "origin_method", expand=True)
 
 
 class Pivot_PT_Pro_Panel(bpy.types.Panel):
@@ -113,5 +133,5 @@ class Pivot_PT_Standard_Panel(bpy.types.Panel):
         
         # Classification buttons
         row = layout.row()
-        row.operator(Pivot_OT_Standardize_Active_Object.bl_idname, icon='MESH_DATA')
+        row.operator(Pivot_OT_Standardize_Active_Object.bl_idname, icon=Pivot_OT_Standardize_Active_Object.bl_icon)
 

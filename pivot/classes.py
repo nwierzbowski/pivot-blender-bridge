@@ -10,7 +10,9 @@ from .constants import LICENSE_STANDARD, LICENSE_PRO
 # UI Labels (property names derived from these)
 LABEL_OBJECTS_COLLECTION = "Objects:"
 LABEL_ROOM_COLLECTION = "Room:"
-LABEL_SURFACE_TYPE = "Surface:"
+LABEL_SURFACE_TYPE = "Surface Context:"
+LABEL_SURFACE_CONTEXT = "Surface Context:"
+LABEL_ORIGIN_METHOD = "Origin Method:"
 LABEL_LICENSE_TYPE = "License:"
 
 # Marker property to identify classification collections
@@ -61,14 +63,23 @@ class SceneAttributes(PropertyGroup):
         type=Collection,
         poll=poll_visible_collections,
     )
-    room_collection: PointerProperty(
-        name=LABEL_ROOM_COLLECTION.rstrip(":"),
-        description="Collection containing room geometry",
-        type=Collection,
-        poll=poll_visible_collections,
+    surface_type: EnumProperty(
+        name=LABEL_SURFACE_TYPE.rstrip(":"),
+        description="Default surface type for classification",
+        items=[
+            ("AUTO", "Auto", "Lets the engine decide"),
+            (str(classification.SURFACE_GROUND), "Ground", "Ground surface"),
+            (str(classification.SURFACE_WALL), "Wall", "Wall surface"),
+            (str(classification.SURFACE_CEILING), "Ceiling", "Ceiling surface"),
+        ],
+        default="AUTO",
     )
-    license_type: StringProperty(
-        name=LABEL_LICENSE_TYPE.rstrip(":"),
-        description="License type (read-only, determined by engine)",
-        default="UNKNOWN",
+    origin_method: EnumProperty(
+        name=LABEL_ORIGIN_METHOD.rstrip(":"),
+        description="Method for calculating object origins",
+        items=[
+            ('BASE', 'Base', 'Center of surface contact'),
+            ('VOLUME', 'Volume', 'Center of gravity by volume'),
+        ],
+        default='BASE',
     )

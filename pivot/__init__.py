@@ -11,12 +11,12 @@ from .operators.operators import (
     Pivot_OT_Organize_Classified_Objects,
     Pivot_OT_Upgrade_To_Pro,
 )
-from .operators.classification import (
-    Pivot_OT_Standardize_Selected_Groups,
+from .operators.group_classification import Pivot_OT_Standardize_Selected_Groups
+from .operators.object_classification import (
     Pivot_OT_Standardize_Selected_Objects,
     Pivot_OT_Standardize_Active_Object,
 )
-from .ui import Pivot_PT_Standard_Panel, Pivot_PT_Pro_Panel, Pivot_PT_Status_Panel
+from .ui import Pivot_PT_Standard_Panel, Pivot_PT_Pro_Panel, Pivot_PT_Status_Panel, Pivot_PT_Configuration_Panel
 from . import handlers
 
 bl_info = {
@@ -99,6 +99,7 @@ def register():
             is_pro = False
 
     bpy.utils.register_class(Pivot_PT_Status_Panel)
+    bpy.utils.register_class(Pivot_PT_Configuration_Panel)
 
     # Conditionally register standard panel for non-pro licenses
     if not is_pro:
@@ -130,6 +131,7 @@ def unregister():
         bpy.utils.unregister_class(Pivot_PT_Standard_Panel)
         _standard_panel_registered = False
     bpy.utils.unregister_class(Pivot_PT_Status_Panel)
+    bpy.utils.unregister_class(Pivot_PT_Configuration_Panel)
     
     for cls in reversed(classesToRegister):  # Unregister in reverse order
         bpy.utils.unregister_class(cls)
