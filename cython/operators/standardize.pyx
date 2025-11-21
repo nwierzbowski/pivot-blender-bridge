@@ -18,36 +18,17 @@ GROUP_COLLECTION_PROP = "pivot_group_name"
 CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot"
 CLASSIFICATION_COLLECTION_PROP = "pivot_surface_type"
 
-
-def _setup_pivots_for_groups_return_empties(parent_groups, group_names, origins, first_world_locs):
-    """Set up one pivot empty per group with smart empty detection/creation."""
-    return selection_utils._setup_pivots_for_groups_return_empties(parent_groups, group_names, origins, first_world_locs)
-
-
-def _get_or_create_pivot_empty(parent_group, group_name, target_origin):
-    """
-    Get or create a single pivot empty for the group.
-    - If group's collection has exactly one empty, reuse it
-    - If group's collection has no empties, create one
-    - If group's collection has multiple empties, create a new one and parent existing empties to it
-    Only parent the parent objects (from parent_group) to the pivot; children inherit automatically.
-    Returns: the pivot empty (which is NOT added to parent_group)
-    """
-    return selection_utils._get_or_create_pivot_empty(parent_group, group_name, target_origin)
-
-
 def _apply_transforms_to_pivots(pivots, origins, rots, cogs):
     """Apply position and rotation transforms to pivots.
     Updates pivot positions with origins, then applies rotations by modifying children's matrix_local."""
 
     for i, pivot in enumerate(pivots):
-        delta_quat = rots[i]
-        rotation_matrix = delta_quat.to_matrix().to_4x4()
+        rotation_matrix = rots[i].to_matrix().to_4x4()
         
-        target_origin = pivot.matrix_world.translation + Vector(cogs[i]) - rotation_matrix @ Vector(cogs[i]) + Vector(origins[i])
+        target_origin = pivot.matrix_world.translation + Vector(cogs[i]) + rotation_matrix @ (Vector(origins[i]) - Vector(cogs[i]))
 
         for child in pivot.children:
-            child.matrix_local = Matrix.Translation(rotation_matrix @ Vector(cogs[i]) - Vector(origins[i])) @ rotation_matrix @ Matrix.Translation(-Vector(cogs[i])) @ child.matrix_local 
+            child.matrix_local = Matrix.Translation(rotation_matrix @ (Vector(cogs[i]) - Vector(origins[i]))) @ rotation_matrix @ Matrix.Translation(-Vector(cogs[i])) @ child.matrix_local 
 
         pivot.matrix_world.translation = target_origin
         
@@ -91,7 +72,6 @@ def _close_shared_memory_segments(shm_objects):
         except Exception as e:
             shm_name = getattr(shm, "name", "<unknown>")
             print(f"Warning: Failed to close shared memory segment '{shm_name}': {e}")
-
 
 def standardize_groups(list selected_objects):
     """
@@ -184,22 +164,13 @@ def standardize_groups(list selected_objects):
         get_surface_manager().organize_groups_into_surfaces(all_group_names, surface_types)
 
 
-def standardize_objects(list objects):
+def _get_standardize_results(list objects):
     """
-    Classify and apply standardization to one or more objects.
-    
-    This unified function handles both single and multiple objects:
-    - Single object (both editions): Direct standardization without group guessing
-    - Multiple objects (PRO edition only): Batch processing of multiple objects
-    
-    Args:
-        objects: List of Blender objects to classify (one or more)
-    
-    Raises:
-        RuntimeError: If STANDARD edition tries to classify multiple objects
+    Helper function to get standardization results from the engine.
+    Returns mesh_objects, rots, origins, cogs
     """
     if not objects:
-        return
+        return [], [], [], []
     
     # Validation: STANDARD edition only supports single object
     if len(objects) > 1 and not edition_utils.is_pro_edition():
@@ -208,7 +179,7 @@ def standardize_objects(list objects):
     # Filter to mesh objects only
     mesh_objects = [obj for obj in objects if obj.type == 'MESH']
     if not mesh_objects:
-        return
+        return [], [], [], []
     
     # Build mesh data for all objects
     mesh_groups = [[obj] for obj in mesh_objects]
@@ -224,7 +195,7 @@ def standardize_objects(list objects):
         total_edges += len(eval_mesh.edges)
     
     if total_verts == 0:
-        return
+        return [], [], [], []
     
     # --- Shared memory setup ---
     shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
@@ -244,19 +215,12 @@ def standardize_objects(list objects):
     final_response = engine.wait_for_response(1)
     
     # Close shared memory in parent process
-    for shm in shm_objects:
-        try:
-            shm_name = getattr(shm, "name", "<unknown>")
-            shm.close()
-        except Exception as e:
-            shm_name = getattr(shm, "name", "<unknown>")
-            print(f"Warning: Failed to close shared memory segment '{shm_name}': {e}")
-            # Continue with other segments even if one fails
+    _close_shared_memory_segments(shm_objects)
     
     if not bool(final_response.get("ok", True)):
         error_msg = final_response.get("error", "Unknown engine error during classify_objects")
         raise RuntimeError(f"classify_objects failed: {error_msg}")
-
+    
     # --- Extract engine results ---
     # Engine returns results as a dict keyed by object name
     results = final_response.get("results", {})
@@ -264,32 +228,29 @@ def standardize_objects(list objects):
     origins = [tuple(results[obj.name]["origin"]) for obj in mesh_objects if obj.name in results]
     cogs = [tuple(results[obj.name]["cog"]) for obj in mesh_objects if obj.name in results]
     
-    # --- Apply transforms directly to objects ---
+    return mesh_objects, rots, origins, cogs
+
+
+
+def standardize_object_origins(list objects):
+    mesh_objects, rots, origins, cogs = _get_standardize_results(objects)
+    if not mesh_objects:
+        return
     for i, obj in enumerate(mesh_objects):
-        if i < len(rots) and i < len(origins):
-            rot = rots[i]
-            # Engine returns origin relative to object's old position - convert to world space
-            # origin = obj.matrix_world.translation + Vector(origins[i])
-            cog = obj.matrix_world.translation + Vector(cogs[i])
-            # start_origin = obj.matrix_world.translation
-            
-            # First move to new origin
-            set_origin_and_preserve_children(obj, cog)
-            
-            # Then apply rotation around the new origin (current position)
-            rotation_matrix = rot.to_matrix().to_4x4()
-            current_pos = obj.matrix_world.translation
-            # Transform to rotate around current position: T(pos) @ R @ T(-pos)
-            transform = Matrix.Translation(current_pos) @ rotation_matrix @ Matrix.Translation(-current_pos)
-
-
-            # Compute the new origin: current_pos + origins[i] - rot @ cogs[i]
-            origin_vector = current_pos + Vector(origins[i]) - rot @ Vector(cogs[i])
-
-
-            obj.matrix_world = transform @ obj.matrix_world
-
+        if i < len(origins) and i < len(cogs):
+            origin_vector = obj.matrix_world.translation + Vector(origins[i])
             set_origin_and_preserve_children(obj, origin_vector)
-            
-            # Set 3D cursor to this object's origin
             bpy.context.scene.cursor.location = obj.matrix_world.translation
+    
+
+def standardize_object_rotations(list objects):
+    mesh_objects, rots, origins, cogs = _get_standardize_results(objects)
+    if not mesh_objects:
+        return
+    for i, obj in enumerate(mesh_objects):
+        if i < len(rots) and i < len(cogs):
+            rot = rots[i]
+            cog = obj.matrix_world.translation + Vector(cogs[i])
+            rotation_matrix = rot.to_matrix().to_4x4()
+            transform = Matrix.Translation(cog) @ rotation_matrix @ Matrix.Translation(-cog)
+            obj.matrix_world = transform @ obj.matrix_world

@@ -19,7 +19,7 @@ def _set_origin_objects(objects, operation_name):
     
     startTime = time.perf_counter()
     
-    standardize.standardize_objects(objects)
+    standardize.standardize_object_origins(objects)
     
     endTime = time.perf_counter()
     elapsed = endTime - startTime
@@ -34,7 +34,7 @@ def _align_facing_objects(objects, operation_name):
     
     startTime = time.perf_counter()
     
-    standardize.standardize_objects(objects)
+    standardize.standardize_object_rotations(objects)
     
     endTime = time.perf_counter()
     elapsed = endTime - startTime
@@ -47,7 +47,7 @@ class Pivot_OT_Set_Origin_Selected_Objects(bpy.types.Operator):
     Sets origin for one or more selected objects.
     """
     bl_idname = "object." + PRE.lower() + "set_origin_selected_objects"
-    bl_label = "Set Object Origin"
+    bl_label = "Standardize Object Origin"
     bl_description = DESC_SET_ORIGIN_SELECTED
     bl_options = {"REGISTER", "UNDO"}
     bl_icon = 'OBJECT_DATA'
@@ -76,7 +76,7 @@ class Pivot_OT_Align_Facing_Selected_Objects(bpy.types.Operator):
     Aligns facing for one or more selected objects.
     """
     bl_idname = "object." + PRE.lower() + "align_facing_selected_objects"
-    bl_label = "Align Object Facing"
+    bl_label = "Standardize Object Rotation"
     bl_description = DESC_ALIGN_FACING_SELECTED
     bl_options = {"REGISTER", "UNDO"}
     bl_icon = 'OBJECT_DATA'
@@ -104,7 +104,7 @@ class Pivot_OT_Set_Origin_Active_Object(bpy.types.Operator):
     Sets origin for the active object only.
     """
     bl_idname = "object." + PRE.lower() + "set_origin_active_object"
-    bl_label = "Set Object Origin"
+    bl_label = "Standardize Object Origin"
     bl_description = DESC_SET_ORIGIN_ACTIVE
     bl_options = {"REGISTER", "UNDO"}
     bl_icon = 'OBJECT_DATA'
@@ -134,7 +134,7 @@ class Pivot_OT_Align_Facing_Active_Object(bpy.types.Operator):
     Aligns facing for the active object only.
     """
     bl_idname = "object." + PRE.lower() + "align_facing_active_object"
-    bl_label = "Align Object Facing"
+    bl_label = "Standardize Object Rotation"
     bl_description = DESC_ALIGN_FACING_ACTIVE
     bl_options = {"REGISTER", "UNDO"}
     bl_icon = 'OBJECT_DATA'
