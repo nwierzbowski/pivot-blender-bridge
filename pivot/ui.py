@@ -111,9 +111,9 @@ class Pivot_PT_Pro_Panel(bpy.types.Panel):
         else:
             # Standard mode: show upgrade info
             layout.label(text="Unlock Your Full Pipeline:")
-            layout.label(text="- Multithreaded bulk standardization")
-            layout.label(text="- Auto sort assets into collections")
-            layout.label(text="- Use collections to arrange viewport ")
+            layout.label(text="- Intuitive multi-object grouping")
+            layout.label(text="- Auto-classify your entire scene")
+            layout.label(text="- Multithreaded C++ performance")
             layout.separator()
             row = layout.row()
             row.operator(Pivot_OT_Upgrade_To_Pro.bl_idname, icon='WORLD')
@@ -134,16 +134,15 @@ class Pivot_PT_Standard_Panel(bpy.types.Panel):
         license_type = get_engine_license_status()
         is_pro = (license_type == LICENSE_PRO)
         
+        layout.label(text="On Selected Objects:")
         if is_pro:
             # Pro edition: Show selected objects first
-            layout.label(text="On Selected Objects:")
+            
             row = layout.row()
             row.operator(Pivot_OT_Set_Origin_Selected_Objects.bl_idname, icon=Pivot_OT_Set_Origin_Selected_Objects.bl_icon)
             row = layout.row()
             row.operator(Pivot_OT_Align_Facing_Selected_Objects.bl_idname, icon=Pivot_OT_Align_Facing_Selected_Objects.bl_icon)
         else:
-            # Standard edition: Show active object first
-            layout.label(text="On Active Object:")
             row = layout.row()
             row.operator(Pivot_OT_Set_Origin_Active_Object.bl_idname, icon=Pivot_OT_Set_Origin_Active_Object.bl_icon)
             row = layout.row()
