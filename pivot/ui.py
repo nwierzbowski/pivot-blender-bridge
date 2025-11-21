@@ -9,8 +9,6 @@ from .operators.group_classification import Pivot_OT_Standardize_Selected_Groups
 from .operators.object_classification import (
     Pivot_OT_Set_Origin_Selected_Objects,
     Pivot_OT_Align_Facing_Selected_Objects,
-    Pivot_OT_Set_Origin_Active_Object,
-    Pivot_OT_Align_Facing_Active_Object,
 )
 
 from .constants import PRE, CATEGORY, LICENSE_PRO
@@ -131,20 +129,11 @@ class Pivot_PT_Standard_Panel(bpy.types.Panel):
         layout = self.layout
         
         # Get license_type from cached engine status
-        license_type = get_engine_license_status()
-        is_pro = (license_type == LICENSE_PRO)
-        
         layout.label(text="On Selected Objects:")
-        if is_pro:
-            # Pro edition: Show selected objects first
-            
-            row = layout.row()
-            row.operator(Pivot_OT_Set_Origin_Selected_Objects.bl_idname, icon=Pivot_OT_Set_Origin_Selected_Objects.bl_icon)
-            row = layout.row()
-            row.operator(Pivot_OT_Align_Facing_Selected_Objects.bl_idname, icon=Pivot_OT_Align_Facing_Selected_Objects.bl_icon)
-        else:
-            row = layout.row()
-            row.operator(Pivot_OT_Set_Origin_Active_Object.bl_idname, icon=Pivot_OT_Set_Origin_Active_Object.bl_icon)
-            row = layout.row()
-            row.operator(Pivot_OT_Align_Facing_Active_Object.bl_idname, icon=Pivot_OT_Align_Facing_Active_Object.bl_icon)
+        # Always show selected objects operators
+        
+        row = layout.row()
+        row.operator(Pivot_OT_Set_Origin_Selected_Objects.bl_idname, icon=Pivot_OT_Set_Origin_Selected_Objects.bl_icon)
+        row = layout.row()
+        row.operator(Pivot_OT_Align_Facing_Selected_Objects.bl_idname, icon=Pivot_OT_Align_Facing_Selected_Objects.bl_icon)
 

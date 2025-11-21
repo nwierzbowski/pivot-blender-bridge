@@ -28,7 +28,7 @@ def _apply_transforms_to_pivots(pivots, origins, rots, cogs):
         target_origin = pivot.matrix_world.translation + Vector(cogs[i]) + rotation_matrix @ (Vector(origins[i]) - Vector(cogs[i]))
 
         for child in pivot.children:
-            child.matrix_local = Matrix.Translation(rotation_matrix @ (Vector(cogs[i]) - Vector(origins[i]))) @ rotation_matrix @ Matrix.Translation(-Vector(cogs[i])) @ child.matrix_local 
+            child.matrix_local = Matrix.Translation(rotation_matrix @ (Vector(cogs[i]) - Vector(origins[i]))) @ rotation_matrix @ Matrix.Translation(-Vector(cogs[i])) @ child.matrix_local
 
         pivot.matrix_world.translation = target_origin
         

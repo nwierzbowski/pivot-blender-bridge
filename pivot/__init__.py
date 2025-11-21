@@ -18,8 +18,6 @@ from .operators.group_classification import Pivot_OT_Standardize_Selected_Groups
 from .operators.object_classification import (
     Pivot_OT_Set_Origin_Selected_Objects,
     Pivot_OT_Align_Facing_Selected_Objects,
-    Pivot_OT_Set_Origin_Active_Object,
-    Pivot_OT_Align_Facing_Active_Object,
 )
 from .ui import Pivot_PT_Standard_Panel, Pivot_PT_Pro_Panel, Pivot_PT_Status_Panel, Pivot_PT_Configuration_Panel
 
@@ -42,8 +40,6 @@ classesToRegister = (
     # Pivot_OT_Align_Facing_Selected_Groups,
     Pivot_OT_Set_Origin_Selected_Objects,
     Pivot_OT_Align_Facing_Selected_Objects,
-    Pivot_OT_Set_Origin_Active_Object,
-    Pivot_OT_Align_Facing_Active_Object,
     Pivot_OT_Organize_Classified_Objects,
     Pivot_OT_Upgrade_To_Pro,
 )
