@@ -18,6 +18,7 @@ import atexit
 import json
 import select
 import platform
+import builtins
 from typing import Dict, Any, Optional, Tuple
 
 # Command IDs for engine communication
@@ -418,8 +419,14 @@ class PivotEngine:
         }
 
 
-# Global engine instance
-_engine_instance = PivotEngine()
+# Global engine instance stored on builtins to persist across reloads
+_engine_instance = getattr(builtins, '_pivot_engine_instance', None)
+if _engine_instance is None:
+    _engine_instance = PivotEngine()
+    builtins._pivot_engine_instance = _engine_instance
+else:
+    if _engine_instance.is_running():
+        _engine_instance.stop()
 
 
 def start_engine() -> bool:
@@ -435,7 +442,9 @@ def stop_engine() -> None:
 def get_engine_communicator() -> PivotEngine:
     """Get the engine instance for communication."""
     if not _engine_instance.is_running():
-        raise RuntimeError("Engine process not started. Make sure the addon is properly registered.")
+        started = _engine_instance.start()
+        if not started:
+            raise RuntimeError("Engine process not started. Make sure the addon is properly registered.")
     return _engine_instance
 
 

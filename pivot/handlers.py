@@ -207,7 +207,7 @@ def on_load_pre(scene):
         print(f"[Pivot] Failed to sync classifications before load: {e}")
     
     # Stop the pivot engine
-    
+    engine.stop_engine()
     
 
 @persistent

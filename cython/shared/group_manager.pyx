@@ -29,6 +29,18 @@ cdef class GroupManager:
         This is called when loading a new file to ensure clean state.
         Note: Keeps the same subscription_owner to avoid memory leaks from orphaned subscriptions.
         """
+        try:
+            data = getattr(bpy, "data", None)
+            if data:
+                collections = getattr(data, "collections", None)
+                if collections:
+                    for name in set(self._name_tracker.values()):
+                        coll = collections.get(name)
+                        if coll and coll.color_tag in {'COLOR_03', 'COLOR_04'}:
+                            coll.color_tag = 'NONE'
+        except Exception:
+            pass
+        
         self._sync_state.clear()
         self._name_tracker.clear()
         # Keep the same subscription_owner to avoid memory leaks from orphaned msgbus subscriptions
