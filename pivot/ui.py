@@ -103,7 +103,7 @@ class Pivot_PT_Pro_Panel(bpy.types.Panel):
             row.prop(bpy.context.scene.pivot, "objects_collection", text="")
             layout.separator()
             row = layout.row()
-            row.operator(Pivot_OT_Standardize_Selected_Groups.bl_idname, icon=Pivot_OT_Standardize_Selected_Groups.bl_icon)
+            row.operator(Pivot_OT_Standardize_Selected_Groups.bl_idname)
             
             # Organization button
             row = layout.row()
