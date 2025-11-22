@@ -76,10 +76,10 @@ class SceneAttributes(PropertyGroup):
     )
     origin_method: EnumProperty(
         name=LABEL_ORIGIN_METHOD.rstrip(":"),
-        description="Sets the method for placing the origin. 'Base' uses the primary contact surface (bottom, back, or top) as determined by the 'Surface Context', while 'Volume' uses a high-speed approximation of the object's volumetric center",
+        description="Sets the method for placing the origin. 'Base' uses the primary contact surface (bottom, back, or top) as determined by the 'Surface Context', while 'Volume (Fast)' uses a proprietary, high-speed approximation of the object's volumetric center designed for stability",
         items=[
             ('BASE', 'Base', 'Center of surface contact'),
-            ('VOLUME', 'Volume', 'Center of gravity by volume'),
+            ('VOLUME', 'Volume (Fast)', 'Center of gravity by volume'),
         ],
         default='BASE',
     )
