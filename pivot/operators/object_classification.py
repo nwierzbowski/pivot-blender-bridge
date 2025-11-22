@@ -41,11 +41,12 @@ class Pivot_OT_Set_Origin_Selected_Objects(bpy.types.Operator):
         
         license_type = get_engine_license_status()
         origin_method = context.scene.pivot.origin_method
+        surface_type = context.scene.pivot.surface_type
         if license_type != LICENSE_PRO and len(objects) > 1:
             for obj in objects:
-                standardize.standardize_object_origins([obj], origin_method=origin_method)
+                standardize.standardize_object_origins([obj], origin_method=origin_method, surface_context=surface_type)
         else:
-            standardize.standardize_object_origins(objects, origin_method=origin_method)
+            standardize.standardize_object_origins(objects, origin_method=origin_method, surface_context=surface_type)
         
         endTime = time.perf_counter()
         elapsed = endTime - startTime

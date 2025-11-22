@@ -344,7 +344,7 @@ class PivotEngine:
                                      rotations_shm_name: str, scales_shm_name: str, 
                                      offsets_shm_name: str, vert_counts: list, 
                                      edge_counts: list, object_counts: list, 
-                                     group_names: list) -> Dict[str, Any]:
+                                     group_names: list, surface_context: str) -> Dict[str, Any]:
         """Build a standardize_groups command for the engine (Pro edition).
         
         Args:
@@ -357,6 +357,7 @@ class PivotEngine:
             edge_counts: List of edge counts per group
             object_counts: List of object counts per group
             group_names: List of group names to standardize
+            surface_context: Surface context for standardization
             
         Returns:
             Dict containing the command structure
@@ -372,13 +373,14 @@ class PivotEngine:
             "vert_counts": vert_counts,
             "edge_counts": edge_counts,
             "object_counts": object_counts,
-            "group_names": group_names
+            "group_names": group_names,
+            "surface_context": surface_context
         }
 
     def build_standardize_objects_command(self, verts_shm_name: str, edges_shm_name: str,
                                       rotations_shm_name: str, scales_shm_name: str,
                                       offsets_shm_name: str, vert_counts: list,
-                                      edge_counts: list, object_names: list) -> Dict[str, Any]:
+                                      edge_counts: list, object_names: list, surface_context: str) -> Dict[str, Any]:
         """Build a standardize_objects command for the engine.
         
         Args:
@@ -390,6 +392,7 @@ class PivotEngine:
             vert_counts: List of vertex counts per object
             edge_counts: List of edge counts per object
             object_names: List of object names to standardize
+            surface_context: Surface context for standardization
             
         Returns:
             Dict containing the command structure
@@ -404,7 +407,8 @@ class PivotEngine:
             "shm_offsets": offsets_shm_name,
             "vert_counts": vert_counts,
             "edge_counts": edge_counts,
-            "object_names": object_names
+            "object_names": object_names,
+            "surface_context": surface_context
         }
 
     def build_get_surface_types_command(self) -> Dict[str, Any]:

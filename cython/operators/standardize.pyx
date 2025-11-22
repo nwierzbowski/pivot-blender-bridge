@@ -73,7 +73,7 @@ def _close_shared_memory_segments(shm_objects):
             shm_name = getattr(shm, "name", "<unknown>")
             print(f"Warning: Failed to close shared memory segment '{shm_name}': {e}")
 
-def standardize_groups(list selected_objects, str origin_method):
+def standardize_groups(list selected_objects, str origin_method, str surface_context):
     """
     Pro Edition: Classify selected groups via engine.
     
@@ -112,7 +112,7 @@ def standardize_groups(list selected_objects, str origin_method):
         # --- Engine communication ---
         command = engine.build_standardize_groups_command(
             verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
-            list(vert_counts_mv), list(edge_counts_mv), list(object_counts_mv), group_names)
+            list(vert_counts_mv), list(edge_counts_mv), list(object_counts_mv), group_names, surface_context)
         
         final_response = _send_engine_command_and_get_response(engine, command)
         
@@ -170,7 +170,7 @@ def standardize_groups(list selected_objects, str origin_method):
         get_surface_manager().organize_groups_into_surfaces(all_group_names, surface_types)
 
 
-def _get_standardize_results(list objects):
+def _get_standardize_results(list objects, str surface_context="AUTO"):
     """
     Helper function to get standardization results from the engine.
     Returns mesh_objects, rots, origins, cogs
@@ -215,7 +215,7 @@ def _get_standardize_results(list objects):
     engine = get_engine_communicator()
     command = engine.build_standardize_objects_command(
         verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
-        list(vert_counts_mv), list(edge_counts_mv), [obj.name for obj in mesh_objects])
+        list(vert_counts_mv), list(edge_counts_mv), [obj.name for obj in mesh_objects], surface_context)
     engine.send_command_async(command)
     
     final_response = engine.wait_for_response(1)
@@ -238,8 +238,8 @@ def _get_standardize_results(list objects):
 
 
 
-def standardize_object_origins(list objects, str origin_method):
-    mesh_objects, rots, origins, cogs = _get_standardize_results(objects)
+def standardize_object_origins(list objects, str origin_method, str surface_context="AUTO"):
+    mesh_objects, rots, origins, cogs = _get_standardize_results(objects, surface_context)
     if not mesh_objects:
         return
     new_origins = []
