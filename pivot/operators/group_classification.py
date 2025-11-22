@@ -38,7 +38,8 @@ class Pivot_OT_Standardize_Selected_Groups(bpy.types.Operator):
         
         objects_collection = group_manager.get_group_manager().get_objects_collection()
         objects = get_qualifying_objects_for_selected(context.selected_objects, objects_collection)
-        standardize.standardize_groups(objects)
+        origin_method = context.scene.pivot.origin_method
+        standardize.standardize_groups(objects, origin_method=origin_method)
         
         endTime = time.perf_counter()
         elapsed = endTime - startTime

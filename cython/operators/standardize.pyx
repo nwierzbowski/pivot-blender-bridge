@@ -73,7 +73,7 @@ def _close_shared_memory_segments(shm_objects):
             shm_name = getattr(shm, "name", "<unknown>")
             print(f"Warning: Failed to close shared memory segment '{shm_name}': {e}")
 
-def standardize_groups(list selected_objects):
+def standardize_groups(list selected_objects, str origin_method):
     """
     Pro Edition: Classify selected groups via engine.
     
@@ -127,8 +127,14 @@ def standardize_groups(list selected_objects):
         origins = [tuple(groups[name]["origin"]) for name in group_names]
         cogs = [tuple(groups[name]["cog"]) for name in group_names]
         
+        # Choose origin method
+        if (origin_method == "BASE"):
+            new_origins = origins
+        else:
+            new_origins = cogs
+        
         # --- Apply transforms to PIVOTS (objects follow via parenting) ---
-        _apply_transforms_to_pivots(pivots, origins, rots, cogs)
+        _apply_transforms_to_pivots(pivots, new_origins, rots, cogs)
         
         # Build group membership snapshot
         group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, group_names)
@@ -232,13 +238,21 @@ def _get_standardize_results(list objects):
 
 
 
-def standardize_object_origins(list objects):
+def standardize_object_origins(list objects, str origin_method):
     mesh_objects, rots, origins, cogs = _get_standardize_results(objects)
     if not mesh_objects:
         return
+    new_origins = []
+
+    if (origin_method == "BASE"):
+        new_origins = origins
+    else:
+        new_origins = cogs
+
     for i, obj in enumerate(mesh_objects):
         if i < len(origins) and i < len(cogs):
-            origin_vector = obj.matrix_world.translation + Vector(origins[i])
+
+            origin_vector = obj.matrix_world.translation + Vector(new_origins[i])
             set_origin_and_preserve_children(obj, origin_vector)
             bpy.context.scene.cursor.location = obj.matrix_world.translation
     
