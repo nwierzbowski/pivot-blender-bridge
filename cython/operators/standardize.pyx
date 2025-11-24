@@ -23,12 +23,21 @@ def _apply_transforms_to_pivots(pivots, origins, rots, cogs):
     Updates pivot positions with origins, then applies rotations by modifying children's matrix_local."""
 
     for i, pivot in enumerate(pivots):
-        rotation_matrix = rots[i].to_matrix().to_4x4()
+        pivot_world_rot = pivot.matrix_world.to_quaternion()
+        world_rot = pivot_world_rot @ rots[i]
+        rotation_matrix = world_rot.to_matrix().to_4x4()
         
-        target_origin = pivot.matrix_world.translation + Vector(cogs[i]) + rotation_matrix @ (Vector(origins[i]) - Vector(cogs[i]))
+        world_cog = pivot.matrix_world @ Vector(cogs[i])
+        world_origin = pivot.matrix_world @ Vector(origins[i])
+        target_origin = world_cog + rotation_matrix @ (world_origin - world_cog)
+
+        # Convert back to pivot-local space for child transforms
+        local_cog = Vector(cogs[i])
+        local_origin = Vector(origins[i])
+        local_rotation_matrix = rots[i].to_matrix().to_4x4()
 
         for child in pivot.children:
-            child.matrix_local = Matrix.Translation(rotation_matrix @ (Vector(cogs[i]) - Vector(origins[i]))) @ rotation_matrix @ Matrix.Translation(-Vector(cogs[i])) @ child.matrix_local
+            child.matrix_local = Matrix.Translation(local_rotation_matrix @ (local_cog - local_origin)) @ local_rotation_matrix @ Matrix.Translation(-local_cog) @ child.matrix_local
 
         pivot.matrix_world.translation = target_origin
         

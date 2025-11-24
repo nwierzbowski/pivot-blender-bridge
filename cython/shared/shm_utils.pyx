@@ -4,6 +4,7 @@ import uuid
 import multiprocessing.shared_memory as shared_memory
 import bpy
 import platform
+from mathutils import Matrix
 from libc.stdint cimport uint32_t
 from libc.stddef cimport size_t
 
@@ -65,8 +66,13 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     cdef uint32_t curr_edges_offset = 0
     cdef object quat
     cdef object scale_vec
-    cdef object trans_vec
     cdef object mesh
+    cdef object pivot_obj
+    cdef object pivot_matrix_world
+    cdef object pivot_matrix_inv
+    cdef object obj_local_matrix
+    cdef object local_translation
+    cdef object trans_vec
     cdef uint32_t obj_vert_count
     cdef uint32_t obj_edge_count
     cdef uint32_t vert_offset
@@ -77,15 +83,18 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
         vert_offset = 0
         edge_offset = 0
         if pivots and group_idx < len(pivots):
-            pivot_pos = pivots[group_idx].matrix_world.translation  # Use pivot position for groups
+            pivot_obj = pivots[group_idx]
         else:
-            pivot_pos = group[0].matrix_world.translation  # Use first object's position for individual objects
-        # Get reference position from first object in group
+            pivot_obj = group[0]
+        pivot_matrix_world = pivot_obj.matrix_world.copy()
+        try:
+            pivot_matrix_inv = pivot_matrix_world.inverted()
+        except Exception:
+            pivot_matrix_inv = Matrix.Identity(4)
+        pivot_basis_inv = pivot_matrix_inv.to_3x3()
         for obj in group:
-            if not (pivots and group_idx < len(pivots)):
-                pivot_pos = obj.matrix_world.translation  # Use object's own position as reference
-
-            quat = obj.matrix_world.to_3x3().to_quaternion()
+            obj_local_matrix = pivot_matrix_inv @ obj.matrix_world
+            quat = obj_local_matrix.to_3x3().to_quaternion()
             rotations[idx_rot] = quat.w
             rotations[idx_rot + 1] = quat.x
             rotations[idx_rot + 2] = quat.y
@@ -98,12 +107,13 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
             scales[idx_scale + 2] = scale_vec.z
             idx_scale += 3
 
-            trans_vec = obj.matrix_world.translation - pivot_pos
-            # Offset relative to the pivot or object's own position
+            trans_vec = obj.matrix_world.translation - pivot_obj.matrix_world.translation
+            local_translation = pivot_basis_inv @ trans_vec
+            # Offset relative to the pivot coordinate system, accounting for child/parent hierarchy
 
-            offsets[idx_offset] = trans_vec.x
-            offsets[idx_offset + 1] = trans_vec.y
-            offsets[idx_offset + 2] = trans_vec.z
+            offsets[idx_offset] = local_translation.x
+            offsets[idx_offset + 1] = local_translation.y
+            offsets[idx_offset + 2] = local_translation.z
             idx_offset += 3
 
             eval_obj = obj.evaluated_get(depsgraph)

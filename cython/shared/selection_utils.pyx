@@ -91,6 +91,7 @@ def aggregate_object_groups(list selected_objects):
     scene_coll = group_mgr.get_objects_collection()
     depsgraph = bpy.context.evaluated_depsgraph_get()
     sync_state = group_mgr.get_sync_state()
+    existing_groups = group_mgr.get_managed_group_names_set()
     cdef list synced_group_names = []
     cdef set seen_synced = set()
     cdef list synced_parent_groups = []
@@ -216,7 +217,7 @@ def aggregate_object_groups(list selected_objects):
         total_edges += group_edges
         total_objects += len(meshes)
 
-    pivots = _setup_pivots_for_groups_return_empties(parent_groups, group_names)
+    pivots = _setup_pivots_for_groups_return_empties(parent_groups, group_names, existing_groups)
 
     for i, pivot in enumerate(pivots):
         if pivot not in full_groups[i]:
@@ -224,24 +225,24 @@ def aggregate_object_groups(list selected_objects):
 
     if synced_parent_group_names:
         synced_pivots = _setup_pivots_for_groups_return_empties(
-            synced_parent_groups, synced_parent_group_names)
+            synced_parent_groups, synced_parent_group_names, existing_groups)
     else:
         synced_pivots = []
 
     return mesh_groups, full_groups, group_names, total_verts, total_edges, total_objects, pivots, synced_group_names, synced_pivots
 
 
-def _setup_pivots_for_groups_return_empties(parent_groups, group_names):
+def _setup_pivots_for_groups_return_empties(parent_groups, group_names, existing_groups):
     """Set up one pivot empty per group with smart empty detection/creation."""
     pivots = []
     for i, parent_group in enumerate(parent_groups):
         target_origin = parent_group[0].matrix_world.translation.copy()
-        empty = _get_or_create_pivot_empty(parent_group, group_names[i], target_origin)
+        empty = _get_or_create_pivot_empty(parent_group, group_names[i], target_origin, existing_groups)
         pivots.append(empty)
     return pivots
 
 
-def _get_or_create_pivot_empty(parent_group, group_name, target_origin):
+def _get_or_create_pivot_empty(parent_group, group_name, target_origin, existing_groups):
     """
     Get or create a single pivot empty for the group.
     - If group's collection has exactly one empty, reuse it
@@ -267,7 +268,8 @@ def _get_or_create_pivot_empty(parent_group, group_name, target_origin):
         group_collection.objects.link(empty)
 
     # Reset rotation by setting matrix_world to preserve translation and scale, but reset rotation to identity
-    empty.matrix_world = Matrix.LocRotScale(target_origin, None, empty.matrix_world.to_scale())
+    if group_name not in existing_groups:
+        empty.matrix_world = Matrix.LocRotScale(target_origin, None, empty.matrix_world.to_scale())
     
     # Parent all objects in parent_group to the pivot (except the pivot itself)
     for obj in parent_group:
