@@ -12,6 +12,7 @@ import bpy
 from . import selection_utils, shm_utils, edition_utils, group_manager
 from pivot import engine_state
 from pivot.engine import get_engine_communicator
+from pivot.surface_manager import get_surface_manager
 
 # Collection metadata keys
 GROUP_COLLECTION_PROP = "pivot_group_name"
@@ -83,13 +84,35 @@ def _close_shared_memory_segments(shm_objects):
             print(f"Warning: Failed to close shared memory segment '{shm_name}': {e}")
 
 
-def _standardize_synced_groups(engine, synced_group_names, surface_context):
+def _build_group_surface_contexts(group_names, surface_context, classification_map=None):
+    """Build per-group surface context strings, honoring AUTO overrides with stored classifications."""
+
+    if not group_names:
+        return []
+
+    contexts = []
+    auto_context = surface_context == "AUTO"
+    map_to_use = classification_map
+    if auto_context and map_to_use is None:
+        map_to_use = get_surface_manager().collect_group_classifications()
+    if map_to_use is None:
+        map_to_use = {}
+
+    for name in group_names:
+        if auto_context and name in map_to_use:
+            contexts.append(str(map_to_use[name]))
+        else:
+            contexts.append(surface_context)
+
+    return contexts
+
+
+def _standardize_synced_groups(engine, synced_group_names, surface_contexts):
     """Reclassify cached groups without sending mesh data."""
 
     if not synced_group_names:
         return {}
 
-    surface_contexts = [surface_context] * len(synced_group_names)
     command = engine.build_standardize_synced_groups_command(synced_group_names, surface_contexts)
     final_response = _send_engine_command_and_get_response(engine, command)
     return final_response.get("groups", {})
@@ -104,6 +127,11 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
     new_group_results = {}
     transformed_group_names = []
 
+    #Retain old classifications for user correction support
+    classification_map = None
+    if surface_context == "AUTO" and (group_names or synced_group_names):
+        classification_map = get_surface_manager().collect_group_classifications()
+
     if group_names:
         shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
             total_verts, total_edges, total_objects, mesh_groups, pivots)
@@ -111,7 +139,7 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
         verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
         vert_counts_mv, edge_counts_mv, object_counts_mv = count_memory_views
 
-        surface_contexts = [surface_context] * len(group_names)
+        surface_contexts = _build_group_surface_contexts(group_names, surface_context, classification_map)
         command = engine.build_standardize_groups_command(
             verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
             list(vert_counts_mv), list(edge_counts_mv), list(object_counts_mv), group_names, surface_contexts)
@@ -126,7 +154,8 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
         group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, transformed_group_names)
         engine_state.update_group_membership_snapshot(group_membership_snapshot, replace=False)
 
-    synced_group_results = _standardize_synced_groups(engine, synced_group_names, surface_context)
+    synced_surface_contexts = _build_group_surface_contexts(synced_group_names, surface_context, classification_map)
+    synced_group_results = _standardize_synced_groups(engine, synced_group_names, synced_surface_contexts)
 
     all_group_results = {**new_group_results, **synced_group_results}
     all_transformed_group_names = list(all_group_results.keys())
@@ -176,7 +205,6 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
         core_group_mgr.update_managed_group_names(all_group_names)
         core_group_mgr.set_groups_synced(all_group_names)
         
-        from pivot.surface_manager import get_surface_manager
         # Pass as parallel lists with verified alignment to avoid swapping
         get_surface_manager().organize_groups_into_surfaces(all_group_names, surface_types)
 
