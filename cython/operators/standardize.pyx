@@ -89,7 +89,8 @@ def _standardize_synced_groups(engine, synced_group_names, surface_context):
     if not synced_group_names:
         return {}
 
-    command = engine.build_standardize_synced_groups_command(synced_group_names, surface_context)
+    surface_contexts = [surface_context] * len(synced_group_names)
+    command = engine.build_standardize_synced_groups_command(synced_group_names, surface_contexts)
     final_response = _send_engine_command_and_get_response(engine, command)
     return final_response.get("groups", {})
 
@@ -110,9 +111,10 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
         verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
         vert_counts_mv, edge_counts_mv, object_counts_mv = count_memory_views
 
+        surface_contexts = [surface_context] * len(group_names)
         command = engine.build_standardize_groups_command(
             verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
-            list(vert_counts_mv), list(edge_counts_mv), list(object_counts_mv), group_names, surface_context)
+            list(vert_counts_mv), list(edge_counts_mv), list(object_counts_mv), group_names, surface_contexts)
 
         final_response = _send_engine_command_and_get_response(engine, command)
 

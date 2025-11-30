@@ -344,7 +344,7 @@ class PivotEngine:
                                      rotations_shm_name: str, scales_shm_name: str, 
                                      offsets_shm_name: str, vert_counts: list, 
                                      edge_counts: list, object_counts: list, 
-                                     group_names: list, surface_context: str) -> Dict[str, Any]:
+                                     group_names: list, surface_contexts: list[str]) -> Dict[str, Any]:
         """Build a standardize_groups command for the engine (Pro edition).
         
         Args:
@@ -374,16 +374,16 @@ class PivotEngine:
             "edge_counts": edge_counts,
             "object_counts": object_counts,
             "group_names": group_names,
-            "surface_context": surface_context,
+            "surface_contexts": surface_contexts,
         }
 
-    def build_standardize_synced_groups_command(self, group_names: list[str], surface_context: str) -> Dict[str, Any]:
+    def build_standardize_synced_groups_command(self, group_names: list[str], surface_contexts: list[str]) -> Dict[str, Any]:
         """Build a command to reclassify already-synced groups without uploading mesh data."""
         return {
             "id": COMMAND_CLASSIFY_GROUPS,
             "op": "standardize_synced_groups",
             "group_names": group_names,
-            "surface_context": surface_context
+            "surface_contexts": surface_contexts
         }
 
     def build_standardize_objects_command(self, verts_shm_name: str, edges_shm_name: str,
