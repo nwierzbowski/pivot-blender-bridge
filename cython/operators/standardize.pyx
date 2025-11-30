@@ -222,9 +222,10 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     # --- Engine communication: unified array format ---
     # Engine will validate that multiple objects are only used in PRO edition
     engine = get_engine_communicator()
+    surface_contexts = [surface_context] * len(mesh_objects)
     command = engine.build_standardize_objects_command(
         verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
-        list(vert_counts_mv), list(edge_counts_mv), [obj.name for obj in mesh_objects], surface_context)
+        list(vert_counts_mv), list(edge_counts_mv), [obj.name for obj in mesh_objects], surface_contexts)
     engine.send_command_async(command)
     
     final_response = engine.wait_for_response(1)
