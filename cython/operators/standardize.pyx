@@ -19,34 +19,41 @@ GROUP_COLLECTION_PROP = "pivot_group_name"
 CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot"
 CLASSIFICATION_COLLECTION_PROP = "pivot_surface_type"
 
-def _apply_transforms_to_pivots(pivots, origins, rots, cogs):
-    """Apply position and rotation transforms to pivots.
-    Updates pivot positions with origins, then applies rotations by modifying children's matrix_local."""
+def _apply_transforms_to_pivots(pivots, origins, rots, cogs, bint origin_method_is_base):
+    """Apply position and rotation transforms to pivots using the chosen origin method."""
 
     for i, pivot in enumerate(pivots):
+        if pivot is None:
+            continue
+
+        is_base = group_manager.get_group_manager().was_object_last_transformed_using_base(pivot)
+        if not is_base:
+            pivot.matrix_world.translation -= Vector(cogs[i])
+            
+        origin_vector = Vector(origins[i]) if origin_method_is_base else Vector(cogs[i])
         pivot_world_rot = pivot.matrix_world.to_quaternion()
         world_rot = pivot_world_rot @ rots[i]
         rotation_matrix = world_rot.to_matrix().to_4x4()
-        
+
         world_cog = pivot.matrix_world @ Vector(cogs[i])
-        world_origin = pivot.matrix_world @ Vector(origins[i])
+        world_origin = pivot.matrix_world @ origin_vector
         target_origin = world_cog + rotation_matrix @ (world_origin - world_cog)
 
-        # Convert back to pivot-local space for child transforms
         local_cog = Vector(cogs[i])
-        local_origin = Vector(origins[i])
+        local_origin = origin_vector
         local_rotation_matrix = rots[i].to_matrix().to_4x4()
 
+        pre_rotate = Matrix.Translation(local_rotation_matrix @ (local_cog - local_origin)) @ local_rotation_matrix
+        post_translate = Matrix.Translation(-local_cog)
         for child in pivot.children:
-            child.matrix_local = Matrix.Translation(local_rotation_matrix @ (local_cog - local_origin)) @ local_rotation_matrix @ Matrix.Translation(-local_cog) @ child.matrix_local
+            child.matrix_local = pre_rotate @ post_translate @ child.matrix_local
 
         pivot.matrix_world.translation = target_origin
-        
-
 
 def set_origin_and_preserve_children(obj, new_origin_local):
     """Move object origin to new_origin_world while preserving visual placement of mesh and children."""
     old_matrix = obj.matrix_world.copy()
+    print(new_origin_local)
     # Rotate new_origin_local by the inverse of the world matrix rotation to get local space
     local_new_origin = old_matrix.to_3x3().inverted() @ new_origin_local
     new_world_pos = old_matrix.translation + new_origin_local
@@ -100,9 +107,23 @@ def _build_group_surface_contexts(group_names, surface_context, classification_m
 
     for name in group_names:
         if auto_context and name in map_to_use:
-            contexts.append(str(map_to_use[name]))
+            surface_type_int = map_to_use[name]
+            if surface_type_int in (0, 1, 2):
+                contexts.append(str(surface_type_int))
+            else:
+                contexts.append("AUTO")
         else:
-            contexts.append(surface_context)
+            # Map surface_context string to engine-expected string
+            if surface_context == "AUTO":
+                contexts.append("AUTO")
+            elif surface_context == "GROUND":
+                contexts.append("0")
+            elif surface_context == "WALL":
+                contexts.append("1")
+            elif surface_context == "CEILING":
+                contexts.append("2")
+            else:
+                contexts.append("AUTO")  # default to AUTO
 
     return contexts
 
@@ -122,6 +143,7 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
 
     mesh_groups, full_groups, group_names, total_verts, total_edges, total_objects, pivots, synced_group_names, synced_pivots = selection_utils.aggregate_object_groups(selected_objects)
     core_group_mgr = group_manager.get_group_manager()
+    origin_method_is_base = origin_method == "BASE"
 
     engine = get_engine_communicator()
     new_group_results = {}
@@ -134,7 +156,7 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
 
     if group_names:
         shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
-            total_verts, total_edges, total_objects, mesh_groups, pivots)
+            total_verts, total_edges, total_objects, mesh_groups, pivots, True)
 
         verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
         vert_counts_mv, edge_counts_mv, object_counts_mv = count_memory_views
@@ -165,11 +187,6 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
         all_origins = [tuple(all_group_results[name]["origin"]) for name in all_transformed_group_names]
         all_cogs = [tuple(all_group_results[name]["cog"]) for name in all_transformed_group_names]
 
-        if origin_method == "BASE":
-            all_new_origins = all_origins
-        else:
-            all_new_origins = all_cogs
-
         pivot_lookup = {group_names[i]: pivots[i] for i in range(len(group_names))}
         pivot_lookup.update({synced_group_names[i]: synced_pivots[i] for i in range(len(synced_group_names))})
         all_pivots = []
@@ -179,7 +196,8 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
                 print(f"Warning: Pivot not found for group '{name}'")
             all_pivots.append(pivot)
 
-        _apply_transforms_to_pivots(all_pivots, all_new_origins, all_rots, all_cogs)
+        _apply_transforms_to_pivots(all_pivots, all_origins, all_rots, all_cogs, origin_method_is_base)
+        core_group_mgr.set_groups_last_origin_method_base(all_transformed_group_names, origin_method_is_base)
 
     surface_types_command = engine.build_get_surface_types_command()
     surface_types_response = engine.send_command(surface_types_command)
@@ -244,7 +262,7 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     
     # --- Shared memory setup ---
     shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
-        total_verts, total_edges, len(mesh_objects), mesh_groups, [])  # No pivots for objects
+        total_verts, total_edges, len(mesh_objects), mesh_groups, [], False)  # No pivots for objects
     
     verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
     vert_counts_mv, edge_counts_mv, object_counts_mv = count_memory_views
@@ -252,7 +270,19 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     # --- Engine communication: unified array format ---
     # Engine will validate that multiple objects are only used in PRO edition
     engine = get_engine_communicator()
-    surface_contexts = [surface_context] * len(mesh_objects)
+    # Map surface_context to engine-expected string
+    print(f"Standardize surface context: {surface_context}")
+    if surface_context == "AUTO":
+        engine_surface_context = "AUTO"
+    elif surface_context == "GROUND":
+        engine_surface_context = "0"
+    elif surface_context == "WALL":
+        engine_surface_context = "1"
+    elif surface_context == "CEILING":
+        engine_surface_context = "2"
+    else:
+        engine_surface_context = "AUTO"
+    surface_contexts = [engine_surface_context] * len(mesh_objects)
     command = engine.build_standardize_objects_command(
         verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
         list(vert_counts_mv), list(edge_counts_mv), [obj.name for obj in mesh_objects], surface_contexts)

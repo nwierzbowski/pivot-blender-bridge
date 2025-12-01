@@ -8,7 +8,7 @@ from mathutils import Matrix, Vector
 from libc.stdint cimport uint32_t
 from libc.stddef cimport size_t
 
-def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t total_objects, list mesh_groups, list pivots):
+def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t total_objects, list mesh_groups, list pivots, bint is_group_mode):
     depsgraph = bpy.context.evaluated_depsgraph_get()
     verts_size = total_verts * 3 * 4  # float32 = 4 bytes
     edges_size = total_edges * 2 * 4  # uint32 = 4 bytes
@@ -82,7 +82,7 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     for group in mesh_groups:
         vert_offset = 0
         edge_offset = 0
-        if pivots and group_idx < len(pivots):
+        if is_group_mode:
             pivot_obj = pivots[group_idx]
             pivot_matrix_world = pivot_obj.matrix_world.copy()
             try:
