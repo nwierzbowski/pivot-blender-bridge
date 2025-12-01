@@ -31,6 +31,27 @@ class Pivot_OT_Organize_Classified_Objects(bpy.types.Operator):
     def execute(self, context):
         start_total = time.perf_counter()
         try:
+            from ..lib import standardize
+            
+            # First, standardize all managed groups
+            group_mgr = group_manager.get_group_manager()
+            managed_groups = list(group_mgr.get_managed_group_names_set())
+            
+            if managed_groups:
+                # Collect all objects from managed groups to standardize them
+                objects_to_standardize = []
+                for group_name in managed_groups:
+                    if group_name in bpy.data.collections:
+                        group_coll = bpy.data.collections[group_name]
+                        objects_to_standardize.extend(list(group_coll.objects))
+                
+                if objects_to_standardize:
+                    try:
+                        standardize.standardize_groups(objects_to_standardize, "BASE", "AUTO")
+                    except Exception as e:
+                        self.report({"WARNING"}, f"Failed to standardize groups: {e}")
+                        print(f"[Pivot] Standardize groups error: {e}")
+            
             surface_manager = get_surface_manager()
             classifications = surface_manager.collect_group_classifications()
             if classifications:

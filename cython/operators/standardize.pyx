@@ -113,15 +113,9 @@ def _build_group_surface_contexts(group_names, surface_context, classification_m
             else:
                 contexts.append("AUTO")
         else:
-            # Map surface_context string to engine-expected string
-            if surface_context == "AUTO":
-                contexts.append("AUTO")
-            elif surface_context == "GROUND":
-                contexts.append("0")
-            elif surface_context == "WALL":
-                contexts.append("1")
-            elif surface_context == "CEILING":
-                contexts.append("2")
+            # surface_context is already in the correct format (AUTO, 0, 1, 2)
+            if surface_context in ("AUTO", "0", "1", "2"):
+                contexts.append(surface_context)
             else:
                 contexts.append("AUTO")  # default to AUTO
 
@@ -272,14 +266,8 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     engine = get_engine_communicator()
     # Map surface_context to engine-expected string
     print(f"Standardize surface context: {surface_context}")
-    if surface_context == "AUTO":
-        engine_surface_context = "AUTO"
-    elif surface_context == "GROUND":
-        engine_surface_context = "0"
-    elif surface_context == "WALL":
-        engine_surface_context = "1"
-    elif surface_context == "CEILING":
-        engine_surface_context = "2"
+    if surface_context in ("AUTO", "0", "1", "2"):
+        engine_surface_context = surface_context
     else:
         engine_surface_context = "AUTO"
     surface_contexts = [engine_surface_context] * len(mesh_objects)
