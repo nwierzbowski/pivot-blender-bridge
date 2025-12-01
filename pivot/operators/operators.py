@@ -113,6 +113,54 @@ class Pivot_OT_Organize_Classified_Objects(bpy.types.Operator):
         return {FINISHED}
 
 
+class Pivot_OT_Reset_Classifications(bpy.types.Operator):
+    bl_idname = "object." + PRE.lower() + "reset_classifications"
+    bl_label = "Reset Classifications"
+    bl_description = "Deletes the Pivot Classifications collection and all its related classification collections to reset the classification state"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            from ..classes import CLASSIFICATION_ROOT_MARKER_PROP, CLASSIFICATION_MARKER_PROP
+            
+            # Find and delete all classification collections
+            collections_to_delete = []
+            
+            # First pass: find all collections marked as classification collections
+            for coll in bpy.data.collections:
+                if coll.get(CLASSIFICATION_ROOT_MARKER_PROP, False) or coll.get(CLASSIFICATION_MARKER_PROP, False):
+                    collections_to_delete.append(coll)
+            
+            # Delete found collections
+            deleted_count = 0
+            for coll in collections_to_delete:
+                try:
+                    # Unlink from scene if it's a root collection
+                    scene = context.scene
+                    if scene.collection.children.find(coll.name) != -1:
+                        scene.collection.children.unlink(coll)
+                    
+                    # Remove the collection entirely
+                    bpy.data.collections.remove(coll)
+                    deleted_count += 1
+                except RuntimeError as e:
+                    print(f"[Pivot] Failed to delete collection '{coll.name}': {e}")
+                    self.report({"WARNING"}, f"Failed to delete collection: {coll.name}")
+            
+            if deleted_count > 0:
+                self.report({"INFO"}, f"Reset classifications: deleted {deleted_count} collection(s)")
+                engine_state._is_performing_classification = True
+            else:
+                self.report({"INFO"}, "No classification collections found to reset")
+            
+            return {FINISHED}
+            
+        except Exception as e:
+            self.report({"ERROR"}, f"Failed to reset classifications: {e}")
+            print(f"[Pivot] Reset classifications error: {e}")
+            return {CANCELLED}
+
+
 class Pivot_OT_Upgrade_To_Pro(bpy.types.Operator):
     bl_idname = PRE.lower() + ".upgrade_to_pro"
     bl_label = "Upgrade to Pro"

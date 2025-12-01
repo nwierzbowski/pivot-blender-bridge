@@ -2,6 +2,7 @@ from re import S
 import bpy
 from .operators.operators import (
     Pivot_OT_Organize_Classified_Objects,
+    Pivot_OT_Reset_Classifications,
     Pivot_OT_Upgrade_To_Pro,
 )
 
@@ -106,6 +107,11 @@ class Pivot_PT_Pro_Panel(bpy.types.Panel):
             # Organization button
             row = layout.row()
             row.operator(Pivot_OT_Organize_Classified_Objects.bl_idname)
+            
+            # Reset classifications button
+            layout.separator()
+            row = layout.row()
+            row.operator(Pivot_OT_Reset_Classifications.bl_idname, icon='X')
         else:
             # Standard mode: show upgrade info
             layout.label(text="Unlock Your Full Pipeline:")

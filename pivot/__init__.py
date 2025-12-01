@@ -12,6 +12,7 @@ from .lib import group_manager
 from . import handlers
 from .operators.operators import (
     Pivot_OT_Organize_Classified_Objects,
+    Pivot_OT_Reset_Classifications,
     Pivot_OT_Upgrade_To_Pro,
 )
 from .operators.group_classification import Pivot_OT_Standardize_Selected_Groups
@@ -41,6 +42,7 @@ classesToRegister = (
     Pivot_OT_Set_Origin_Selected_Objects,
     Pivot_OT_Align_Facing_Selected_Objects,
     Pivot_OT_Organize_Classified_Objects,
+    Pivot_OT_Reset_Classifications,
     Pivot_OT_Upgrade_To_Pro,
 )
 
