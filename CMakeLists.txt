@@ -156,12 +156,6 @@ endif()
 
 add_subdirectory(core)
 
-if(BUILD_ENGINE)
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/engine/CMakeLists.txt)
-        add_subdirectory(engine)
-    endif()
-endif()
-
 if(BUILD_PY_MODULE)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cython/CMakeLists.txt)
         add_subdirectory(cython)
@@ -169,7 +163,9 @@ if(BUILD_PY_MODULE)
 endif()
 
 # Convenience meta-target to build both when present
-add_custom_target(dev ALL)
+if(NOT TARGET dev)
+  add_custom_target(dev ALL)
+endif()
 if(TARGET pivot_engine)
     add_dependencies(dev pivot_engine)
 endif()
