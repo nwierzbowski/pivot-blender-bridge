@@ -1,4 +1,7 @@
-# Python (Cython) module subproject
+# Copyright (C) 2025 Nicholas Wierzbowski / Elbo Studio
+# This file is part of the Pivot Bridge for Blender.
+
+  
 
 find_package(Python3 COMPONENTS Interpreter Development.Module NumPy REQUIRED)
 find_program(CYTHON_EXECUTABLE cython REQUIRED)
