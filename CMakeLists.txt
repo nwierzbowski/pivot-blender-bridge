@@ -85,9 +85,8 @@ message(STATUS "Platform identifier: ${PIVOT_PLATFORM_ID}")
 
 # Ensure output directories exist (blender-bridge handles its own lib, and engine bin if needed)
 file(MAKE_DIRECTORY "${PIVOT_LIB_DIR}")
-if(DEFINED PIVOT_BIN_DIR)
-    file(MAKE_DIRECTORY "${PIVOT_BIN_DIR}")
-endif()
+# Always ensure the engine bin dir exists so blender-bridge can compile/install
+file(MAKE_DIRECTORY "${PIVOT_BIN_DIR}")
 
 # Ensure output directories are ready for this edition and platform
 function(_pivot_prepare_dir dir platform_id)
