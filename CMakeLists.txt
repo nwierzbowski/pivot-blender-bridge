@@ -166,8 +166,6 @@ endif()
 # If Boost::json target is not available, fetch standalone Boost.JSON cmake project
     # We will build Boost.JSON from sources in the fetched Boost tree if the system target is unavailable.
 
-add_subdirectory(core)
-
 if(BUILD_PY_MODULE)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cython/CMakeLists.txt)
         add_subdirectory(cython)
