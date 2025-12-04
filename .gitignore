@@ -23,7 +23,7 @@ build*/
 dist/
 out/
 pivot/lib/*/
-pivot/bin/*/
+pivot/bin/*
 *.egg-info/
 *.so
 *.pyd
