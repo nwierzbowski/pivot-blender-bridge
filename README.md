@@ -6,17 +6,19 @@ This code is provided in full compliance with the GNU General Public License (GP
 
 ## Licensing and Distribution
 
-The Pivot addon is a **hybrid software product** designed for maximum performance. It is comprised of two parts:
+The Pivot addon is a **hybrid software product** designed for maximum performance. It is comprised of three parts:
 
 1.  **The Pivot Bridge (GPLv3):** This is the code contained in this repository. It provides the user interface and API interaction logic.
-2.  **The Elbo Core Engine (Proprietary):** This is the pre-compiled C++ application that performs all the complex, high-speed geometric computation.
+2.  **The Engine Interface (MIT):** The C++ header files that define the communication API are licensed under the permissive MIT license.
+3.  **The Pivot Engine (Proprietary):** This is the pre-compiled C++ application that performs all the complex, high-speed geometric computation.
 
 **Crucial Note on Functionality:**
 
 The Pivot Bridge addon **will install and function without the Elbo Core Engine.** However, the addon **requires** the Core Engine binary to be present to execute any of the high-performance computation operators (like Classification or Batch Processing).
 
-*   **Bridge Code:** Licensed under the GNU General Public License v3.0 or any later version. See [License](https://github.com/nwierzbowski/pivot-blender-bridge/blob/main/LICENSE) for the full text.
-*   **Proprietary Engine:** The source code for the Engine is not included here. All proprietary components are governed by our EULA.
+*   **Bridge Code (GPLv3):** Licensed under the GNU General Public License v3.0 or any later version. See [License](https://github.com/nwierzbowski/pivot-blender-bridge/blob/main/LICENSE) in the root of this repository for the full text.
+*   **Engine Interface (MIT):** The source code for the C++ header files is located in the `core/` directory of this repository, governed by the MIT License included therein.
+*   **Proprietary Engine (EULA):** The source code for the Engine is not included here. All proprietary components are governed by our EULA.
 
 ## Purpose
 
@@ -62,6 +64,8 @@ For the Standard edition build:
    ninja -C build-standard
    ```
 
-The builds use the Ninja generator and output the binaries and Cython modules into the repository's `pivot/` folder. Specifically, the compiled .so (Linux/macOS) or .pyd (Windows) binaries will be placed in `pivot/lib/your-architecture/` (e.g., `pivot/lib/linux-x86-64/`). An empty `bin/` folder will also be present in the `pivot/` directory, where the compiled proprietary Elbo Core Engine binary must be manually placed after acquisition from the official sources. Note that this build process does not generate the proprietary engine, as its source code is not included in this repository due to its proprietary nature.
+The builds use the Ninja generator and output the binaries and Cython modules into the repository's `pivot/` folder. Specifically, the compiled .so (Linux/macOS) or .pyd (Windows) binaries will be placed in `pivot/lib/your-architecture/` (e.g., `pivot/lib/linux-x86-64/`). An empty `bin/` folder will also be present in the `pivot/` directory.
+
+**ACTION REQUIRED:** Note that this build process does not generate the proprietary engine, as its source code is not included in this repository due to its proprietary nature. **The required engine binary must be acquired separately from the official sources and is governed by the EULA.txt file located in the 'bin' subfolder.**
 
 After building, zip the `pivot/` folder and install it as a Blender addon.
