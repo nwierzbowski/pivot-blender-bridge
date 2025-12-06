@@ -43,7 +43,7 @@ bl_info = {
     "name": "Pivot: Viewport Asset Organizer",
     "author": "Nick Wierzbowski",
     "version": (1, 0, 0),
-    "blender": (4, 4, 0),  # Minimum Blender version
+    "blender": (4, 2, 0),  # Minimum Blender version
     "location": "View3D > Sidebar > Pivot",
     "description": "Performs viewport formatting, standardization, and grouping.",
     "warning": "",
