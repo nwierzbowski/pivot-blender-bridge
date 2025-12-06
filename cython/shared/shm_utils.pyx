@@ -25,6 +25,22 @@ from mathutils import Matrix, Vector
 from libc.stdint cimport uint32_t
 from libc.stddef cimport size_t
 
+def get_shm_interop_name(shm_obj):
+    """
+    Returns the absolute path for macOS (Python 3.11), or the abstract name 
+    for Linux/Windows.
+    """
+    if platform.system() == "Darwin":
+        # On macOS (Darwin) with Python 3.11, the absolute path is reliably 
+        # stored in the private attribute '_name'. This path is what Boost's 
+        # mapped_file_segment needs to open the memory.
+        # Note: We use 'getattr' to safely access the private attribute.
+        return getattr(shm_obj, '_name') 
+    else:
+        # Linux/Windows: The public '.name' is the abstract ID that Boost's 
+        # shared_memory_object expects.
+        return shm_obj.name
+
 def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t total_objects, list mesh_groups, list pivots, bint is_group_mode):
     depsgraph = bpy.context.evaluated_depsgraph_get()
     verts_size = total_verts * 3 * 4  # float32 = 4 bytes
@@ -51,6 +67,12 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     rotations_shm = shared_memory.SharedMemory(create=True, size=rotations_size, name=rotations_shm_name)
     scales_shm = shared_memory.SharedMemory(create=True, size=scales_size, name=scales_shm_name)
     offsets_shm = shared_memory.SharedMemory(create=True, size=offsets_size, name=offsets_shm_name)
+
+    verts_shm_name = get_shm_interop_name(verts_shm)
+    edges_shm_name = get_shm_interop_name(edges_shm)
+    rotations_shm_name = get_shm_interop_name(rotations_shm)
+    scales_shm_name = get_shm_interop_name(scales_shm)
+    offsets_shm_name = get_shm_interop_name(offsets_shm)
 
     cdef cnp.ndarray all_verts = np.ndarray((verts_size // 4,), dtype=np.float32, buffer=verts_shm.buf)
     cdef cnp.ndarray all_edges = np.ndarray((edges_size // 4,), dtype=np.uint32, buffer=edges_shm.buf)
