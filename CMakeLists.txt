@@ -5,8 +5,19 @@ if(APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version" FORCE)
 endif()
 
+project(pivot_bridge LANGUAGES CXX)
+
+# ---------------------------------------------------------------------------
+# SYSTEM COMPATIBILITY SETTINGS
+# ---------------------------------------------------------------------------
+
+# Windows: Force compatibility with Windows 8.1 (Blender minimum)
+if(WIN32)
+    add_compile_definitions(_WIN32_WINNT=0x0603 WINVER=0x0603)
+endif()
+
 if(MSVC)
-    # Ensure MSVC uses the static runtime consistently to avoid /MD vs /MT clashes
+    # Ensure MSVC uses the static runtime (matches engine build /MT)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
@@ -30,9 +41,8 @@ if(_edition_index EQUAL -1)
     message(FATAL_ERROR "Invalid PIVOT_EDITION '${PIVOT_EDITION}'. Choose PRO or STANDARD.")
 endif()
 set(PIVOT_EDITION "${PIVOT_EDITION_UPPER}" CACHE STRING "Edition to build (PRO or STANDARD)" FORCE)
-unset(_allowed_editions)
-unset(_edition_index)
 
+# Define edition flags
 set(_edition_defines)
 if(PIVOT_EDITION STREQUAL "PRO")
     list(APPEND _edition_defines "PIVOT_EDITION_PRO")
@@ -46,6 +56,7 @@ endif()
 
 list(APPEND _edition_defines "PIVOT_EDITION_NAME=\"${PIVOT_EDITION}\"")
 
+# Cache internal variables for subdirectories
 if(NOT DEFINED PIVOT_EDITION_DEFINES)
     set(PIVOT_EDITION_DEFINES "${_edition_defines}" CACHE INTERNAL "Compile definitions for the selected edition" FORCE)
 endif()
@@ -59,11 +70,10 @@ if(NOT DEFINED PIVOT_EDITION_NAME_DEF)
     set(PIVOT_EDITION_NAME_DEF ${PIVOT_EDITION} CACHE INTERNAL "Cython DEF name for selected edition" FORCE)
 endif()
 
-# Detect platform architecture for per-architecture builds
+# Detect platform architecture
 string(TOLOWER "${CMAKE_SYSTEM_NAME}" _system_name)
 string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" _processor)
 
-# Normalize architecture names
 if(_processor MATCHES "^(x86_64|AMD64|amd64)$")
     set(_arch "x86-64")
 elseif(_processor MATCHES "^(aarch64|arm64)$")
@@ -72,27 +82,16 @@ else()
     set(_arch "${_processor}")
 endif()
 
-set(PIVOT_PLATFORM_ID "${_system_name}-${_arch}" CACHE INTERNAL "Platform identifier (e.g., darwin-arm64, linux-x86-64)")
+set(PIVOT_PLATFORM_ID "${_system_name}-${_arch}" CACHE INTERNAL "Platform identifier")
 set(PIVOT_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pivot/lib/${PIVOT_PLATFORM_ID}" CACHE INTERNAL "Cython module output directory")
 if(NOT DEFINED PIVOT_BIN_DIR)
     set(PIVOT_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pivot/bin/${PIVOT_PLATFORM_ID}" CACHE INTERNAL "Engine output directory")
 endif()
 
-unset(_edition_pro_flag)
-unset(_edition_standard_flag)
-unset(_edition_name)
-unset(_system_name)
-unset(_processor)
-unset(_arch)
 message(STATUS "Building Pivot edition: ${PIVOT_EDITION}")
 message(STATUS "Platform identifier: ${PIVOT_PLATFORM_ID}")
 
-# Ensure output directories exist (blender-bridge handles its own lib, and engine bin if needed)
-file(MAKE_DIRECTORY "${PIVOT_LIB_DIR}")
-# Always ensure the engine bin dir exists so blender-bridge can compile/install
-file(MAKE_DIRECTORY "${PIVOT_BIN_DIR}")
-
-# Ensure output directories are ready for this edition and platform
+# Prepare output directories
 function(_pivot_prepare_dir dir platform_id)
     if(dir STREQUAL "")
         return()
@@ -118,48 +117,24 @@ function(_pivot_prepare_dir dir platform_id)
 endfunction()
 
 _pivot_prepare_dir("${PIVOT_LIB_DIR}" "${PIVOT_PLATFORM_ID}")
+_pivot_prepare_dir("${PIVOT_BIN_DIR}" "${PIVOT_PLATFORM_ID}")
 
-# Shared dependencies (available to subprojects)
+# ---------------------------------------------------------------------------
+# DEPENDENCIES
+# ---------------------------------------------------------------------------
 include(FetchContent)
-# Disable Eigen extras we don't use; keeps Windows builds from probing Fortran toolchains
-# set(BUILD_TESTING OFF CACHE BOOL "Disable all third-party test targets" FORCE)
-# set(EIGEN_TEST_FORTRAN OFF CACHE BOOL "Disable Eigen Fortran tests" FORCE)
-# set(EIGEN_BUILD_TESTING OFF CACHE BOOL "Disable Eigen self-tests" FORCE)
-# set(EIGEN_BUILD_DOC OFF CACHE BOOL "Disable Eigen documentation build" FORCE)
-# FetchContent_Declare(
-#     Eigen
-#     GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-#     GIT_TAG 3.4.0
-#     GIT_SHALLOW TRUE
-# )
-# FetchContent_GetProperties(Eigen)
-# if(NOT Eigen_POPULATED)
-#     FetchContent_Populate(Eigen)
-# endif()
-# if(NOT DEFINED Eigen_SOURCE_DIR AND DEFINED eigen_SOURCE_DIR)
-#     set(Eigen_SOURCE_DIR "${eigen_SOURCE_DIR}")
-# endif()
 
-# if(NOT TARGET Eigen3::Eigen)
-#     add_library(Eigen3::Eigen INTERFACE IMPORTED GLOBAL)
-#     set_target_properties(Eigen3::Eigen PROPERTIES
-#         INTERFACE_INCLUDE_DIRECTORIES "${Eigen_SOURCE_DIR}"
-#     )
-# endif()
-
-# Required Boost libs for IPC and JSON
-cmake_policy(SET CMP0167 NEW) # Suppress FindBoost deprecation warning
+# Boost Logic (Matches Engine)
+cmake_policy(SET CMP0167 NEW) 
 find_package(Boost 1.75 QUIET COMPONENTS interprocess json)
 if(Boost_FOUND)
     message(STATUS "Using system Boost (${Boost_VERSION})")
 endif()
 
-# If Boost headers are not found (or too old), fetch a Boost release for headers
 if(NOT Boost_FOUND)
-    message(STATUS "Boost (with components interprocess/json) not fully available; fetching Boost headers via FetchContent")
+    message(STATUS "Boost not fully available; fetching headers via FetchContent")
     set(BOOST_VERSION 1.83.0 CACHE STRING "Boost release version to fetch")
     string(REPLACE "." "_" BOOST_VERSION_U ${BOOST_VERSION})
-    # boost_ext provides headers only
     FetchContent_Declare(
         boost_ext
         URL https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_U}.tar.gz
@@ -168,16 +143,14 @@ if(NOT Boost_FOUND)
     FetchContent_MakeAvailable(boost_ext)
 endif()
 
-# If Boost::json target is not available, fetch standalone Boost.JSON cmake project
-    # We will build Boost.JSON from sources in the fetched Boost tree if the system target is unavailable.
-
+# Build Cython Subdirectory
 if(BUILD_PY_MODULE)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cython/CMakeLists.txt)
         add_subdirectory(cython)
     endif()
 endif()
 
-# Convenience meta-target to build both when present
+# Convenience meta-target
 if(NOT TARGET dev)
   add_custom_target(dev ALL)
   if(TARGET bridge)
