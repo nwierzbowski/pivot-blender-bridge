@@ -71,7 +71,7 @@ def _apply_transforms_to_pivots(pivots, origins, rots, cogs, bint origin_method_
 def set_origin_and_preserve_children(obj, new_origin_local):
     """Move object origin to new_origin_world while preserving visual placement of mesh and children."""
     old_matrix = obj.matrix_world.copy()
-    print(new_origin_local)
+    # print(new_origin_local)
     # Rotate new_origin_local by the inverse of the world matrix rotation to get local space
     local_new_origin = old_matrix.to_3x3().inverted() @ new_origin_local
     new_world_pos = old_matrix.translation + new_origin_local
@@ -177,14 +177,14 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
         command = engine.build_standardize_groups_command(
             verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
             list(vert_counts_mv), list(edge_counts_mv), list(object_counts_mv), group_names, surface_contexts)
-        print("Pre engine shared memory checks:")
-        for shm in shm_objects:
-            debug_shm(shm)
+        # print("Pre engine shared memory checks:")
+        # for shm in shm_objects:
+        #     debug_shm(shm)
 
         final_response = _send_engine_command_and_get_response(engine, command)
-        print("\n\nPost engine shared memory checks:")
-        for shm in shm_objects:
-            debug_shm(shm)
+        # print("\n\nPost engine shared memory checks:")
+        # for shm in shm_objects:
+        #     debug_shm(shm)
 
         _close_shared_memory_segments(shm_objects)
         # print("Post close shared memory checks:")
@@ -309,7 +309,7 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     # Engine will validate that multiple objects are only used in PRO edition
     engine = get_engine_communicator()
     # Map surface_context to engine-expected string
-    print(f"Standardize surface context: {surface_context}")
+    # print(f"Standardize surface context: {surface_context}")
     if surface_context in ("AUTO", "0", "1", "2"):
         engine_surface_context = surface_context
     else:
@@ -318,17 +318,17 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     command = engine.build_standardize_objects_command(
         verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
         list(vert_counts_mv), list(edge_counts_mv), [obj.name for obj in mesh_objects], surface_contexts)
-    print("Pre engine shared memory checks:")
-    for shm in shm_objects:
-        debug_shm(shm)
+    # print("Pre engine shared memory checks:")
+    # for shm in shm_objects:
+    #     debug_shm(shm)
     
     engine.send_command_async(command)
     
     final_response = engine.wait_for_response(1)
     
-    print("\n\nPost engine shared memory checks:")
-    for shm in shm_objects:
-        debug_shm(shm)
+    # print("\n\nPost engine shared memory checks:")
+    # for shm in shm_objects:
+    #     debug_shm(shm)
 
     _close_shared_memory_segments(shm_objects)
     # print("Post close shared memory checks:")
