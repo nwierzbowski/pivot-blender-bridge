@@ -182,7 +182,7 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
             debug_shm(shm)
 
         final_response = _send_engine_command_and_get_response(engine, command)
-        print("Post engine shared memory checks:")
+        print("\n\nPost engine shared memory checks:")
         for shm in shm_objects:
             debug_shm(shm)
 
@@ -325,7 +325,7 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     
     final_response = engine.wait_for_response(1)
     
-    print("Post engine shared memory checks:")
+    print("\n\nPost engine shared memory checks:")
     for shm in shm_objects:
         debug_shm(shm)
 
