@@ -18,7 +18,8 @@
 import numpy as np
 cimport numpy as cnp
 import uuid
-import multiprocessing.shared_memory as shared_memory
+# import multiprocessing.shared_memory as shared_memory
+from shm_bridge import SharedMemory
 import bpy
 import platform
 from mathutils import Matrix, Vector
@@ -46,11 +47,11 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     scales_shm_name = f"sp_s_{uid}"
     offsets_shm_name = f"sp_o_{uid}"
 
-    verts_shm = shared_memory.SharedMemory(create=True, size=verts_size, name=verts_shm_name)
-    edges_shm = shared_memory.SharedMemory(create=True, size=edges_size, name=edges_shm_name)
-    rotations_shm = shared_memory.SharedMemory(create=True, size=rotations_size, name=rotations_shm_name)
-    scales_shm = shared_memory.SharedMemory(create=True, size=scales_size, name=scales_shm_name)
-    offsets_shm = shared_memory.SharedMemory(create=True, size=offsets_size, name=offsets_shm_name)
+    verts_shm = SharedMemory(create=True, size=verts_size, name=verts_shm_name)
+    edges_shm = SharedMemory(create=True, size=edges_size, name=edges_shm_name)
+    rotations_shm = SharedMemory(create=True, size=rotations_size, name=rotations_shm_name)
+    scales_shm = SharedMemory(create=True, size=scales_size, name=scales_shm_name)
+    offsets_shm = SharedMemory(create=True, size=offsets_size, name=offsets_shm_name)
 
     cdef cnp.ndarray all_verts = np.ndarray((verts_size // 4,), dtype=np.float32, buffer=verts_shm.buf)
     cdef cnp.ndarray all_edges = np.ndarray((edges_size // 4,), dtype=np.uint32, buffer=edges_shm.buf)
@@ -228,13 +229,13 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
     # Platform-aware shared memory names
     # POSIX (macOS, Linux): Use leading '/' for namespace isolation
     # Windows: No leading '/'
-    is_windows = platform.system() == "Windows"
-    prefix = "" if is_windows else "/"
+    # is_windows = platform.system() == "Windows"
+    # prefix = "" if is_windows else "/"
     uid_faces = uuid.uuid4().hex[:16]
-    face_sizes_shm_name = f"{prefix}sp_fs_{uid_faces}"
+    face_sizes_shm_name = f"sp_fs_{uid_faces}"
 
     try:
-        face_sizes_shm = shared_memory.SharedMemory(create=True, size=face_sizes_size, name=face_sizes_shm_name)
+        face_sizes_shm = SharedMemory(create=True, size=face_sizes_size, name=face_sizes_shm_name)
         shm_face_sizes_buf = np.ndarray((total_faces_count,), dtype=np.uint32, buffer=face_sizes_shm.buf)
 
         face_counts = np.empty(total_objects, dtype=np.uint32)
@@ -270,9 +271,9 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
         if total_face_vertices == 0:
             raise ValueError("prepare_face_data: collected faces but no vertex indices recorded")
 
-        faces_shm_name = f"{prefix}sp_f_{uid_faces}"
+        faces_shm_name = f"sp_f_{uid_faces}"
         faces_size = <size_t>total_face_vertices * 4
-        faces_shm = shared_memory.SharedMemory(create=True, size=faces_size, name=faces_shm_name)
+        faces_shm = SharedMemory(create=True, size=faces_size, name=faces_shm_name)
         shm_faces_buf = np.ndarray((total_face_vertices,), dtype=np.uint32, buffer=faces_shm.buf)
 
         faces_offset = 0

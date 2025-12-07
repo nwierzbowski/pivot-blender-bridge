@@ -15,6 +15,7 @@ set(CYTHON_MODULE_SOURCES
     shared/group_manager.pyx
     shared/selection_utils.pyx
     shared/shm_utils.pyx
+    shared/shm_bridge.pyx
 )
 
 # Operator modules that need linking to core library
@@ -46,6 +47,15 @@ foreach(mod_src ${CYTHON_MODULE_SOURCES})
             )
         endif()
         add_library(${mod} MODULE ${OUT})
+        if(mod STREQUAL "shm_bridge")
+            target_sources(${mod} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/shm_bridge.cpp)
+            target_include_directories(${mod} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../cpp)
+            if(Boost_FOUND)
+                target_include_directories(${mod} PRIVATE ${Boost_INCLUDE_DIRS})
+            elseif(boost_ext_POPULATED)
+                target_include_directories(${mod} PRIVATE ${boost_ext_SOURCE_DIR})
+            endif()
+        endif()
         set_target_properties(${mod} PROPERTIES PREFIX "")
         if(WIN32)
             set_target_properties(${mod} PROPERTIES SUFFIX ".pyd")

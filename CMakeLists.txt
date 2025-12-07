@@ -119,6 +119,24 @@ endfunction()
 _pivot_prepare_dir("${PIVOT_LIB_DIR}" "${PIVOT_PLATFORM_ID}")
 _pivot_prepare_dir("${PIVOT_BIN_DIR}" "${PIVOT_PLATFORM_ID}")
 
+# Required Boost libs for IPC
+cmake_policy(SET CMP0167 NEW) 
+find_package(Boost 1.75 QUIET COMPONENTS interprocess)
+if(Boost_FOUND)
+    message(STATUS "Using system Boost (${Boost_VERSION})")
+else()
+    message(STATUS "Boost not fully available; fetching headers via FetchContent")
+    include(FetchContent)
+    set(BOOST_VERSION 1.83.0 CACHE STRING "Boost release version to fetch")
+    string(REPLACE "." "_" BOOST_VERSION_U ${BOOST_VERSION})
+    FetchContent_Declare(
+        boost_ext
+        URL https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_U}.tar.gz
+        DOWNLOAD_EXTRACT_TIMESTAMP OFF
+    )
+    FetchContent_MakeAvailable(boost_ext)
+endif()
+
 # Build Cython Subdirectory
 if(BUILD_PY_MODULE)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cython/CMakeLists.txt)
