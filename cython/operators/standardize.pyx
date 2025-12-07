@@ -250,6 +250,7 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
 def debug_shm(shm):
     print("=== Shared Memory Debug ===")
     print("Name:", repr(shm.name))
+    print("Name bytes:", shm.name.encode())
     print("Size:", shm.size)
 
     # Try re-open to confirm existence

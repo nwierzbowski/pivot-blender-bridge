@@ -72,6 +72,7 @@ def _reset_sync_state() -> None:
 
 
 def register():
+    print("App Sandbox:", os.getenv("APP_SANDBOX_CONTAINER_ID"))
     print(f"Registering {bl_info.get('name')} version {bl_info.get('version')}")
     
     # Stop any running engine from previous edition
