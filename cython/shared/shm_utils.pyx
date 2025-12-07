@@ -37,14 +37,14 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     # POSIX (macOS, Linux): Use leading '/' for namespace isolation
     # Windows: No leading '/', names are managed by Boost's windows_shared_memory
     # macOS has a 31-char limit for POSIX shared memory names
-    is_windows = platform.system() == "Windows"
-    prefix = "" if is_windows else "/"
+    # is_windows = platform.system() == "Windows"
+    # prefix = "" if is_windows else "/"
     uid = uuid.uuid4().hex[:16]  # Use first 16 chars of UUID
-    verts_shm_name = f"{prefix}sp_v_{uid}"
-    edges_shm_name = f"{prefix}sp_e_{uid}"
-    rotations_shm_name = f"{prefix}sp_r_{uid}"
-    scales_shm_name = f"{prefix}sp_s_{uid}"
-    offsets_shm_name = f"{prefix}sp_o_{uid}"
+    verts_shm_name = f"sp_v_{uid}"
+    edges_shm_name = f"sp_e_{uid}"
+    rotations_shm_name = f"sp_r_{uid}"
+    scales_shm_name = f"sp_s_{uid}"
+    offsets_shm_name = f"sp_o_{uid}"
 
     verts_shm = shared_memory.SharedMemory(create=True, size=verts_size, name=verts_shm_name)
     edges_shm = shared_memory.SharedMemory(create=True, size=edges_size, name=edges_shm_name)

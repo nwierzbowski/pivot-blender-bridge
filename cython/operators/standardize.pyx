@@ -30,6 +30,7 @@ from . import selection_utils, shm_utils, edition_utils, group_manager
 from pivot import engine_state
 from pivot.engine import get_engine_communicator
 from pivot.surface_manager import get_surface_manager
+from multiprocessing.shared_memory import SharedMemory
 
 # Collection metadata keys
 GROUP_COLLECTION_PROP = "pivot_group_name"
@@ -177,6 +178,9 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
             verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
             list(vert_counts_mv), list(edge_counts_mv), list(object_counts_mv), group_names, surface_contexts)
 
+        for shm in shm_objects:
+            debug_shm(shm)
+
         final_response = _send_engine_command_and_get_response(engine, command)
 
         _close_shared_memory_segments(shm_objects)
@@ -237,6 +241,22 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
         # Pass as parallel lists with verified alignment to avoid swapping
         get_surface_manager().organize_groups_into_surfaces(all_group_names, surface_types)
 
+def debug_shm(shm):
+    print("=== Shared Memory Debug ===")
+    print("Name:", repr(shm.name))
+    print("Size:", shm.size)
+
+    # Try re-open to confirm existence
+    try:
+        test = SharedMemory(shm.name)
+        print("Re-open test: OK")
+        test.close()
+    except Exception as e:
+        print("Re-open test FAILED:", e)
+
+    # Show content sample
+    print("First bytes:", bytes(shm.buf[:16]).hex())
+    print("============================")
 
 def _get_standardize_results(list objects, str surface_context="AUTO"):
     """
@@ -291,6 +311,10 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     command = engine.build_standardize_objects_command(
         verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
         list(vert_counts_mv), list(edge_counts_mv), [obj.name for obj in mesh_objects], surface_contexts)
+
+    for shm in shm_objects:
+        debug_shm(shm)
+    
     engine.send_command_async(command)
     
     final_response = engine.wait_for_response(1)
