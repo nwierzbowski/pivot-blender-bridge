@@ -1,5 +1,5 @@
 schema_version = "1.0.0"
-id = "pivot-viewport-asset-organizer"
+id = "pivot"
 version = "1.0.0"
 type = "add-on"
 name = "Pivot: Viewport Asset Organizer"
@@ -9,7 +9,6 @@ description = "Pivot is a powerful viewport asset organizer that helps you autom
 maintainer = "Elbo Studio <nicholas.wierzbowski@elbo.studio>"
 website = "https://www.elbo.studio"
 blender_version_min = "4.2.0"
-blender_version_max = ""
 
 license = ["GPL-3.0-or-later"]
 
