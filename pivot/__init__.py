@@ -39,18 +39,6 @@ from .operators.object_classification import (
 )
 from .ui import Pivot_PT_Standard_Panel, Pivot_PT_Pro_Panel, Pivot_PT_Status_Panel, Pivot_PT_Configuration_Panel
 
-bl_info = {
-    "name": "Pivot: Viewport Asset Organizer",
-    "author": "Nick Wierzbowski",
-    "version": (1, 0, 0),
-    "blender": (4, 2, 0),  # Minimum Blender version
-    "location": "View3D > Sidebar > Pivot",
-    "description": "Performs viewport formatting, standardization, and grouping.",
-    "warning": "",
-    "doc_url": "",
-    "category": "3D View",
-}
-
 classesToRegister = (
     SceneAttributes,
     Pivot_OT_Standardize_Selected_Groups,
@@ -73,7 +61,7 @@ def _reset_sync_state() -> None:
 
 def register():
     print("App Sandbox:", os.getenv("APP_SANDBOX_CONTAINER_ID"))
-    print(f"Registering {bl_info.get('name')} version {bl_info.get('version')}")
+    print("Registering Pivot")
     
     # Stop any running engine from previous edition
     try:
@@ -146,7 +134,7 @@ def register():
 
 
 def unregister():
-    print(f"Unregistering {bl_info.get('name')}")
+    print("Unregistering Pivot")
     
     bpy.utils.unregister_class(Pivot_PT_Pro_Panel)
     bpy.utils.unregister_class(Pivot_PT_Standard_Panel)
