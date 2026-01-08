@@ -1,3 +1,6 @@
 [submodule "core"]
 	path = core
 	url = https://github.com/nwierzbowski/pivot-core.git
+[submodule "pivot-cmake-common"]
+	path = pivot-cmake-common
+	url = https://github.com/nwierzbowski/pivot-cmake-common

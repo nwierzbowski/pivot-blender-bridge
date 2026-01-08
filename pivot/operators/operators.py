@@ -21,7 +21,7 @@ import time
 from mathutils import Vector
 
 from pivot_lib import engine_state
-from pivot_lib import engine
+from elbo_sdk import engine
 from ..constants import (
     CANCELLED,
     FINISHED,

@@ -19,7 +19,7 @@ import bpy
 import os
 import stat
 
-from pivot_lib import engine
+from elbo_sdk import engine
 from pivot_lib import engine_state
 from .classes import SceneAttributes
 from bpy.props import PointerProperty

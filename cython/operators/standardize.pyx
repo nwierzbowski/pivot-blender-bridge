@@ -28,7 +28,7 @@ import bpy
 
 from pivot_lib import selection_utils, shm_utils, edition_utils, group_manager
 from pivot_lib import engine_state
-from pivot_lib.engine import get_engine_communicator
+from elbo_sdk.engine import get_engine_communicator
 from pivot_lib.surface_manager import get_surface_manager
 from multiprocessing.shared_memory import SharedMemory
 

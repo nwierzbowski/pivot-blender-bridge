@@ -28,7 +28,7 @@ import sys
 
 from pivot_lib import engine_state
 from pivot_lib import group_manager
-from pivot_lib import engine
+from elbo_sdk import engine
 from pivot_lib import surface_manager
 import time
 

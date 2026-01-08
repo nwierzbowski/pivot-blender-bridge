@@ -17,9 +17,8 @@
 
 import numpy as np
 cimport numpy as cnp
-import uuid
 # import multiprocessing.shared_memory as shared_memory
-from pivot_lib.shm_bridge import SharedMemory
+from elbo_sdk import shm_manager
 import bpy
 import platform
 from mathutils import Matrix, Vector
@@ -40,18 +39,9 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     # macOS has a 31-char limit for POSIX shared memory names
     # is_windows = platform.system() == "Windows"
     # prefix = "" if is_windows else "/"
-    uid = uuid.uuid4().hex[:16]  # Use first 16 chars of UUID
-    verts_shm_name = f"sp_v_{uid}"
-    edges_shm_name = f"sp_e_{uid}"
-    rotations_shm_name = f"sp_r_{uid}"
-    scales_shm_name = f"sp_s_{uid}"
-    offsets_shm_name = f"sp_o_{uid}"
-
-    verts_shm = SharedMemory(create=True, size=verts_size, name=verts_shm_name)
-    edges_shm = SharedMemory(create=True, size=edges_size, name=edges_shm_name)
-    rotations_shm = SharedMemory(create=True, size=rotations_size, name=rotations_shm_name)
-    scales_shm = SharedMemory(create=True, size=scales_size, name=scales_shm_name)
-    offsets_shm = SharedMemory(create=True, size=offsets_size, name=offsets_shm_name)
+    shm_objects, shm_names = shm_manager.create_standardize_segments(total_verts, total_edges, total_objects)
+    verts_shm, edges_shm, rotations_shm, scales_shm, offsets_shm = shm_objects
+    verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
 
     cdef cnp.ndarray all_verts = np.ndarray((verts_size // 4,), dtype=np.float32, buffer=verts_shm.buf)
     cdef cnp.ndarray all_edges = np.ndarray((edges_size // 4,), dtype=np.uint32, buffer=edges_shm.buf)
@@ -224,18 +214,10 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
 
         return (), ("", ""), face_counts_mv, face_sizes_mv, face_vert_counts_mv, 0, 0
 
-    cdef size_t face_sizes_size = <size_t>total_faces_count * 4
-
-    # Platform-aware shared memory names
-    # POSIX (macOS, Linux): Use leading '/' for namespace isolation
-    # Windows: No leading '/'
-    # is_windows = platform.system() == "Windows"
-    # prefix = "" if is_windows else "/"
-    uid_faces = uuid.uuid4().hex[:16]
-    face_sizes_shm_name = f"sp_fs_{uid_faces}"
+    cdef str uid_faces
 
     try:
-        face_sizes_shm = SharedMemory(create=True, size=face_sizes_size, name=face_sizes_shm_name)
+        face_sizes_shm, face_sizes_shm_name, uid_faces = shm_manager.create_face_sizes_segment(total_faces_count)
         shm_face_sizes_buf = np.ndarray((total_faces_count,), dtype=np.uint32, buffer=face_sizes_shm.buf)
 
         face_counts = np.empty(total_objects, dtype=np.uint32)
@@ -271,9 +253,7 @@ def prepare_face_data(uint32_t total_objects, list mesh_groups):
         if total_face_vertices == 0:
             raise ValueError("prepare_face_data: collected faces but no vertex indices recorded")
 
-        faces_shm_name = f"sp_f_{uid_faces}"
-        faces_size = <size_t>total_face_vertices * 4
-        faces_shm = SharedMemory(create=True, size=faces_size, name=faces_shm_name)
+        faces_shm, faces_shm_name = shm_manager.create_faces_segment(total_face_vertices, uid_faces)
         shm_faces_buf = np.ndarray((total_face_vertices,), dtype=np.uint32, buffer=faces_shm.buf)
 
         faces_offset = 0

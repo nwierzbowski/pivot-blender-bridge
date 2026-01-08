@@ -28,7 +28,7 @@ from typing import Any, Dict, Optional
 from pivot_lib.collection_manager import get_collection_manager
 from pivot_lib import group_manager
 from pivot_lib import classification
-from pivot_lib import engine
+from elbo_sdk import engine
 
 # Property keys for collection metadata
 CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot Classifications"

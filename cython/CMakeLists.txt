@@ -1,130 +1,25 @@
-# Copyright (C) 2025 Nicholas Wierzbowski / Elbo Studio
-# This file is part of the Pivot Bridge for Blender.
+# Blender-side Cython modules (bpy/marshalling). IPC SDK is built separately in elbo_sdk.
 
-find_package(Python3 COMPONENTS Interpreter Development.Module NumPy REQUIRED)
-find_program(CYTHON_EXECUTABLE cython REQUIRED)
+# Load common configuration
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../pivot-cmake-common/PivotCommon.cmake)
 
-set(EDITION_FLAGS_TEMPLATE ${CMAKE_CURRENT_SOURCE_DIR}/edition_flags.pxi.in)
-set(EDITION_FLAGS_FILE ${CMAKE_CURRENT_BINARY_DIR}/edition_flags.pxi)
-configure_file(${EDITION_FLAGS_TEMPLATE} ${EDITION_FLAGS_FILE} @ONLY)
+# Setup Cython using common macro
+_pivot_setup_cython()
 
 set(CYTHON_MODULE_SOURCES
     operators/standardize.pyx
     shared/classification.pyx
     shared/collection_manager.pyx
     shared/edition_utils.pyx
-    shared/engine.pyx
     shared/engine_state.pyx
     shared/group_manager.pyx
     shared/selection_utils.pyx
     shared/shm_utils.pyx
-    shared/shm_bridge.pyx
     shared/surface_manager.pyx
 )
 
-# Operator modules that need linking to core library
-set(OPERATOR_MODULES standardize classification)
-
-# Build all Cython modules
-foreach(mod_src ${CYTHON_MODULE_SOURCES})
-    # Extract module name from path
-    get_filename_component(mod ${mod_src} NAME_WE)
-    set(SRC ${CMAKE_CURRENT_SOURCE_DIR}/${mod_src})
-    set(OUT ${CMAKE_CURRENT_BINARY_DIR}/${mod}.cpp)
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${mod_src})
-        set(PXD_FILE ${CMAKE_CURRENT_SOURCE_DIR}/${mod}.pxd)
-        if(EXISTS ${PXD_FILE})
-            add_custom_command(
-                OUTPUT ${OUT}
-                COMMAND ${CYTHON_EXECUTABLE} --cplus -a -I ${CMAKE_CURRENT_BINARY_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -I ${Python3_INCLUDE_DIRS} -o ${OUT} ${SRC}
-                BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${mod}.html
-                DEPENDS ${SRC} ${PXD_FILE} ${EDITION_FLAGS_FILE}
-                COMMENT "Cythonizing ${SRC} with HTML annotations"
-            )
-        else()
-            add_custom_command(
-                OUTPUT ${OUT}
-                COMMAND ${CYTHON_EXECUTABLE} --cplus -a -I ${CMAKE_CURRENT_BINARY_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR}/.. -I ${Python3_INCLUDE_DIRS} -o ${OUT} ${SRC}
-                BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${mod}.html
-                DEPENDS ${SRC} ${EDITION_FLAGS_FILE}
-                COMMENT "Cythonizing ${SRC} with HTML annotations"
-            )
-        endif()
-        add_library(${mod} MODULE ${OUT})
-        if(mod STREQUAL "shm_bridge")
-            target_sources(${mod} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/shm_bridge.cpp)
-            target_include_directories(${mod} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../cpp)
-            if(Boost_FOUND)
-                target_include_directories(${mod} PRIVATE ${Boost_INCLUDE_DIRS})
-            elseif(boost_ext_POPULATED)
-                target_include_directories(${mod} PRIVATE ${boost_ext_SOURCE_DIR})
-            endif()
-        endif()
-        set_target_properties(${mod} PROPERTIES PREFIX "")
-        if(WIN32)
-            set_target_properties(${mod} PROPERTIES SUFFIX ".pyd")
-        endif()
-        target_link_libraries(${mod} PRIVATE Python3::Module)
-        
-        # -----------------------------------------------------------------------
-        # CRITICAL FIX FOR LINUX COMPATIBILITY (Glibc 2.28)
-        # -----------------------------------------------------------------------
-        if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-            # Link Realtime library (Required for shm_open on older Glibc)
-            target_link_libraries(${mod} PRIVATE rt)
-        endif()
-        # -----------------------------------------------------------------------
-
-        # Explicitly add Python include directories
-        target_include_directories(${mod} PRIVATE ${Python3_INCLUDE_DIRS})
-        # Numpy headers
-        if(Python3_NumPy_INCLUDE_DIRS)
-            target_include_directories(${mod} PRIVATE ${Python3_NumPy_INCLUDE_DIRS})
-        endif()
-        # Define SIZEOF_VOID_P for Windows compatibility with Cython-generated code
-        target_compile_definitions(${mod} PRIVATE SIZEOF_VOID_P=${CMAKE_SIZEOF_VOID_P})
-        # Include core headers (header-only library)
-        target_include_directories(${mod} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../core)
-        
-        if(DEFINED PIVOT_EDITION_DEFINES)
-            foreach(def ${PIVOT_EDITION_DEFINES})
-                target_compile_definitions(${mod} PRIVATE ${def})
-            endforeach()
-        endif()
-        # Force rebuild on edition switch by removing old module
-        add_custom_command(TARGET ${mod} PRE_BUILD
-            COMMAND ${CMAKE_COMMAND} -E remove $<TARGET_FILE:${mod}>
-            COMMENT "Removing old Cython module to force rebuild on edition switch"
-        )
-    endif()
-endforeach()
-
-# Consolidate output directory for all Cython modules
-# Output ONLY to pivot_lib package for wheel building
-# Do NOT put .so files directly in pivot/lib to avoid Blender policy violations
-set(_wheel_pkg_dir "${CMAKE_CURRENT_SOURCE_DIR}/../pivot_lib")
-
-set(CYTHON_ALL_MODULES)
-foreach(mod_src ${CYTHON_MODULE_SOURCES})
-    get_filename_component(mod ${mod_src} NAME_WE)
-    list(APPEND CYTHON_ALL_MODULES ${mod})
-endforeach()
-foreach(mod ${CYTHON_ALL_MODULES})
-    if(TARGET ${mod})
-        # Output directly to wheel package directory
-        set_target_properties(${mod} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${_wheel_pkg_dir}")
-    endif()
-endforeach()
-
-# Build wheel after all Cython modules are compiled
-set(_wheel_output_dir "${CMAKE_CURRENT_SOURCE_DIR}/../pivot/wheels")
-add_custom_target(pivot_wheel ALL
-    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../build_wheel.py" --output-dir "${_wheel_output_dir}"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
-    COMMENT "Building pivot_lib wheel"
-    DEPENDS ${CYTHON_ALL_MODULES}
-)
-
-unset(_cython_output_dir)
-unset(_wheel_pkg_dir)
-unset(_wheel_output_dir)
+# Build all Cython modules using common macro
+if(NOT DEFINED PIVOT_BRIDGE_WHEEL_OUTPUT_DIR)
+    set(PIVOT_BRIDGE_WHEEL_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/dist/wheels")
+endif()
+_pivot_add_cython_modules("${CYTHON_MODULE_SOURCES}" "${CMAKE_CURRENT_SOURCE_DIR}/../pivot_lib" "${PIVOT_BRIDGE_WHEEL_OUTPUT_DIR}")

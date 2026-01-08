@@ -23,6 +23,7 @@ Homepage = "https://www.elbo.studio"
 # This avoids Blender's policy violation for top-level modules in extension directory
 packages = ["pivot_lib"]
 package-dir = {"pivot_lib" = "."}
+zip-safe = false
 
 [tool.setuptools.package-data]
 "pivot_lib" = ["*.so", "*.pyd"]
