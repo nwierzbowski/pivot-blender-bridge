@@ -1,15 +1,5 @@
 # Blender-side Cython modules (bpy/marshalling). IPC SDK is built separately in elbo_sdk.
 
-include(FetchContent)
-
-FetchContent_Declare(
-    pivot-cmake-common
-    GIT_REPOSITORY https://github.com/nwierzbowski/pivot-cmake-common.git  # Replace with actual repo URL
-    GIT_TAG master  # Replace with appropriate tag or commit
-)
-
-FetchContent_MakeAvailable(pivot-cmake-common)
-
 # Load common Pivot configuration
 include(${pivot-cmake-common_SOURCE_DIR}/cmake/PivotCommon.cmake)
 
@@ -70,6 +60,7 @@ endif()
 set(_pivot_core_include_candidates
     "${CMAKE_CURRENT_SOURCE_DIR}/../../elbo-sdk/pivot-core"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../core"
+    "${pivot-core_SOURCE_DIR}"
 )
 foreach(_cand IN LISTS _pivot_core_include_candidates)
     if(EXISTS "${_cand}/classification.h")

@@ -7,10 +7,16 @@ include(FetchContent)
 FetchContent_Declare(
     pivot-cmake-common
     GIT_REPOSITORY https://github.com/nwierzbowski/pivot-cmake-common.git  # Replace with actual repo URL
-    GIT_TAG master  # Replace with appropriate tag or commit
+    GIT_TAG main  # Replace with appropriate tag or commit
 )
 
-FetchContent_MakeAvailable(pivot-cmake-common)
+FetchContent_Declare(
+    pivot-core
+    GIT_REPOSITORY https://github.com/nwierzbowski/pivot-core.git
+    GIT_TAG main
+)
+
+FetchContent_MakeAvailable(pivot-cmake-common pivot-core)
 
 # Load common Pivot configuration
 include(${pivot-cmake-common_SOURCE_DIR}/cmake/PivotCommon.cmake)
