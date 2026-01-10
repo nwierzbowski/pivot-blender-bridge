@@ -1,7 +1,7 @@
 # Blender-side Cython modules (bpy/marshalling). IPC SDK is built separately in elbo_sdk.
 
 # Load common configuration
-include(${CMAKE_CURRENT_SOURCE_DIR}/../pivot-cmake-common/cmake/PivotCommon.cmake)
+include(${pivot-cmake-common_SOURCE_DIR}/cmake/PivotCommon.cmake)
 
 pivot_common_cython_find_python()
 
