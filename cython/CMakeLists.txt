@@ -11,7 +11,7 @@
 # list(APPEND CMAKE_MODULE_PATH "${CYTHON_CMAKE_DIR}")
 
 #Find and add cython_cmake to module path
-if (NOT PIVOT_DEV)
+if (PIVOT_DEV)
 execute_process(
     COMMAND "${Python_EXECUTABLE}" -c "import cython_cmake, os; print(os.path.join(os.path.dirname(cython_cmake.__file__), 'cmake'))"
     OUTPUT_VARIABLE CYTHON_CMAKE_DIR
