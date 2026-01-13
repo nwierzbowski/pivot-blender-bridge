@@ -19,7 +19,7 @@
 
 import bpy
 from mathutils import Vector, Matrix, Quaternion
-from pivot_lib import edition_utils
+from . import edition_utils
 from collections import defaultdict
 
 # Constants (must match pivot/surface_manager.py)

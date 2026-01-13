@@ -15,31 +15,30 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <https://www.gnu.org/licenses>.
 
-"""Pivot Cython extension modules.
-
-This package provides compiled Cython extension modules for Pivot.
-When installed as a wheel, all modules are available directly:
-
-    from pivot_lib import classification
-    from pivot_lib import collection_manager
-    from pivot_lib import edition_utils
-    from elbo_sdk import engine
-    from pivot_lib import engine_state
-    from pivot_lib import group_manager
-    from pivot_lib import selection_utils
-    from pivot_lib import shm_utils
-    from elbo_sdk import shm_bridge
-    from pivot_lib import standardize
-    from pivot_lib import surface_manager
-"""
-
 __version__ = "1.0.0"
+
+try:
+    from . import edition_utils
+    from . import engine_state
+    from . import classification
+    from . import collection_manager
+    
+    from . import group_manager
+    from . import selection_utils
+    from . import shm_utils
+    
+    from . import surface_manager
+    from . import standardize
+except ImportError as e:
+    # Useful for debugging Blender console issues
+    import warnings
+    warnings.warn(f"Failed to load compiled Blender Bridge modules: {e}")
+
 
 __all__ = [
     "classification",
     "collection_manager",
     "edition_utils",
-    "engine",  # shim -> elbo_sdk.engine
     "engine_state",
     "group_manager",
     "selection_utils",

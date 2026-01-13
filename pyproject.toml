@@ -1,15 +1,34 @@
-[project]
-name = "pivot-viewport-asset-organizer"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-    "cmake>=4.1.0",
-    "cmake-format>=0.6.13",
+[build-system]
+requires = [
+    "scikit-build-core>=0.11.6",
     "cython>=3.1.3",
-    "build>=1.2.2",
-    "fake-bpy-module-latest>=20250630",
-    "ninja>=1.13.0",
+    "cython-cmake",
     "numpy>=2.2.6",
 ]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pivot_lib"
+version = "1.0.1"
+description = "Platform-specific Blender bridge modules for Pivot"
+requires-python = ">=3.11, <3.12"
+authors = [
+    { name = "Nicholas Wierzbowski", email = "nicholas.wierzbowski@elbo.studio" }
+]
+dependencies = [
+    "numpy>=2.2.6",
+]
+
+[tool.scikit-build.build]
+verbose = true       # Useful for debugging build logs
+targets = ["all"]    # Ensures all CMake targets are built
+
+[tool.scikit-build.cmake.define]
+# Defaults for PEP 517 (scikit-build-core) builds.
+# - Wheels should not try to symlink into a developer's Blender install.
+PIVOT_DEV = false
+LINK_TO_BLENDER = false
+
+# Optional override hook for local dev builds driven by scikit-build-core.
+# If the env var is unset/empty, the CMake variable becomes empty and the symlink step is skipped.
+BLENDER_SITE_PACKAGES = { env = "PIVOT_BLENDER_SITE_PACKAGES", default = "" }

@@ -25,9 +25,9 @@ Responsibilities:
 import bpy
 from typing import Any, Dict, Optional
 
-from pivot_lib.collection_manager import get_collection_manager
-from pivot_lib import group_manager
-from pivot_lib import classification
+from .collection_manager import get_collection_manager
+from . import group_manager
+from . import classification
 from elbo_sdk import engine
 
 # Property keys for collection metadata
