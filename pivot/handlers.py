@@ -25,10 +25,11 @@ import bpy
 from bpy.app.handlers import persistent
 import os
 import sys
+import stat
 
 from pivot_lib import engine_state
 from pivot_lib import group_manager
-from elbo_sdk import engine
+import elbo_sdk_rust as engine
 from pivot_lib import surface_manager
 import time
 
@@ -77,9 +78,7 @@ def enforce_colors(scene, depsgraph):
     if orphaned_groups:
         try:
             # Drop from engine
-            if not engine.is_running():
-                engine.start()
-            dropped_count = engine.drop_groups(orphaned_groups)
+            dropped_count = engine.drop_groups_command(orphaned_groups)
             if dropped_count >= 0:
                 # Clear their colors and remove from sync state
                 for coll_name in orphaned_groups:
@@ -225,7 +224,7 @@ def on_load_pre(scene):
         print(f"[Pivot] Failed to sync classifications before load: {e}")
     
     # Stop the pivot engine
-    engine.stop()
+    engine.stop_engine()
     
 
 @persistent
@@ -240,6 +239,8 @@ def on_load_post(scene):
     # Initialize engine state for the new scene
     engine_state.update_group_membership_snapshot({}, replace=True)
     clear_previous_scales()
+
+    engine.start_engine()
     
     
     

@@ -28,7 +28,7 @@ from typing import Any, Dict, Optional
 from .collection_manager import get_collection_manager
 from . import group_manager
 from . import classification
-from elbo_sdk import engine
+import elbo_sdk_rust as engine
 
 # Property keys for collection metadata
 CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot Classifications"
@@ -139,7 +139,7 @@ cdef class SurfaceManager:
     def sync_group_classifications(self, dict group_surface_map) -> bint:
         """Sync classifications with the engine."""
         try:
-            return engine.send_group_classifications(group_surface_map)
+            return engine.set_surface_types_command(group_surface_map)
         except RuntimeError:
             return False
 

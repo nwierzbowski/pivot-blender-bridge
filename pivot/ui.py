@@ -32,7 +32,7 @@ from .operators.object_classification import (
 from .constants import PRE, CATEGORY, LICENSE_PRO
 from .classes import LABEL_OBJECTS_COLLECTION, LABEL_ORIGIN_METHOD, LABEL_SURFACE_TYPE
 from pivot_lib.engine_state import get_engine_license_status, set_engine_license_status
-from elbo_sdk import engine
+import elbo_sdk_rust as engine
 
 
 class Pivot_PT_Status_Panel(bpy.types.Panel):
@@ -50,7 +50,7 @@ class Pivot_PT_Status_Panel(bpy.types.Panel):
         license_type = get_engine_license_status()
         if license_type == "UNKNOWN":
             try:
-                license_type = engine.sync_license_mode()
+                license_type = engine.get_license_command()
                 set_engine_license_status(license_type)
             except Exception as e:
                 print(f"[Pivot] Failed to sync license: {e}")
@@ -104,7 +104,7 @@ class Pivot_PT_Pro_Panel(bpy.types.Panel):
         license_type = get_engine_license_status()
         if license_type == "UNKNOWN":
             try:
-                license_type = engine.sync_license_mode()
+                license_type = engine.get_license_command()
                 set_engine_license_status(license_type)
             except Exception as e:
                 print(f"[Pivot] Failed to sync license: {e}")

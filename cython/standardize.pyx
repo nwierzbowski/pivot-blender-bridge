@@ -25,10 +25,11 @@
 from mathutils import Quaternion, Vector, Matrix
 
 import bpy
+import json
 
 from . import selection_utils, shm_utils, edition_utils, group_manager
 from . import engine_state
-from elbo_sdk import engine
+import elbo_sdk_rust as engine
 from .surface_manager import get_surface_manager
 from multiprocessing.shared_memory import SharedMemory
 
@@ -86,29 +87,6 @@ def set_origin_and_preserve_children(obj, new_origin_local):
     for child in obj.children:  
         child.matrix_parent_inverse = correction @ child.matrix_parent_inverse
 
-
-def _send_engine_command_and_get_response(engine, command):
-    """Send engine command and handle response with error checking."""
-    engine.send_command_async(command)
-    final_response = engine.wait_for_response(1)
-    
-    if not bool(final_response.get("ok", True)):
-        error_msg = final_response.get("error", "Unknown engine error")
-        raise RuntimeError(f"Engine command failed: {error_msg}")
-    
-    return final_response
-
-
-# def _close_shared_memory_segments(shm_objects):
-#     """Close shared memory segments with error handling."""
-#     for shm in shm_objects:
-#         try:
-#             shm.close()
-#         except Exception as e:
-#             shm_name = getattr(shm, "name", "<unknown>")
-#             print(f"Warning: Failed to close shared memory segment '{shm_name}': {e}")
-
-
 def _build_group_surface_contexts(group_names, surface_context, classification_map=None):
     """Build per-group surface context strings, honoring AUTO overrides with stored classifications."""
 
@@ -139,15 +117,14 @@ def _build_group_surface_contexts(group_names, surface_context, classification_m
 
     return contexts
 
-
-def _standardize_synced_groups(engine, synced_group_names, surface_contexts):
+def _standardize_synced_groups(synced_group_names, surface_contexts):
     """Reclassify cached groups without sending mesh data."""
 
     if not synced_group_names:
         return {}
 
-    command = engine.build_standardize_synced_groups_command(synced_group_names, surface_contexts)
-    final_response = _send_engine_command_and_get_response(engine, command)
+
+    final_response = json.loads(engine.standardize_synced_groups_command(synced_group_names, surface_contexts))
     return final_response.get("groups", {})
 
 def standardize_groups(list selected_objects, str origin_method, str surface_context):
@@ -166,21 +143,15 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
         classification_map = get_surface_manager().collect_group_classifications()
 
     if group_names:
-        shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
-            total_verts, total_edges, total_objects, mesh_groups, pivots, True)
-
-        verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
-        vert_counts_mv, edge_counts_mv, object_counts_mv = count_memory_views
-
         surface_contexts = _build_group_surface_contexts(group_names, surface_context, classification_map)
-        command = engine.build_standardize_groups_command(
-            verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
-            list(vert_counts_mv), list(edge_counts_mv), list(object_counts_mv), group_names, surface_contexts)
-        # print("Pre engine shared memory checks:")
-        # for shm in shm_objects:
-        #     debug_shm(shm)
-        
-        final_response = _send_engine_command_and_get_response(engine, command)
+
+        shm_objects = shm_utils.create_data_arrays(
+            total_verts, total_edges, total_objects, mesh_groups, pivots, True, group_names, surface_contexts)
+
+        # Execute engine command via the prepared context and parse JSON response
+        import json
+        final_json = shm_objects.finalize()
+        final_response = json.loads(final_json)
         # print("\n\nPost engine shared memory checks:")
         # for shm in shm_objects:
         #     debug_shm(shm)
@@ -197,7 +168,7 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
         engine_state.update_group_membership_snapshot(group_membership_snapshot, replace=False)
 
     synced_surface_contexts = _build_group_surface_contexts(synced_group_names, surface_context, classification_map)
-    synced_group_results = _standardize_synced_groups(engine, synced_group_names, synced_surface_contexts)
+    synced_group_results = _standardize_synced_groups(synced_group_names, synced_surface_contexts)
 
     all_group_results = {**new_group_results, **synced_group_results}
     all_transformed_group_names = list(all_group_results.keys())
@@ -219,8 +190,7 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
         _apply_transforms_to_pivots(all_pivots, all_origins, all_rots, all_cogs, origin_method_is_base)
         core_group_mgr.set_groups_last_origin_method_base(all_transformed_group_names, origin_method_is_base)
 
-    surface_types_command = engine.build_get_surface_types_command()
-    surface_types_response = engine.send_command(surface_types_command)
+    surface_types_response = json.loads(engine.get_surface_types_command())
     
     if not bool(surface_types_response.get("ok", True)):
         error_msg = surface_types_response.get("error", "Unknown engine error during get_surface_types")
@@ -281,29 +251,21 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
         return [], [], [], []
     
     # --- Shared memory setup ---
-    shm_objects, shm_names, count_memory_views = shm_utils.create_data_arrays(
-        total_verts, total_edges, len(mesh_objects), mesh_groups, [], False)  # No pivots for objects
-    
-    verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_names
-    vert_counts_mv, edge_counts_mv, object_counts_mv = count_memory_views
-    
-    # --- Engine communication: unified array format ---
+    object_names = [obj.name for obj in mesh_objects]
     # Map surface_context to engine-expected string
     if surface_context in ("AUTO", "0", "1", "2"):
         engine_surface_context = surface_context
     else:
         engine_surface_context = "AUTO"
     surface_contexts = [engine_surface_context] * len(mesh_objects)
-    command = engine.build_standardize_objects_command(
-        verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name,
-        list(vert_counts_mv), list(edge_counts_mv), [obj.name for obj in mesh_objects], surface_contexts)
-    # print("Pre engine shared memory checks:")
-    # for shm in shm_objects:
-    #     debug_shm(shm)
-    
-    engine.send_command_async(command)
-    
-    final_response = engine.wait_for_response(1)
+
+    shm_objects = shm_utils.create_data_arrays(
+        total_verts, total_edges, len(mesh_objects), mesh_groups, [], False, object_names, surface_contexts)  # No pivots for objects
+
+
+    import json
+    final_json = shm_objects.finalize()
+    final_response = json.loads(final_json)
     
     # print("\n\nPost engine shared memory checks:")
     # for shm in shm_objects:

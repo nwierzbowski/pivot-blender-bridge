@@ -15,13 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <https://www.gnu.org/licenses>.
 
+import json
 import bpy
 import time
 
 from mathutils import Vector
 
 from pivot_lib import engine_state
-from elbo_sdk import engine
+# import elbo_sdk_rust as engine
 from ..constants import (
     CANCELLED,
     FINISHED,
@@ -31,6 +32,8 @@ from ..constants import (
 
 from pivot_lib import group_manager
 from pivot_lib import surface_manager
+
+import elbo_sdk_rust as engine
 
 class Pivot_OT_Organize_Classified_Objects(bpy.types.Operator):
     bl_idname = "object." + PRE.lower() + "organize_classified_objects"
@@ -82,9 +85,8 @@ class Pivot_OT_Organize_Classified_Objects(bpy.types.Operator):
 
             # Call the engine to organize objects
             start_engine = time.perf_counter()
-            if not engine.is_running():
-                engine.start()
-            response = engine.send_command({"id": 1, "op": "organize_objects"})
+            
+            response = json.loads(engine.organize_objects_command())
             end_engine = time.perf_counter()
             
             start_post = time.perf_counter()

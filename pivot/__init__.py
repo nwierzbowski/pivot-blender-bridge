@@ -17,9 +17,9 @@
 
 import bpy
 import os
-import stat
 
-from elbo_sdk import engine
+
+import elbo_sdk_rust as engine
 from pivot_lib import engine_state
 from .classes import SceneAttributes
 from bpy.props import PointerProperty
@@ -97,7 +97,7 @@ def register():
     
     # Stop any running engine from previous edition
     try:
-        engine.stop()
+        engine.stop_engine()
     except Exception as e:
         print(f"[Pivot] Note: Could not stop engine during register: {e}")
     
@@ -107,30 +107,10 @@ def register():
 
     # Ensure engine binary is executable after zip install (zip extraction often drops exec bits)
     # Keep Blender path/layout knowledge in the bridge; elbo-sdk stays host-agnostic.
-    try:
-        exe_name = "pivot_engine.exe" if os.name == "nt" else "pivot_engine"
-        pivot_dir = os.path.dirname(__file__)
-        bin_dir = os.path.join(pivot_dir, "bin")
-        platform_dir = os.path.join(bin_dir, engine.get_platform_id())
-        engine_path = os.path.join(platform_dir, exe_name)
-        if not os.path.exists(engine_path):
-            engine_path = os.path.join(bin_dir, exe_name)
-
-        if engine_path:
-            os.environ["PIVOT_ENGINE_PATH"] = engine_path
-
-        if engine_path and os.path.exists(engine_path) and os.name != 'nt':
-            st = os.stat(engine_path)
-            if not (st.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
-                os.chmod(engine_path, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-                print("Fixed executable permissions on pivot engine binary (register)")
-    except Exception as e:
-        print(f"Note: Could not adjust permissions for engine binary during register: {e}")
-    # Start the engine
-    try:
-        engine.start(engine_path)
-    except Exception as e:
-        print(f"[Pivot] Could not start engine: {e}")
+    pivot_dir = os.path.dirname(__file__)
+    bin_dir = os.path.join(pivot_dir, "bin")
+    engine.set_engine_dir(bin_dir)
+    engine.start_engine()
 
     is_pro = False
     try:
@@ -201,7 +181,7 @@ def unregister():
     # Perform cleanup as if we're unloading a file
     _reset_sync_state()
     handlers.on_load_pre(None)
-    engine.stop()
+    engine.stop_engine()
 
 
 if __name__ == "__main__":
