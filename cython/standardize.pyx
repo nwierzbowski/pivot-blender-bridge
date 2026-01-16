@@ -145,21 +145,8 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
     if group_names:
         surface_contexts = _build_group_surface_contexts(group_names, surface_context, classification_map)
 
-        shm_objects = shm_utils.create_data_arrays(
+        final_response = shm_utils.create_data_arrays(
             total_verts, total_edges, total_objects, mesh_groups, pivots, True, group_names, surface_contexts)
-
-        # Execute engine command via the prepared context and parse JSON response
-        import json
-        final_json = shm_objects.finalize()
-        final_response = json.loads(final_json)
-        # print("\n\nPost engine shared memory checks:")
-        # for shm in shm_objects:
-        #     debug_shm(shm)
-
-        # _close_shared_memory_segments(shm_objects)
-        # print("Post close shared memory checks:")
-        # for shm in shm_objects:
-        #     debug_shm(shm)
 
         new_group_results = final_response["groups"]
         transformed_group_names = list(new_group_results.keys())
@@ -259,22 +246,9 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
         engine_surface_context = "AUTO"
     surface_contexts = [engine_surface_context] * len(mesh_objects)
 
-    shm_objects = shm_utils.create_data_arrays(
+    final_response = shm_utils.create_data_arrays(
         total_verts, total_edges, len(mesh_objects), mesh_groups, [], False, object_names, surface_contexts)  # No pivots for objects
 
-
-    import json
-    final_json = shm_objects.finalize()
-    final_response = json.loads(final_json)
-    
-    # print("\n\nPost engine shared memory checks:")
-    # for shm in shm_objects:
-    #     debug_shm(shm)
-
-    # _close_shared_memory_segments(shm_objects)
-    # print("Post close shared memory checks:")
-    # for shm in shm_objects:
-    #     debug_shm(shm)
     
     if not bool(final_response.get("ok", True)):
         error_msg = final_response.get("error", "Unknown engine error during classify_objects")

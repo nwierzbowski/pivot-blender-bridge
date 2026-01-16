@@ -17,11 +17,9 @@
 
 import numpy as np
 cimport numpy as cnp
-# import multiprocessing.shared_memory as shared_memory
-# from elbo_sdk import shm_manager
 import elbo_sdk_rust as engine
+import json
 import bpy
-import platform
 from mathutils import Matrix, Vector
 from libc.stdint cimport uint32_t
 from libc.stddef cimport size_t
@@ -51,9 +49,6 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
             object_names_list.append(obj.name)
             vert_counts_list.append(len(eval_mesh.vertices))
             edge_counts_list.append(len(eval_mesh.edges))
-    cdef cnp.ndarray vert_counts = np.array(vert_counts_list, dtype=np.uint32)
-    cdef cnp.ndarray edge_counts = np.array(edge_counts_list, dtype=np.uint32)
-    cdef cnp.ndarray object_counts = np.array(object_counts_list, dtype=np.uint32)
 
     # Prepare shared memory using the per-object counts and names so finalize needs no args
     if is_group_mode:
@@ -61,14 +56,12 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     else:
         shm_context = engine.prepare_standardize_objects(total_verts, total_edges, total_objects, vert_counts_list, edge_counts_list, object_names_list, surface_contexts)
     verts_shm, edges_shm, rotations_shm, scales_shm, offsets_shm = shm_context.buffers()
-    # verts_shm_name, edges_shm_name, rotations_shm_name, scales_shm_name, offsets_shm_name = shm_context.names
 
     cdef cnp.ndarray all_verts = np.ndarray((verts_size // 4,), dtype=np.float32, buffer=verts_shm)
     cdef cnp.ndarray all_edges = np.ndarray((edges_size // 4,), dtype=np.uint32, buffer=edges_shm)
     cdef cnp.ndarray rotations = np.ndarray((rotations_size // 4,), dtype=np.float32, buffer=rotations_shm)
     cdef cnp.ndarray scales = np.ndarray((scales_size // 4,), dtype=np.float32, buffer=scales_shm)
     cdef cnp.ndarray offsets = np.ndarray((offsets_size // 4,), dtype=np.float32, buffer=offsets_shm)
-    2
 
     cdef size_t idx_rot = 0
     cdef size_t idx_scale = 0
@@ -152,13 +145,11 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
         curr_edges_offset += edge_offset
         group_idx += 1
 
-    # cdef uint32_t[::1] vert_counts_mv = vert_counts
-    # cdef uint32_t[::1] edge_counts_mv = edge_counts
-    # cdef uint32_t[::1] object_counts_mv = object_counts
-
-    shm_objects = shm_context
-
-    return shm_objects
+    # Finalize the engine command and return parsed JSON so callers receive
+    # the final response instead of a raw shared-memory context.
+    final_json = shm_context.finalize()
+    final_response = json.loads(final_json)
+    return final_response
 
 
 # def prepare_face_data(uint32_t total_objects, list mesh_groups):
