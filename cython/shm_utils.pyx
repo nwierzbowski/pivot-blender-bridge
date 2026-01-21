@@ -23,6 +23,7 @@ import bpy
 from mathutils import Matrix, Vector
 from libc.stdint cimport uint32_t
 from libc.stddef cimport size_t
+from .timer_manager import timers
 
 def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t total_objects, list mesh_groups, list pivots, bint is_group_mode, list group_names, list surface_contexts):
     depsgraph = bpy.context.evaluated_depsgraph_get()
@@ -175,10 +176,17 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
         vert_counts[len(group)] = vert_offset
         edge_counts[len(group)] = edge_offset
 
+    
+    print("Python overhead data aggregation: ",timers.stop("standardize - Python Overhead"), "ms")
+    timers.reset("standardize - Python Overhead")
+    timers.start("shm_context.finalize")
     final_json = shm_context.finalize()
     final_response = json.loads('{"ok": true }')
+    
+    print("Engine call time elapsed: ", timers.stop("shm_context.finalize"), "ms")
+    timers.reset("shm_context.finalize")
+    timers.start("standardize.application")
     return final_response
-    # return
 
 
 # def prepare_face_data(uint32_t total_objects, list mesh_groups):

@@ -34,6 +34,11 @@ configure_file(
     "${BLENDER_BRIDGE_STAGING_DIR}/__init__.py"
     COPYONLY
 )
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../native/timer_manager.py"
+    "${BLENDER_BRIDGE_STAGING_DIR}/timer_manager.py"
+    COPYONLY
+)
 
 set(EDITION_FLAGS_TEMPLATE "${CMAKE_CURRENT_SOURCE_DIR}/edition_flags.pxi.in")
 set(EDITION_FLAGS_FILE "${CMAKE_CURRENT_BINARY_DIR}/edition_flags.pxi")
@@ -83,7 +88,11 @@ foreach(_module IN LISTS CYTHON_MODULE_SOURCES)
 endforeach()
 
 
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../native/__init__.py" DESTINATION pivot_lib)
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/../native/__init__.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../native/timer_manager.py"
+    DESTINATION pivot_lib
+)
 
 add_custom_target(blender_bridge_cython
     DEPENDS ${_blender_bridge_targets}

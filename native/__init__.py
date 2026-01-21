@@ -29,6 +29,7 @@ try:
     
     from . import surface_manager
     from . import standardize
+    from . import timer_manager
 except ImportError as e:
     # Useful for debugging Blender console issues
     import warnings
@@ -45,4 +46,5 @@ __all__ = [
     "shm_utils",
     "standardize",
     "surface_manager",
+    "timer_manager",
 ]

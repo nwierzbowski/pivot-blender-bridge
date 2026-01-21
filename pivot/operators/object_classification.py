@@ -22,6 +22,7 @@ from ..constants import PRE, FINISHED, LICENSE_PRO
 from pivot_lib import standardize
 from ..classification_utils import get_qualifying_objects_for_selected, selected_has_qualifying_objects
 from pivot_lib.engine_state import get_engine_license_status
+from pivot_lib import timer_manager
 
 # Operator descriptions
 DESC_SET_ORIGIN_SELECTED = "Applies the configured 'Origin Method' to each selected object, respecting the chosen 'Surface Context'. Use this to fix only the origins without affecting rotation"
@@ -54,7 +55,8 @@ class Pivot_OT_Set_Origin_Selected_Objects(bpy.types.Operator):
         if bpy.context.mode == 'EDIT_MESH':
             bpy.ops.object.mode_set(mode='OBJECT')
         
-        startTime = time.perf_counter()
+        timer_manager.timers.start("set_origin_selected_objects")
+        timer_manager.timers.start("standardize - Python Overhead")
         
         license_type = get_engine_license_status()
         origin_method = context.scene.pivot.origin_method
@@ -64,10 +66,14 @@ class Pivot_OT_Set_Origin_Selected_Objects(bpy.types.Operator):
                 standardize.standardize_object_origins([obj], origin_method=origin_method, surface_context=surface_type)
         else:
             standardize.standardize_object_origins(objects, origin_method=origin_method, surface_context=surface_type)
+       
+        print("Standardize Python Overhead change application: ", timer_manager.timers.stop("standardize.application"), "ms")
+        timer_manager.timers.reset("standardize.application")
+
         
-        endTime = time.perf_counter()
-        elapsed = endTime - startTime
-        print(f"Set Origin Selected Objects completed in {(elapsed) * 1000:.2f}ms")
+        elapsed_ms = timer_manager.timers.stop("set_origin_selected_objects")
+        print(f"Set Origin Selected Objects completed in {elapsed_ms:.2f}ms")
+        timer_manager.timers.reset("set_origin_selected_objects")
         return {FINISHED}
 
 
