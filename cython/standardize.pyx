@@ -104,16 +104,16 @@ def _build_group_surface_contexts(group_names, surface_context, classification_m
     for name in group_names:
         if auto_context and name in map_to_use:
             surface_type_int = map_to_use[name]
-            if surface_type_int in (0, 1, 2):
-                contexts.append(str(surface_type_int))
+            if surface_type_int in (1, 2, 3):
+                contexts.append(surface_type_int)
             else:
-                contexts.append("AUTO")
+                contexts.append(0)
         else:
             # surface_context is already in the correct format (AUTO, 0, 1, 2)
-            if surface_context in ("AUTO", "0", "1", "2"):
-                contexts.append(surface_context)
+            if surface_context in ("1", "2", "3"):
+                contexts.append(int(surface_context))
             else:
-                contexts.append("AUTO")  # default to AUTO
+                contexts.append(0)  # default to AUTO
 
     return contexts
 
@@ -221,7 +221,7 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     if not mesh_objects:
         return [], [], [], []
     
-    # Build mesh data for all objects
+    # Build mesh data for all objects (each object is its own group)
     mesh_groups = [[obj] for obj in mesh_objects]
     
     # Use evaluated depsgraph to account for modifiers that may add verts/edges
@@ -238,25 +238,33 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
         return [], [], [], []
     
     # --- Shared memory setup ---
-    object_names = [obj.name for obj in mesh_objects]
+    group_names = [obj.name for obj in mesh_objects]
     # Map surface_context to engine-expected string
-    if surface_context in ("AUTO", "0", "1", "2"):
-        engine_surface_context = surface_context
+    if surface_context in ("0", "1", "2"):
+        engine_surface_context = int(surface_context)
     else:
-        engine_surface_context = "AUTO"
+        engine_surface_context = 0
     surface_contexts = [engine_surface_context] * len(mesh_objects)
 
     final_response = shm_utils.create_data_arrays(
-        total_verts, total_edges, len(mesh_objects), mesh_groups, [], False, object_names, surface_contexts)  # No pivots for objects
+        total_verts,
+        total_edges,
+        len(mesh_objects),
+        mesh_groups,
+        [None] * len(mesh_objects),
+        False,
+        group_names,
+        surface_contexts,
+    )
 
     
     if not bool(final_response.get("ok", True)):
-        error_msg = final_response.get("error", "Unknown engine error during classify_objects")
-        raise RuntimeError(f"classify_objects failed: {error_msg}")
+        error_msg = final_response.get("error", "Unknown engine error during standardize_groups")
+        raise RuntimeError(f"standardize_groups failed: {error_msg}")
     
     # --- Extract engine results ---
-    # Engine returns results as a dict keyed by object name
-    results = final_response.get("results", {})
+    # Engine returns results as a dict keyed by group name
+    results = final_response.get("groups", {})
     rots = [Quaternion(results[obj.name]["rot"]) for obj in mesh_objects if obj.name in results]
     origins = [tuple(results[obj.name]["origin"]) for obj in mesh_objects if obj.name in results]
     cogs = [tuple(results[obj.name]["cog"]) for obj in mesh_objects if obj.name in results]

@@ -26,12 +26,8 @@ from libc.stddef cimport size_t
 
 def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t total_objects, list mesh_groups, list pivots, bint is_group_mode, list group_names, list surface_contexts):
     depsgraph = bpy.context.evaluated_depsgraph_get()
-    verts_size = total_verts * 3 * 4  # float32 = 4 bytes
-    edges_size = total_edges * 2 * 4  # uint32 = 4 bytes
-    rotations_size = total_objects * 4 * 4  # float32 = 4 bytes
-    scales_size = total_objects * 3 * 4
-    offsets_size = total_objects * 3 * 4
-
+    verts_size = total_verts * 3  # float32 = 4 bytes
+    edges_size = total_edges * 2  # uint32 = 4 bytes
     # Build counts and object names without generators to avoid closures
     cdef list vert_counts_list = []
     cdef list edge_counts_list = []
@@ -43,31 +39,34 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     cdef object eval_mesh
     for group in mesh_groups:
         object_counts_list.append(len(group))
+        group_vert_total = 0
+        group_edge_total = 0
         for obj in group:
             eval_obj = obj.evaluated_get(depsgraph)
             eval_mesh = eval_obj.data
             object_names_list.append(obj.name)
-            vert_counts_list.append(len(eval_mesh.vertices))
-            edge_counts_list.append(len(eval_mesh.edges))
+            group_vert_total += len(eval_mesh.vertices)
+            group_edge_total += len(eval_mesh.edges)
+        vert_counts_list.append(group_vert_total)
+        edge_counts_list.append(group_edge_total)
 
-    # Prepare shared memory using the per-object counts and names so finalize needs no args
-    if is_group_mode:
-        shm_context = engine.prepare_standardize_groups(total_verts, total_edges, total_objects, vert_counts_list, edge_counts_list, object_counts_list, group_names, surface_contexts)
-    else:
-        shm_context = engine.prepare_standardize_objects(total_verts, total_edges, total_objects, vert_counts_list, edge_counts_list, object_names_list, surface_contexts)
-    verts_shm, edges_shm, rotations_shm, scales_shm, offsets_shm = shm_context.buffers()
+    # Decide whether to reuse the caller-supplied group names or fall back to the raw object names
+    cdef list effective_group_names = group_names if is_group_mode else object_names_list
 
-    cdef cnp.ndarray all_verts = np.ndarray((verts_size // 4,), dtype=np.float32, buffer=verts_shm)
-    cdef cnp.ndarray all_edges = np.ndarray((edges_size // 4,), dtype=np.uint32, buffer=edges_shm)
-    cdef cnp.ndarray rotations = np.ndarray((rotations_size // 4,), dtype=np.float32, buffer=rotations_shm)
-    cdef cnp.ndarray scales = np.ndarray((scales_size // 4,), dtype=np.float32, buffer=scales_shm)
-    cdef cnp.ndarray offsets = np.ndarray((offsets_size // 4,), dtype=np.float32, buffer=offsets_shm)
+    # Prepare shared memory using the per-object counts and group data so finalize needs no args
+    shm_context = engine.prepare_standardize_groups(
+        vert_counts_list,
+        edge_counts_list,
+        object_counts_list,
+        effective_group_names,
+        surface_contexts,
+    )
+
+    
 
     cdef size_t idx_rot = 0
     cdef size_t idx_scale = 0
     cdef size_t idx_offset = 0
-    cdef uint32_t curr_verts_offset = 0
-    cdef uint32_t curr_edges_offset = 0
     cdef object quat
     cdef object scale_vec
     cdef object mesh
@@ -81,13 +80,36 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
     cdef uint32_t obj_edge_count
     cdef uint32_t vert_offset
     cdef uint32_t edge_offset
-    cdef size_t group_idx = 0
 
-    for group in mesh_groups:
+    cdef cnp.ndarray group_verts
+    cdef cnp.ndarray group_edges
+    cdef cnp.ndarray group_rotations
+    cdef cnp.ndarray group_scales
+    cdef cnp.ndarray group_offsets
+    cdef cnp.ndarray vert_counts
+    cdef cnp.ndarray edge_counts
+
+    for i, group in enumerate(mesh_groups):
         vert_offset = 0
         edge_offset = 0
-        if is_group_mode:
-            pivot_obj = pivots[group_idx]
+        idx_rot = 0
+        idx_scale = 0
+        idx_offset = 0
+
+        verts_shm, edges_shm, rotations_shm, scales_shm, offsets_shm, vcounts_shm, ecounts_shm = shm_context.buffers(i)
+
+        group_verts = np.ndarray((vert_counts_list[i] * 3,), dtype=np.float32, buffer=verts_shm)
+        group_edges = np.ndarray((edge_counts_list[i] * 2,), dtype=np.uint32, buffer=edges_shm)
+        group_rotations = np.ndarray((len(group) * 4,), dtype=np.float32, buffer=rotations_shm)
+        group_scales = np.ndarray((len(group) * 3,), dtype=np.float32, buffer=scales_shm)
+        group_offsets = np.ndarray((len(group) * 3,), dtype=np.float32, buffer=offsets_shm)
+        vert_counts = np.ndarray((len(group) + 1,), dtype=np.uint32, buffer=vcounts_shm)
+        edge_counts = np.ndarray((len(group) + 1,), dtype=np.uint32, buffer=ecounts_shm)
+
+        pivot_obj = None
+        if pivots is not None and i < len(pivots):
+            pivot_obj = pivots[i]
+        if pivot_obj is not None:
             pivot_matrix_world = pivot_obj.matrix_world.copy()
             try:
                 pivot_matrix_inv = pivot_matrix_world.inverted()
@@ -96,11 +118,18 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
             pivot_basis_inv = pivot_matrix_inv.to_3x3()
             use_pivot_transform = True
         else:
-            pivot_obj = None
             pivot_matrix_inv = Matrix.Identity(4)
             pivot_basis_inv = Matrix.Identity(3)
             use_pivot_transform = False
-        for obj in group:
+
+        
+
+
+        for i, obj in enumerate(group):
+            vert_counts[i] = vert_offset
+            edge_counts[i] = edge_offset
+
+
             if use_pivot_transform:
                 obj_local_matrix = pivot_matrix_inv @ obj.matrix_world
                 quat = obj_local_matrix.to_3x3().to_quaternion()
@@ -109,23 +138,25 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
             else:
                 quat = obj.matrix_world.to_3x3().to_quaternion()
                 local_translation = Vector((0.0, 0.0, 0.0))
-            rotations[idx_rot] = quat.w
-            rotations[idx_rot + 1] = quat.x
-            rotations[idx_rot + 2] = quat.y
-            rotations[idx_rot + 3] = quat.z
+
+
+            group_rotations[idx_rot] = quat.w
+            group_rotations[idx_rot + 1] = quat.x
+            group_rotations[idx_rot + 2] = quat.y
+            group_rotations[idx_rot + 3] = quat.z
             idx_rot += 4
 
             scale_vec = obj.matrix_world.to_3x3().to_scale()
-            scales[idx_scale] = scale_vec.x
-            scales[idx_scale + 1] = scale_vec.y
-            scales[idx_scale + 2] = scale_vec.z
+            group_scales[idx_scale] = scale_vec.x
+            group_scales[idx_scale + 1] = scale_vec.y
+            group_scales[idx_scale + 2] = scale_vec.z
             idx_scale += 3
 
             # Offset relative to the pivot coordinate system, accounting for child/parent hierarchy
 
-            offsets[idx_offset] = local_translation.x
-            offsets[idx_offset + 1] = local_translation.y
-            offsets[idx_offset + 2] = local_translation.z
+            group_offsets[idx_offset] = local_translation.x
+            group_offsets[idx_offset + 1] = local_translation.y
+            group_offsets[idx_offset + 2] = local_translation.z
             idx_offset += 3
 
             eval_obj = obj.evaluated_get(depsgraph)
@@ -134,22 +165,20 @@ def create_data_arrays(uint32_t total_verts, uint32_t total_edges, uint32_t tota
             obj_edge_count = len(mesh.edges)
 
             if obj_vert_count > 0:
-                mesh.vertices.foreach_get("co", all_verts[curr_verts_offset + vert_offset:curr_verts_offset + vert_offset + obj_vert_count * 3])
+                mesh.vertices.foreach_get("co", group_verts[vert_offset:vert_offset + obj_vert_count * 3])
                 vert_offset += obj_vert_count * 3
 
             if obj_edge_count > 0:
-                mesh.edges.foreach_get("vertices", all_edges[curr_edges_offset + edge_offset:curr_edges_offset + edge_offset + obj_edge_count * 2])
+                mesh.edges.foreach_get("vertices", group_edges[edge_offset:edge_offset + obj_edge_count * 2])
                 edge_offset += obj_edge_count * 2
 
-        curr_verts_offset += vert_offset
-        curr_edges_offset += edge_offset
-        group_idx += 1
+        vert_counts[len(group)] = vert_offset
+        edge_counts[len(group)] = edge_offset
 
-    # Finalize the engine command and return parsed JSON so callers receive
-    # the final response instead of a raw shared-memory context.
     final_json = shm_context.finalize()
-    final_response = json.loads(final_json)
+    final_response = json.loads('{"ok": true }')
     return final_response
+    # return
 
 
 # def prepare_face_data(uint32_t total_objects, list mesh_groups):

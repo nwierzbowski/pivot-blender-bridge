@@ -138,7 +138,7 @@ def aggregate_object_groups(list selected_objects):
             group_verts,
             group_edges,
             1,
-            [],  # pivots (empty for standard edition single object)
+            [None],  # pivots (none for standard edition single object)
             [],
             []  # synced_pivots
         )

@@ -29,9 +29,10 @@ from .operators.object_classification import (
     Pivot_OT_Align_Facing_Selected_Objects,
 )
 
-from .constants import PRE, CATEGORY, LICENSE_PRO
+from .constants import PRE, CATEGORY, LICENSE_PRO, LICENSE_STANDARD
 from .classes import LABEL_OBJECTS_COLLECTION, LABEL_ORIGIN_METHOD, LABEL_SURFACE_TYPE
 from pivot_lib.engine_state import get_engine_license_status, set_engine_license_status
+from pivot_lib import edition_utils
 import elbo_sdk_rust as engine
 
 
@@ -50,7 +51,10 @@ class Pivot_PT_Status_Panel(bpy.types.Panel):
         license_type = get_engine_license_status()
         if license_type == "UNKNOWN":
             try:
-                license_type = engine.get_license_command()
+                if edition_utils.is_pro_edition():
+                    license_type = LICENSE_PRO
+                else:
+                    license_type = LICENSE_STANDARD
                 set_engine_license_status(license_type)
             except Exception as e:
                 print(f"[Pivot] Failed to sync license: {e}")
@@ -99,12 +103,16 @@ class Pivot_PT_Pro_Panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+
         
         # Get license_type from cached engine status, sync if needed
         license_type = get_engine_license_status()
         if license_type == "UNKNOWN":
             try:
-                license_type = engine.get_license_command()
+                if edition_utils.is_pro_edition():
+                    license_type = LICENSE_PRO
+                else:
+                    license_type = LICENSE_STANDARD
                 set_engine_license_status(license_type)
             except Exception as e:
                 print(f"[Pivot] Failed to sync license: {e}")
