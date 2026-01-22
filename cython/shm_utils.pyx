@@ -34,6 +34,7 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
     cdef object obj
     cdef object mesh
 
+    timers.start("create_data_arrays.totals")
     for group in mesh_groups:
         object_counts_list.append(len(group))
         group_vert_total = 0
@@ -44,6 +45,8 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
             group_edge_total += len(edges)
         vert_counts_list.append(group_vert_total)
         edge_counts_list.append(group_edge_total)
+    print("create_data_arrays.totals: ", timers.stop("create_data_arrays.totals"), "ms")
+    timers.reset("create_data_arrays.totals")
 
     # Decide whether to reuse the caller-supplied group names or fall back to the raw object names
     cdef list effective_group_names = group_names if is_group_mode else object_names_list
@@ -59,7 +62,6 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
     print("create_data_arrays.make_shm: ", timers.stop("rust.makeshm"), "ms")
     timers.reset("rust.makeshm")
 
-    timers.start("data_arrays.cdef")
     cdef size_t idx_rot = 0
     cdef size_t idx_scale = 0
     cdef size_t idx_offset = 0
@@ -84,14 +86,15 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
     cdef float[::1] off_mv
     cdef uint32_t[::1] vcount_mv
     cdef uint32_t[::1] ecount_mv
+    cdef float[::1] vpool_mv
+    cdef uint32_t[::1] epool_mv
     cdef object rot_cast
     cdef object scale_cast
     cdef object off_cast
     cdef object vcount_cast
     cdef object ecount_cast
-
-    print ("create_data_arrays.cdef: ", timers.stop("data_arrays.cdef"), "ms")
-    timers.reset("data_arrays.cdef")
+    cdef object vpool_cast
+    cdef object epool_cast
 
     timers.start("data_arrays.loop")
     for i, group in enumerate(mesh_groups):
@@ -103,16 +106,20 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
 
         verts_shm, edges_shm, rotations_shm, scales_shm, offsets_shm, vcounts_shm, ecounts_shm = shm_context.buffers(i)
 
-        group_verts = np.ndarray((vert_counts_list[i] * 3,), dtype=np.float32, buffer=verts_shm)
-        group_edges = np.ndarray((edge_counts_list[i] * 2,), dtype=np.uint32, buffer=edges_shm)
+        # group_verts = np.ndarray((vert_counts_list[i] * 3,), dtype=np.float32, buffer=verts_shm)
+        # group_edges = np.ndarray((edge_counts_list[i] * 2,), dtype=np.uint32, buffer=edges_shm)
 
         # Rust exposes raw u8 buffers; cast to typed views here.
+        vpool_cast = (<memoryview>verts_shm).cast('f')
+        epool_cast = (<memoryview>edges_shm).cast('I')
         rot_cast = (<memoryview>rotations_shm).cast('f')
         scale_cast = (<memoryview>scales_shm).cast('f')
         off_cast = (<memoryview>offsets_shm).cast('f')
         vcount_cast = (<memoryview>vcounts_shm).cast('I')
         ecount_cast = (<memoryview>ecounts_shm).cast('I')
 
+        vpool_mv = vpool_cast
+        epool_mv = epool_cast
         rot_mv = rot_cast
         scale_mv = scale_cast
         off_mv = off_cast
@@ -167,25 +174,37 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
             idx_scale += 3
             idx_offset += 3
 
+            timers.start("create_data_arrays.loop.foreach_get_verts")
             if len(verts) > 0:
-                mesh.vertices.foreach_get("co", group_verts[v_cursor * 3:v_cursor * 3 + len(verts) * 3])
+                mesh.attributes["position"].data.foreach_get("vector", vpool_mv[v_cursor * 3:v_cursor * 3 + len(verts) * 3])
                 v_cursor += len(verts)
+            timers.stop("create_data_arrays.loop.foreach_get_verts")
 
+            timers.start("create_data_arrays.loop.foreach_get_edges")
             if len(edges) > 0:
-                mesh.edges.foreach_get("vertices", group_edges[e_cursor * 2:e_cursor * 2 + len(edges) * 2])
+                mesh.edges.foreach_get("vertices", epool_mv[e_cursor * 2:e_cursor * 2 + len(edges) * 2])
                 e_cursor += len(edges)
+            timers.stop("create_data_arrays.loop.foreach_get_edges")
 
         vcount_mv[len(group)] = v_cursor
         ecount_mv[len(group)] = e_cursor
+
+    print("create_data_arrays.loop.foreach_get_verts: ", timers.get_elapsed_ms("create_data_arrays.loop.foreach_get_verts"), "ms")
+    timers.reset("create_data_arrays.loop.foreach_get_verts")
+
+    print("create_data_arrays.loop.foreach_get_edges: ", timers.get_elapsed_ms("create_data_arrays.loop.foreach_get_edges"), "ms")
+    timers.reset("create_data_arrays.loop.foreach_get_edges")
+
+
     print ("create_data_arrays.loop: ", timers.stop("data_arrays.loop"), "ms")
     timers.reset("data_arrays.loop")
 
-    timers.start("shm_context.finalize")
+    timers.start("create_data_arrays.finalize")
     final_json = shm_context.finalize()
     final_response = json.loads('{"ok": true }')
     
-    print("Engine call time elapsed: ", timers.stop("shm_context.finalize"), "ms")
-    timers.reset("shm_context.finalize")
+    print("create_data_arrays.finalize: ", timers.stop("create_data_arrays.finalize"), "ms")
+    timers.reset("create_data_arrays.finalize")
 
     timers.start("set_origin_selected_objects.underhead")
     return final_response

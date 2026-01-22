@@ -18,24 +18,34 @@
 from pivot_lib.surface_manager import CLASSIFICATION_ROOT_MARKER_PROP
 
 def selected_has_qualifying_objects(selected_objects, objects_collection):
+    if not selected_objects or not objects_collection:
+        return False
+
     marker = CLASSIFICATION_ROOT_MARKER_PROP
     sel_set = set(selected_objects)
-
-    roots = [c for c in objects_collection.children if not c.get(marker)]
-    roots.extend([o for o in objects_collection.objects if not o.parent])
-
+    
     all_meshes = {o for o in objects_collection.all_objects if o.type == 'MESH'}
-    if not all_meshes: return []
+    if not all_meshes: return False
 
-    for r in roots:
-        if hasattr(r, 'all_objects'):
-            members = set(r.all_objects)
-        else:
-            members = {r}
-            members.update(r.children_recursive)
+    for col in objects_collection.children:
+        if col.get(marker): #Skip collections that pivot uses for classification bookkeeping
+            continue
 
-        if not members.isdisjoint(sel_set) and not members.isdisjoint(all_meshes):
-            return True
+        members = set(col.all_objects)
+
+        #Add object groups that include at least one selected object and at least one mesh
+        if not members.isdisjoint(sel_set):
+            if not members.isdisjoint(all_meshes):
+                return True
+
+
+    for root_obj in objects_collection.objects:
+        members = set(root_obj.children_recursive)
+        members.add(root_obj)
+
+        if not members.isdisjoint(sel_set):
+            if not members.isdisjoint(all_meshes):
+                return True
 
     return False
 
@@ -60,14 +70,17 @@ def get_qualifying_objects_for_selected(selected_objects, objects_collection):
         members = set(col.all_objects)
 
         #Add object groups that include at least one selected object and at least one mesh
-        if not members.isdisjoint(sel_set) and not members.isdisjoint(all_meshes):
+        if not members.isdisjoint(sel_set):
+            if not members.isdisjoint(all_meshes):
                 update_qualifying(members)
 
 
     for root_obj in objects_collection.objects:
-        members = set([root_obj] + root_obj.children_recursive)
+        members = set(root_obj.children_recursive)
+        members.add(root_obj)
 
-        if not members.isdisjoint(sel_set) and not members.isdisjoint(all_meshes):
-            update_qualifying(members)
+        if not members.isdisjoint(sel_set):
+            if not members.isdisjoint(all_meshes):
+                update_qualifying(members)
 
     return qualifying
