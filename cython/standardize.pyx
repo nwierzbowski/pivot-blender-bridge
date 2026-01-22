@@ -32,6 +32,7 @@ from . import engine_state
 import elbo_sdk_rust as engine
 from .surface_manager import get_surface_manager
 from multiprocessing.shared_memory import SharedMemory
+from .timer_manager import timers
 
 # Collection metadata keys
 GROUP_COLLECTION_PROP = "pivot_group_name"
@@ -130,7 +131,7 @@ def _standardize_synced_groups(synced_group_names, surface_contexts):
 def standardize_groups(list selected_objects, str origin_method, str surface_context):
     """Pro Edition: Classify selected groups via engine."""
 
-    mesh_groups, full_groups, group_names, total_verts, total_edges, total_objects, pivots, synced_group_names, synced_pivots = selection_utils.aggregate_object_groups(selected_objects)
+    mesh_groups, full_groups, group_names, pivots, synced_group_names, synced_pivots = selection_utils.aggregate_object_groups(selected_objects)
     core_group_mgr = group_manager.get_group_manager()
     origin_method_is_base = origin_method == "BASE"
 
@@ -145,8 +146,7 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
     if group_names:
         surface_contexts = _build_group_surface_contexts(group_names, surface_context, classification_map)
 
-        final_response = shm_utils.create_data_arrays(
-            total_verts, total_edges, total_objects, mesh_groups, pivots, True, group_names, surface_contexts)
+        final_response = shm_utils.create_data_arrays(mesh_groups, pivots, True, group_names, surface_contexts)
 
         new_group_results = final_response["groups"]
         transformed_group_names = list(new_group_results.keys())
@@ -220,43 +220,47 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     mesh_objects = [obj for obj in objects if obj.type == 'MESH']
     if not mesh_objects:
         return [], [], [], []
-    
-    # Build mesh data for all objects (each object is its own group)
-    mesh_groups = [[obj] for obj in mesh_objects]
-    
-    # Use evaluated depsgraph to account for modifiers that may add verts/edges
+
+    # Build mesh data for all objects (each object is its own group).
+    # Use evaluated objects/meshes and provide the same tuple shape
+    # used by the pro/group code: (eval_obj, eval_mesh, verts, edges)
+    timers.start("get_standardize_results.depsgraph")
+
     depsgraph = bpy.context.evaluated_depsgraph_get()
-    total_verts = 0
-    total_edges = 0
+    mesh_groups = []
+    group_names = []
     for obj in mesh_objects:
         eval_obj = obj.evaluated_get(depsgraph)
         eval_mesh = eval_obj.data
-        total_verts += len(eval_mesh.vertices)
-        total_edges += len(eval_mesh.edges)
-
-    if total_verts == 0:
-        return [], [], [], []
+        eval_verts = eval_mesh.vertices
+        eval_edges = eval_mesh.edges
+        if len(eval_verts) == 0:
+            continue
+        mesh_groups.append([(eval_obj, eval_mesh, eval_verts, eval_edges)])
+        group_names.append(obj.name)
     
-    # --- Shared memory setup ---
-    group_names = [obj.name for obj in mesh_objects]
+    print("get_standardize_results.depsgraph: ", timers.stop("get_standardize_results.depsgraph"), "ms")
+    timers.reset("get_standardize_results.depsgraph")
+
+    if not mesh_groups:
+        return [], [], [], []
     # Map surface_context to engine-expected string
     if surface_context in ("0", "1", "2"):
         engine_surface_context = int(surface_context)
     else:
         engine_surface_context = 0
-    surface_contexts = [engine_surface_context] * len(mesh_objects)
+    surface_contexts = [engine_surface_context] * len(mesh_groups)
 
+    timers.start("create_data_arrays.total")
     final_response = shm_utils.create_data_arrays(
-        total_verts,
-        total_edges,
-        len(mesh_objects),
         mesh_groups,
-        [None] * len(mesh_objects),
+        [None] * len(mesh_groups),
         False,
         group_names,
         surface_contexts,
     )
-
+    print("create_data_arrays.total: ", timers.stop("create_data_arrays.total"), "ms")
+    timers.reset("create_data_arrays.total")
     
     if not bool(final_response.get("ok", True)):
         error_msg = final_response.get("error", "Unknown engine error during standardize_groups")
@@ -285,12 +289,15 @@ def standardize_object_origins(list objects, str origin_method, str surface_cont
     else:
         new_origins = cogs
 
+    timers.start("standardize_object_origins.application")
     for i, obj in enumerate(mesh_objects):
         if i < len(origins) and i < len(cogs):
 
             # origin_vector = obj.matrix_world.translation + 
             set_origin_and_preserve_children(obj, Vector(new_origins[i]))
             bpy.context.scene.cursor.location = obj.matrix_world.translation
+    print("standardize_object_origins.application: ", timers.stop("standardize_object_origins.application"), "ms")
+    timers.reset("standardize_object_origins.application")
     
 
 def standardize_object_rotations(list objects):

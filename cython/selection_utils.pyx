@@ -44,8 +44,10 @@ cpdef tuple get_mesh_and_all_descendants(object root, object depsgraph):
         if current.type == 'MESH':
             eval_obj = current.evaluated_get(depsgraph)
             eval_mesh = eval_obj.data
-            if len(eval_mesh.vertices) != 0:
-                meshes.append(current)
+            eval_verts = eval_mesh.vertices
+            eval_edges = eval_mesh.edges
+            if len(eval_verts) != 0:
+                meshes.append((eval_obj, eval_mesh, eval_verts, eval_edges))
         for child in current.children:
             descendants.append(child)
             stack.append(child)
@@ -98,9 +100,6 @@ def aggregate_object_groups(list selected_objects):
     cdef list parent_groups
     cdef list full_groups
     cdef list group_names
-    cdef int total_verts
-    cdef int total_edges
-    cdef int total_objects
 
     cdef object new_coll
     cdef object processed_coll
@@ -169,9 +168,6 @@ def aggregate_object_groups(list selected_objects):
     parent_groups = []
     full_groups = []
     group_names = []
-    total_verts = 0
-    total_edges = 0
-    total_objects = 0
 
     root_obj = None
     meshes = []
@@ -224,18 +220,13 @@ def aggregate_object_groups(list selected_objects):
             descendants.extend(root_descendants)
         group_verts = 0
         group_edges = 0
-        for m in meshes:
-            eval_obj = m.evaluated_get(depsgraph)
-            eval_mesh = eval_obj.data
-            group_verts += len(eval_mesh.vertices)
-            group_edges += len(eval_mesh.edges)
+        for (obj, mesh, verts, edges) in meshes:
+            group_verts += len(verts)
+            group_edges += len(edges)
         mesh_groups.append(meshes)
         parent_groups.append(top_roots)
         full_groups.append(descendants)
         group_names.append(processed_coll.name)
-        total_verts += group_verts
-        total_edges += group_edges
-        total_objects += len(meshes)
 
     pivots = _setup_pivots_for_groups_return_empties(parent_groups, group_names, existing_groups)
 
@@ -249,7 +240,7 @@ def aggregate_object_groups(list selected_objects):
     else:
         synced_pivots = []
 
-    return mesh_groups, full_groups, group_names, total_verts, total_edges, total_objects, pivots, synced_group_names, synced_pivots
+    return mesh_groups, full_groups, group_names, pivots, synced_group_names, synced_pivots
 
 
 def _setup_pivots_for_groups_return_empties(parent_groups, group_names, existing_groups):

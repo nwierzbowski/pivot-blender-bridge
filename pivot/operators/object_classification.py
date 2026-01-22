@@ -40,23 +40,28 @@ class Pivot_OT_Set_Origin_Selected_Objects(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        # timer_manager.timers.start("set_origin_selected_objects.any_qualifying")
         sel = getattr(context, "selected_objects", None) or []
         scene_collection = getattr(context.scene, "collection", None)
         if not scene_collection:
             return False
+        # print("set_origin_selected_objects.any_qualifying: ", timer_manager.timers.stop("set_origin_selected_objects.any_qualifying"), "ms")
+        # timer_manager.timers.reset("set_origin_selected_objects.any_qualifying")
         return selected_has_qualifying_objects(sel, scene_collection)
 
     def execute(self, context):
+        timer_manager.timers.start("set_origin_selected_objects")
+
         scene_collection = getattr(context.scene, "collection", None)
         if not scene_collection:
             return {FINISHED}
+        timer_manager.timers.start("set_origin_selected_objects.get_qualifying")
         objects = get_qualifying_objects_for_selected(context.selected_objects, scene_collection)
         # Exit edit mode if active to ensure mesh data is accessible
         if bpy.context.mode == 'EDIT_MESH':
             bpy.ops.object.mode_set(mode='OBJECT')
-        
-        timer_manager.timers.start("set_origin_selected_objects")
-        timer_manager.timers.start("standardize - Python Overhead")
+        print("set_origin_selected_objects.get_qualifying: ", timer_manager.timers.stop("set_origin_selected_objects.get_qualifying"), "ms")
+        timer_manager.timers.reset("set_origin_selected_objects.get_qualifying")
         
         license_type = get_engine_license_status()
         origin_method = context.scene.pivot.origin_method
@@ -67,12 +72,11 @@ class Pivot_OT_Set_Origin_Selected_Objects(bpy.types.Operator):
         else:
             standardize.standardize_object_origins(objects, origin_method=origin_method, surface_context=surface_type)
        
-        print("Standardize Python Overhead change application: ", timer_manager.timers.stop("standardize.application"), "ms")
-        timer_manager.timers.reset("standardize.application")
+        print("set_origin_selected_objects.underhead: ", timer_manager.timers.stop("set_origin_selected_objects.underhead"), "ms")
+        timer_manager.timers.reset("set_origin_selected_objects.underhead")
 
         
-        elapsed_ms = timer_manager.timers.stop("set_origin_selected_objects")
-        print(f"Set Origin Selected Objects completed in {elapsed_ms:.2f}ms")
+        print(f"set_origin_selected_objects {timer_manager.timers.stop('set_origin_selected_objects'):.2f}ms")
         timer_manager.timers.reset("set_origin_selected_objects")
         return {FINISHED}
 

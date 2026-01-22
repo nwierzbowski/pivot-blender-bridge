@@ -15,98 +15,59 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <https://www.gnu.org/licenses>.
 
-import bpy
-
 from pivot_lib.surface_manager import CLASSIFICATION_ROOT_MARKER_PROP
 
-
-def get_all_mesh_objects_in_collection(coll):
-    meshes = []
-    for obj in coll.objects:
-        if obj.type == 'MESH':
-            meshes.append(obj)
-    for child in coll.children:
-        meshes.extend(get_all_mesh_objects_in_collection(child))
-    return meshes
-
-
-def build_collection_caches(scene_root):
-    coll_to_top = {}
-
-    def traverse(current_coll, current_top):
-        for child in current_coll.children:
-            coll_to_top[child] = current_top
-            traverse(child, current_top)
-
-    for top in scene_root.children:
-        if top.get(CLASSIFICATION_ROOT_MARKER_PROP, False):
-            continue
-        coll_to_top[top] = top
-        traverse(top, top)
-
-    top_has_mesh_cache = {}
-
-    def coll_has_mesh(coll):
-        for o in coll.objects:
-            if o.type == 'MESH':
-                return True
-        for child in coll.children:
-            if coll_has_mesh(child):
-                return True
-        return False
-
-    return coll_to_top, top_has_mesh_cache, coll_has_mesh
-
-
-def object_qualifies(obj, scene_root, coll_to_top, top_has_mesh_cache, coll_has_mesh):
-    if obj.type == 'MESH' and scene_root in obj.users_collection:
-        return True
-
-    def has_mesh_descendants(obj):
-        for child in obj.children:
-            if child.type == 'MESH' or has_mesh_descendants(child):
-                return True
-        return False
-
-    if scene_root in obj.users_collection and has_mesh_descendants(obj):
-        return True
-
-    for coll in getattr(obj, 'users_collection', []) or []:
-        if coll is scene_root:
-            continue
-        top = coll_to_top.get(coll)
-        if not top or top.get(CLASSIFICATION_ROOT_MARKER_PROP, False):
-            continue
-        if top not in top_has_mesh_cache:
-            top_has_mesh_cache[top] = coll_has_mesh(top)
-        if top_has_mesh_cache[top]:
-            return True
-
-    return False
-
-
 def selected_has_qualifying_objects(selected_objects, objects_collection):
-    scene_root = objects_collection
-    if not scene_root or not selected_objects:
-        return False
+    marker = CLASSIFICATION_ROOT_MARKER_PROP
+    sel_set = set(selected_objects)
 
-    coll_to_top, top_has_mesh_cache, coll_has_mesh = build_collection_caches(scene_root)
+    roots = [c for c in objects_collection.children if not c.get(marker)]
+    roots.extend([o for o in objects_collection.objects if not o.parent])
 
-    for obj in selected_objects:
-        if obj and object_qualifies(obj, scene_root, coll_to_top, top_has_mesh_cache, coll_has_mesh):
+    all_meshes = {o for o in objects_collection.all_objects if o.type == 'MESH'}
+    if not all_meshes: return []
+
+    for r in roots:
+        if hasattr(r, 'all_objects'):
+            members = set(r.all_objects)
+        else:
+            members = {r}
+            members.update(r.children_recursive)
+
+        if not members.isdisjoint(sel_set) and not members.isdisjoint(all_meshes):
             return True
 
     return False
 
 
 def get_qualifying_objects_for_selected(selected_objects, objects_collection):
-    qualifying = []
-    scene_root = objects_collection
+    if not selected_objects or not objects_collection:
+        return []
 
-    coll_to_top, top_has_mesh_cache, coll_has_mesh = build_collection_caches(scene_root)
+    marker = CLASSIFICATION_ROOT_MARKER_PROP
+    sel_set = set(selected_objects)
+    
+    all_meshes = {o for o in objects_collection.all_objects if o.type == 'MESH'}
+    if not all_meshes: return []
 
-    for obj in selected_objects:
-        if object_qualifies(obj, scene_root, coll_to_top, top_has_mesh_cache, coll_has_mesh):
-            qualifying.append(obj)
+    qualifying  = []
+    update_qualifying = qualifying.extend
 
-    return list(set(qualifying))  # remove duplicates
+    for col in objects_collection.children:
+        if col.get(marker): #Skip collections that pivot uses for classification bookkeeping
+            continue
+
+        members = set(col.all_objects)
+
+        #Add object groups that include at least one selected object and at least one mesh
+        if not members.isdisjoint(sel_set) and not members.isdisjoint(all_meshes):
+                update_qualifying(members)
+
+
+    for root_obj in objects_collection.objects:
+        members = set([root_obj] + root_obj.children_recursive)
+
+        if not members.isdisjoint(sel_set) and not members.isdisjoint(all_meshes):
+            update_qualifying(members)
+
+    return qualifying
