@@ -33,7 +33,7 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
     cdef list group
     cdef object obj
     cdef object mesh
-
+    
     timers.start("create_data_arrays.totals")
     for group in mesh_groups:
         object_counts_list.append(len(group))
@@ -62,117 +62,74 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
     print("create_data_arrays.make_shm: ", timers.stop("rust.makeshm"), "ms")
     timers.reset("rust.makeshm")
 
-    cdef size_t idx_rot = 0
-    cdef size_t idx_scale = 0
-    cdef size_t idx_offset = 0
-    cdef object quat
-    cdef object scale_vec
-    
-    cdef object pivot_obj
-    cdef object pivot_matrix_world
-    cdef object pivot_matrix_inv
-    cdef object obj_local_matrix
-    cdef object local_translation
-    cdef object trans_vec
     cdef uint32_t v_cursor
     cdef uint32_t e_cursor
 
-    cdef cnp.ndarray group_verts
-    cdef cnp.ndarray group_edges
-
     # Typed memoryviews for zero-copy writes
-    cdef float[::1] rot_mv
-    cdef float[::1] scale_mv
-    cdef float[::1] off_mv
+    cdef float[::1] trans_mv
+    cdef unsigned char[::1] names_mv
+    cdef unsigned char[::1] uuids_mv
     cdef uint32_t[::1] vcount_mv
     cdef uint32_t[::1] ecount_mv
     cdef float[::1] vpool_mv
     cdef uint32_t[::1] epool_mv
-    cdef object rot_cast
-    cdef object scale_cast
-    cdef object off_cast
     cdef object vcount_cast
     cdef object ecount_cast
     cdef object vpool_cast
     cdef object epool_cast
+    cdef object trans_cast
+    cdef object names_cast
+    cdef object uuids_cast
+    cdef object mat
+
 
     timers.start("data_arrays.loop")
     for i, group in enumerate(mesh_groups):
         v_cursor = 0
         e_cursor = 0
-        idx_rot = 0
-        idx_scale = 0
-        idx_offset = 0
+        idx_trans = 0
 
-        verts_shm, edges_shm, rotations_shm, scales_shm, offsets_shm, vcounts_shm, ecounts_shm = shm_context.buffers(i)
-
-        # group_verts = np.ndarray((vert_counts_list[i] * 3,), dtype=np.float32, buffer=verts_shm)
-        # group_edges = np.ndarray((edge_counts_list[i] * 2,), dtype=np.uint32, buffer=edges_shm)
+        verts_shm, edges_shm, transforms_shm, vcounts_shm, ecounts_shm, object_names_shm, uuids_shm = shm_context.buffers(i)
 
         # Rust exposes raw u8 buffers; cast to typed views here.
         vpool_cast = (<memoryview>verts_shm).cast('f')
         epool_cast = (<memoryview>edges_shm).cast('I')
-        rot_cast = (<memoryview>rotations_shm).cast('f')
-        scale_cast = (<memoryview>scales_shm).cast('f')
-        off_cast = (<memoryview>offsets_shm).cast('f')
+        trans_cast = (<memoryview>transforms_shm).cast('f')
         vcount_cast = (<memoryview>vcounts_shm).cast('I')
         ecount_cast = (<memoryview>ecounts_shm).cast('I')
+        names_cast = (<memoryview>object_names_shm).cast('B')
+        uuids_cast = (<memoryview>uuids_shm).cast('B')
 
         vpool_mv = vpool_cast
         epool_mv = epool_cast
-        rot_mv = rot_cast
-        scale_mv = scale_cast
-        off_mv = off_cast
+        trans_mv = trans_cast
         vcount_mv = vcount_cast
         ecount_mv = ecount_cast
-
-
-        pivot_obj = None
-        if pivots is not None and i < len(pivots):
-            pivot_obj = pivots[i]
-        if pivot_obj is not None:
-            pivot_matrix_world = pivot_obj.matrix_world.copy()
-            pivot_matrix_inv = pivot_matrix_world.inverted()
-            pivot_basis_inv = pivot_matrix_inv.to_3x3()
-            use_pivot_transform = True
-        else:
-            pivot_matrix_inv = Matrix.Identity(4)
-            pivot_basis_inv = Matrix.Identity(3)
-            use_pivot_transform = False
-
-
+        names_mv = names_cast
+        uuids_mv = uuids_cast
 
         for i, (obj, mesh, verts, edges) in enumerate(group):
             vcount_mv[i] = v_cursor
             ecount_mv[i] = e_cursor
 
-            if use_pivot_transform:
-                obj_local_matrix = pivot_matrix_inv @ obj.matrix_world
-                quat = obj_local_matrix.to_3x3().to_quaternion()
-                trans_vec = obj.matrix_world.translation - pivot_obj.matrix_world.translation
-                local_translation = pivot_basis_inv @ trans_vec
-            else:
-                quat = obj.matrix_world.to_3x3().to_quaternion()
-                local_translation = Vector((0.0, 0.0, 0.0))
-
-
-            rot_mv[idx_rot] = quat.w
-            rot_mv[idx_rot + 1] = quat.x
-            rot_mv[idx_rot + 2] = quat.y
-            rot_mv[idx_rot + 3] = quat.z
-
-            scale_vec = obj.matrix_world.to_3x3().to_scale()
-            scale_mv[idx_scale] = scale_vec.x
-            scale_mv[idx_scale + 1] = scale_vec.y
-            scale_mv[idx_scale + 2] = scale_vec.z
-
-            off_mv[idx_offset] = local_translation.x
-            off_mv[idx_offset + 1] = local_translation.y
-            off_mv[idx_offset + 2] = local_translation.z
-
-            idx_rot += 4
-            idx_scale += 3
-            idx_offset += 3
+            mat = obj.matrix_world
+            trans_mv[idx_trans + 0] = mat[0][0]
+            trans_mv[idx_trans + 1] = mat[0][1]
+            trans_mv[idx_trans + 2] = mat[0][2]
+            trans_mv[idx_trans + 3] = mat[0][3]
+            trans_mv[idx_trans + 4] = mat[1][0]
+            trans_mv[idx_trans + 5] = mat[1][1]
+            trans_mv[idx_trans + 6] = mat[1][2]
+            trans_mv[idx_trans + 7] = mat[1][3]
+            trans_mv[idx_trans + 8] = mat[2][0]
+            trans_mv[idx_trans + 9] = mat[2][1]
+            trans_mv[idx_trans + 10] = mat[2][2]
+            trans_mv[idx_trans + 11] = mat[2][3]
+            trans_mv[idx_trans + 12] = mat[3][0]
+            trans_mv[idx_trans + 13] = mat[3][1]
+            trans_mv[idx_trans + 14] = mat[3][2]
+            trans_mv[idx_trans + 15] = mat[3][3]
+            idx_trans += 16
 
             timers.start("create_data_arrays.loop.foreach_get_verts")
             if len(verts) > 0:
@@ -185,9 +142,6 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
                 mesh.edges.foreach_get("vertices", epool_mv[e_cursor * 2:e_cursor * 2 + len(edges) * 2])
                 e_cursor += len(edges)
             timers.stop("create_data_arrays.loop.foreach_get_edges")
-
-        vcount_mv[len(group)] = v_cursor
-        ecount_mv[len(group)] = e_cursor
 
     print("create_data_arrays.loop.foreach_get_verts: ", timers.get_elapsed_ms("create_data_arrays.loop.foreach_get_verts"), "ms")
     timers.reset("create_data_arrays.loop.foreach_get_verts")
