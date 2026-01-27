@@ -27,6 +27,7 @@ import os
 import sys
 import stat
 
+from .mesh_sync import sync_timer_callback
 from pivot_lib import engine_state
 from pivot_lib import group_manager
 import elbo_sdk_rust as engine
@@ -222,11 +223,16 @@ def on_load_pre(scene):
             surface_mgr.sync_group_classifications(classifications)
     except Exception as e:
         print(f"[Pivot] Failed to sync classifications before load: {e}")
-    
+
+    print("[Pivot] Unregistering sync timer callback")
+    if bpy.app.timers.is_registered(sync_timer_callback):
+        bpy.app.timers.unregister(sync_timer_callback)
     # Stop the pivot engine
     engine.stop_engine()
     
-
+    print("[Pivot] Unregistering sync timer callback")
+    if bpy.app.timers.is_registered(sync_timer_callback):
+        bpy.app.timers.unregister(sync_timer_callback)
 @persistent
 def on_load_post(scene):
     """Executed after a new file has finished loading.
@@ -241,6 +247,9 @@ def on_load_post(scene):
     clear_previous_scales()
 
     engine.start_engine()
+    print("[Pivot] Registering sync timer callback")
+    if not bpy.app.timers.is_registered(sync_timer_callback):
+        bpy.app.timers.register(sync_timer_callback)
     
     
     

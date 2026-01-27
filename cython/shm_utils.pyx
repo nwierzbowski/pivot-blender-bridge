@@ -22,6 +22,7 @@ import json
 from mathutils import Matrix, Vector
 from libc.stdint cimport uint32_t
 from libc.stddef cimport size_t
+from libc.string cimport memcpy, memset
 from .timer_manager import timers
 
 def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list group_names, list surface_contexts):
@@ -81,7 +82,10 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
     cdef object names_cast
     cdef object uuids_cast
     cdef object mat
-
+    cdef Py_ssize_t obj_index
+    cdef bytes name_bytes
+    cdef Py_ssize_t name_len
+    cdef const unsigned char* name_ptr
 
     timers.start("data_arrays.loop")
     for i, group in enumerate(mesh_groups):
@@ -107,10 +111,22 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
         ecount_mv = ecount_cast
         names_mv = names_cast
         uuids_mv = uuids_cast
+        print(f"Processing group {i} with {len(group)} objects.")
+        
+        for obj_index in range(len(group)):
+            obj, mesh, verts, edges = group[obj_index]
+            print(group)
+            vcount_mv[obj_index] = v_cursor
+            ecount_mv[obj_index] = e_cursor
 
-        for i, (obj, mesh, verts, edges) in enumerate(group):
-            vcount_mv[i] = v_cursor
-            ecount_mv[i] = e_cursor
+            name_bytes = obj.name.encode('utf-8')
+            name_len = len(name_bytes)
+            if name_len > 64:
+                name_len = 64
+            name_ptr = <const unsigned char*>name_bytes
+            memcpy(&names_mv[obj_index * 64], name_ptr, name_len)
+            if name_len < 64:
+                memset(&names_mv[obj_index * 64 + name_len], 0, 64 - name_len)
 
             mat = obj.matrix_world
             trans_mv[idx_trans + 0] = mat[0][0]
@@ -132,16 +148,18 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
             idx_trans += 16
 
             timers.start("create_data_arrays.loop.foreach_get_verts")
-            if len(verts) > 0:
-                mesh.attributes["position"].data.foreach_get("vector", vpool_mv[v_cursor * 3:v_cursor * 3 + len(verts) * 3])
-                v_cursor += len(verts)
+            mesh.attributes["position"].data.foreach_get("vector", vpool_mv[v_cursor * 3:v_cursor * 3 + len(verts) * 3])
+            v_cursor += len(verts)
             timers.stop("create_data_arrays.loop.foreach_get_verts")
 
             timers.start("create_data_arrays.loop.foreach_get_edges")
-            if len(edges) > 0:
-                mesh.edges.foreach_get("vertices", epool_mv[e_cursor * 2:e_cursor * 2 + len(edges) * 2])
-                e_cursor += len(edges)
+            mesh.edges.foreach_get("vertices", epool_mv[e_cursor * 2:e_cursor * 2 + len(edges) * 2])
+            e_cursor += len(edges)
             timers.stop("create_data_arrays.loop.foreach_get_edges")
+
+        # Sentinel totals (bases length = object_count + 1)
+        vcount_mv[len(group)] = v_cursor
+        ecount_mv[len(group)] = e_cursor
 
     print("create_data_arrays.loop.foreach_get_verts: ", timers.get_elapsed_ms("create_data_arrays.loop.foreach_get_verts"), "ms")
     timers.reset("create_data_arrays.loop.foreach_get_verts")

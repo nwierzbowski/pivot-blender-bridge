@@ -26,6 +26,7 @@ from bpy.props import PointerProperty
 
 from pivot_lib import group_manager
 from . import handlers
+from .mesh_sync import sync_timer_callback
 from .operators.operators import (
     Pivot_OT_Organize_Classified_Objects,
     Pivot_OT_Reset_Classifications,
@@ -112,6 +113,10 @@ def register():
     engine.set_engine_dir(bin_dir)
     engine.start_engine()
 
+    print("[Pivot] Registering sync timer callback")
+    if not bpy.app.timers.is_registered(sync_timer_callback):
+        bpy.app.timers.register(sync_timer_callback)
+
     is_pro = False
     try:
         # Print Cython edition for debugging
@@ -182,6 +187,11 @@ def unregister():
     _reset_sync_state()
     handlers.on_load_pre(None)
     engine.stop_engine()
+
+
+    print("[Pivot] Unregistering sync timer callback")
+    if bpy.app.timers.is_registered(sync_timer_callback):
+        bpy.app.timers.unregister(sync_timer_callback)
 
 
 if __name__ == "__main__":
