@@ -216,10 +216,10 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     if len(objects) > 1 and not edition_utils.is_pro_edition():
         raise RuntimeError(f"STANDARD edition only supports single object classification, got {len(objects)}")
     
-    # Filter to mesh objects only
-    mesh_objects = [obj for obj in objects if obj.type == 'MESH']
-    if not mesh_objects:
-        return [], [], [], []
+    # # Filter to mesh objects only
+    # mesh_objects = [obj for obj in objects if obj.type == 'MESH']
+    # if not mesh_objects:
+    #     return [], [], [], []
 
     # Build mesh data for all objects (each object is its own group).
     # Use evaluated objects/meshes and provide the same tuple shape
@@ -229,7 +229,7 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     depsgraph = bpy.context.evaluated_depsgraph_get()
     mesh_groups = []
     group_names = []
-    for obj in mesh_objects:
+    for obj in objects:
         eval_obj = obj.evaluated_get(depsgraph)
         eval_mesh = eval_obj.data
         eval_verts = eval_mesh.vertices
@@ -269,11 +269,11 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     # --- Extract engine results ---
     # Engine returns results as a dict keyed by group name
     results = final_response.get("groups", {})
-    rots = [Quaternion(results[obj.name]["rot"]) for obj in mesh_objects if obj.name in results]
-    origins = [tuple(results[obj.name]["origin"]) for obj in mesh_objects if obj.name in results]
-    cogs = [tuple(results[obj.name]["cog"]) for obj in mesh_objects if obj.name in results]
+    rots = [Quaternion(results[obj.name]["rot"]) for obj in objects if obj.name in results]
+    origins = [tuple(results[obj.name]["origin"]) for obj in objects if obj.name in results]
+    cogs = [tuple(results[obj.name]["cog"]) for obj in objects if obj.name in results]
     
-    return mesh_objects, rots, origins, cogs
+    return objects, rots, origins, cogs
 
 
 

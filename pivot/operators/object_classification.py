@@ -47,7 +47,7 @@ class Pivot_OT_Set_Origin_Selected_Objects(bpy.types.Operator):
             return False
         # print("set_origin_selected_objects.any_qualifying: ", timer_manager.timers.stop("set_origin_selected_objects.any_qualifying"), "ms")
         # timer_manager.timers.reset("set_origin_selected_objects.any_qualifying")
-        return selected_has_qualifying_objects(sel, scene_collection)
+        return selected_has_qualifying_objects(sel)
 
     def execute(self, context):
         timer_manager.timers.start("set_origin_selected_objects")
@@ -56,7 +56,7 @@ class Pivot_OT_Set_Origin_Selected_Objects(bpy.types.Operator):
         if not scene_collection:
             return {FINISHED}
         timer_manager.timers.start("set_origin_selected_objects.get_qualifying")
-        objects = get_qualifying_objects_for_selected(context.selected_objects, scene_collection)
+        objects = get_qualifying_objects_for_selected(context.selected_objects)
         # Exit edit mode if active to ensure mesh data is accessible
         if bpy.context.mode == 'EDIT_MESH':
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -97,13 +97,13 @@ class Pivot_OT_Align_Facing_Selected_Objects(bpy.types.Operator):
         scene_collection = getattr(context.scene, "collection", None)
         if not scene_collection:
             return False
-        return selected_has_qualifying_objects(sel, scene_collection)
+        return selected_has_qualifying_objects(sel)
 
     def execute(self, context):
         scene_collection = getattr(context.scene, "collection", None)
         if not scene_collection:
             return {FINISHED}
-        objects = get_qualifying_objects_for_selected(context.selected_objects, scene_collection)
+        objects = get_qualifying_objects_for_selected(context.selected_objects)
         # Exit edit mode if active to ensure mesh data is accessible
         if bpy.context.mode == 'EDIT_MESH':
             bpy.ops.object.mode_set(mode='OBJECT')

@@ -22,7 +22,7 @@ from ..constants import PRE, FINISHED
 from pivot_lib import standardize
 from pivot_lib import group_manager
 from pivot_lib import engine_state
-from ..classification_utils import get_qualifying_objects_for_selected, selected_has_qualifying_objects
+from ..classification_utils import get_qualifying_groups_for_selected, selected_has_qualifying_groups
 
 
 class Pivot_OT_Standardize_Selected_Groups(bpy.types.Operator):
@@ -44,7 +44,7 @@ class Pivot_OT_Standardize_Selected_Groups(bpy.types.Operator):
     def poll(cls, context):
         sel = getattr(context, "selected_objects", None) or []
         objects_collection = group_manager.get_group_manager().get_objects_collection()
-        return selected_has_qualifying_objects(sel, objects_collection)
+        return selected_has_qualifying_groups(sel, objects_collection)
 
     def execute(self, context):
         # Exit edit mode if active to ensure mesh data is accessible
@@ -54,7 +54,7 @@ class Pivot_OT_Standardize_Selected_Groups(bpy.types.Operator):
         startTime = time.perf_counter()
         
         objects_collection = group_manager.get_group_manager().get_objects_collection()
-        objects = get_qualifying_objects_for_selected(context.selected_objects, objects_collection)
+        objects = get_qualifying_groups_for_selected(context.selected_objects, objects_collection)
         origin_method = context.scene.pivot.origin_method
         surface_type = context.scene.pivot.surface_type
         

@@ -17,7 +17,19 @@
 
 from pivot_lib.surface_manager import CLASSIFICATION_ROOT_MARKER_PROP
 
-def selected_has_qualifying_objects(selected_objects, objects_collection):
+def selected_has_qualifying_objects(selected_objects):
+    if not selected_objects:
+        return False
+
+    return any(obj.type == 'MESH' for obj in selected_objects)
+
+def get_qualifying_objects_for_selected(selected_objects):
+    if not selected_objects:
+        return []
+
+    return [obj for obj in selected_objects if obj.type == 'MESH']
+
+def selected_has_qualifying_groups(selected_objects, objects_collection):
     if not selected_objects or not objects_collection:
         return False
 
@@ -50,7 +62,7 @@ def selected_has_qualifying_objects(selected_objects, objects_collection):
     return False
 
 
-def get_qualifying_objects_for_selected(selected_objects, objects_collection):
+def get_qualifying_groups_for_selected(selected_objects, objects_collection):
     if not selected_objects or not objects_collection:
         return []
 
