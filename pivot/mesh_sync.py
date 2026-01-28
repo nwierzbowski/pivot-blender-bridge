@@ -28,7 +28,9 @@ def sync_timer_callback():
                 transform_start = obj_index * 16 * 4
                 transform_end = transform_start + 16 * 4
                 mat_view = transforms[transform_start:transform_end].cast("f", shape=(4, 4))
-                mat = mathutils.Matrix(mat_view.tolist())
+                # SHM stores transforms as column-major floats for Eigen interop.
+                # Python's memoryview cast uses row-major, so this view is transposed.
+                mat = mathutils.Matrix(mat_view.tolist()).transposed()
                 obj.matrix_world = mat
                 obj.data.update()
 

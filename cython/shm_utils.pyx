@@ -86,6 +86,8 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
     cdef bytes name_bytes
     cdef Py_ssize_t name_len
     cdef const unsigned char* name_ptr
+    cdef float[::1] mat_flat
+    cdef float *outp
 
     timers.start("data_arrays.loop")
     for i, group in enumerate(mesh_groups):
@@ -96,13 +98,15 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
         verts_shm, edges_shm, transforms_shm, vcounts_shm, ecounts_shm, object_names_shm, uuids_shm = shm_context.buffers(i)
 
         # Rust exposes raw u8 buffers; cast to typed views here.
-        vpool_cast = (<memoryview>verts_shm).cast('f')
-        epool_cast = (<memoryview>edges_shm).cast('I')
-        trans_cast = (<memoryview>transforms_shm).cast('f')
-        vcount_cast = (<memoryview>vcounts_shm).cast('I')
-        ecount_cast = (<memoryview>ecounts_shm).cast('I')
-        names_cast = (<memoryview>object_names_shm).cast('B')
-        uuids_cast = (<memoryview>uuids_shm).cast('B')
+        # Use Python's memoryview(...) constructor here (not a Cython type-cast) so we correctly
+        # wrap any buffer-exporting object returned from Rust.
+        vpool_cast = memoryview(verts_shm).cast('f')
+        epool_cast = memoryview(edges_shm).cast('I')
+        trans_cast = memoryview(transforms_shm).cast('f')
+        vcount_cast = memoryview(vcounts_shm).cast('I')
+        ecount_cast = memoryview(ecounts_shm).cast('I')
+        names_cast = memoryview(object_names_shm).cast('B')
+        uuids_cast = memoryview(uuids_shm).cast('B')
 
         vpool_mv = vpool_cast
         epool_mv = epool_cast
@@ -129,22 +133,29 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
                 memset(&names_mv[obj_index * 64 + name_len], 0, 64 - name_len)
 
             mat = obj.matrix_world
-            trans_mv[idx_trans + 0] = mat[0][0]
-            trans_mv[idx_trans + 1] = mat[0][1]
-            trans_mv[idx_trans + 2] = mat[0][2]
-            trans_mv[idx_trans + 3] = mat[0][3]
-            trans_mv[idx_trans + 4] = mat[1][0]
-            trans_mv[idx_trans + 5] = mat[1][1]
-            trans_mv[idx_trans + 6] = mat[1][2]
-            trans_mv[idx_trans + 7] = mat[1][3]
-            trans_mv[idx_trans + 8] = mat[2][0]
-            trans_mv[idx_trans + 9] = mat[2][1]
-            trans_mv[idx_trans + 10] = mat[2][2]
-            trans_mv[idx_trans + 11] = mat[2][3]
-            trans_mv[idx_trans + 12] = mat[3][0]
-            trans_mv[idx_trans + 13] = mat[3][1]
-            trans_mv[idx_trans + 14] = mat[3][2]
-            trans_mv[idx_trans + 15] = mat[3][3]
+            # Fallback: cache rows to reduce repeated Python lookups.
+            r0 = mat[0]
+            r1 = mat[1]
+            r2 = mat[2]
+            r3 = mat[3]
+            outp = &trans_mv[idx_trans]
+            outp[0] = <float>r0[0]
+            outp[1] = <float>r1[0]
+            outp[2] = <float>r2[0]
+            outp[3] = <float>r3[0]
+            outp[4] = <float>r0[1]
+            outp[5] = <float>r1[1]
+            outp[6] = <float>r2[1]
+            outp[7] = <float>r3[1]
+            outp[8] = <float>r0[2]
+            outp[9] = <float>r1[2]
+            outp[10] = <float>r2[2]
+            outp[11] = <float>r3[2]
+            outp[12] = <float>r0[3]
+            outp[13] = <float>r1[3]
+            outp[14] = <float>r2[3]
+            outp[15] = <float>r3[3]
+
             idx_trans += 16
 
             timers.start("create_data_arrays.loop.foreach_get_verts")
