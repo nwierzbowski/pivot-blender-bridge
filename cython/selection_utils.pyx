@@ -17,70 +17,17 @@
 
 # selection_utils.pyx - selection and grouping helpers for Blender objects
 
+# cython: language_level=3
 import bpy
-from mathutils import Vector, Matrix, Quaternion
 from . import edition_utils
-from collections import defaultdict
+from pivot_lib import group_manager
 
 # Constants (must match pivot/surface_manager.py)
 CLASSIFICATION_MARKER_PROP = "pivot_is_classification_collection"
 CLASSIFICATION_ROOT_MARKER_PROP = "pivot_is_classification_root"
 
 
-cpdef object get_root_object(object obj):
-    while obj.parent is not None:
-        obj = obj.parent
-    return obj
-
-cpdef tuple get_mesh_and_all_descendants(object root, object depsgraph):
-    cdef list meshes = []
-    cdef list descendants = [root]
-    cdef list stack = [root]
-    cdef object current
-    cdef object eval_obj
-    cdef object eval_mesh
-    while stack:
-        current = stack.pop()
-        if current.type == 'MESH':
-            eval_obj = current.evaluated_get(depsgraph)
-            eval_mesh = eval_obj.data
-            eval_verts = eval_mesh.vertices
-            eval_edges = eval_mesh.edges
-            if len(eval_verts) != 0:
-                meshes.append((eval_obj, eval_mesh, eval_verts, eval_edges))
-        for child in current.children:
-            descendants.append(child)
-            stack.append(child)
-    return meshes, descendants
-
-
-cpdef bint has_mesh_with_vertices(object root, object depsgraph):
-    cdef list stack = [root]
-    cdef object current
-    cdef object eval_obj
-    cdef object eval_mesh
-    while stack:
-        current = stack.pop()
-        if current.type == 'MESH':
-            eval_obj = current.evaluated_get(depsgraph)
-            eval_mesh = eval_obj.data
-            if len(eval_mesh.vertices) > 0:
-                return True
-        for child in current.children:
-            stack.append(child)
-    return False
-
-
-cpdef list get_all_root_objects(object coll):
-    cdef list roots = []
-    cdef object obj
-    for obj in coll.objects:
-        if obj.parent is None:
-            roots.append(obj)
-    for child in coll.children:
-        roots.extend(get_all_root_objects(child))
-    return roots
-
+cdef str MESH_TYPE = "MESH"
 
 def aggregate_object_groups(list selected_objects):
     """Group the selection by collection boundaries and root parents."""
@@ -88,204 +35,121 @@ def aggregate_object_groups(list selected_objects):
     if edition_utils.is_standard_edition() and len(selected_objects) != 1:
         raise ValueError("Standard edition only supports single object selection")
 
-    cdef object depsgraph
-    cdef object scene_coll
-    cdef object coll_to_top_map
-    cdef object top_coll
-    cdef object child_coll
-    cdef list stack
+    cdef object group_mgr = group_manager.get_group_manager()
+    cdef object scene_coll = group_mgr.get_objects_collection()
+    
+    if not scene_coll.objects and not scene_coll.children:
+        return [], []
 
-    cdef set root_objects
-    cdef list mesh_groups
-    cdef list parent_groups
-    cdef list full_groups
-    cdef list group_names
+    # Get Depsgraph (Unavoidable overhead on first run)
+    cdef object depsgraph = bpy.context.evaluated_depsgraph_get()
+    cdef str marker = CLASSIFICATION_MARKER_PROP
 
-    cdef object new_coll
-    cdef object processed_coll
-    cdef set collections_to_process
-    # Get the configured objects collection
-    from pivot_lib import group_manager
-    group_mgr = group_manager.get_group_manager()
-    scene_coll = group_mgr.get_objects_collection()
-    depsgraph = bpy.context.evaluated_depsgraph_get()
-    sync_state = group_mgr.get_sync_state()
-    existing_groups = group_mgr.get_managed_group_names_set()
-    cdef list synced_group_names = []
-    cdef set seen_synced = set()
-    cdef list synced_parent_groups = []
-    cdef list synced_parent_group_names = []
+    # --- 1. Selection Setup ---
+    cdef set sel_set = set(selected_objects)
+    
+    # Filter selection to meshes only. 
+    # This is small (User selection size), so it's fast.
+    cdef set sel_set_meshes = {o for o in sel_set if o.type == MESH_TYPE}
+    
+    if not sel_set_meshes:
+        return [], []
 
-    # Standard edition: just process the single selected object as-is
-    if edition_utils.is_standard_edition():
-        obj = selected_objects[0]
-        if obj.type != 'MESH':
-            return [], [], [], [], 0, 0, 0, []
-        
-        eval_obj = obj.evaluated_get(depsgraph)
-        eval_mesh = eval_obj.data
-        if len(eval_mesh.vertices) == 0:
-            return [], [], [], [], 0, 0, 0, []
-        
-        group_verts = len(eval_mesh.vertices)
-        group_edges = len(eval_mesh.edges)
-        
-        return (
-            [[obj]],  # mesh_groups
-            [[obj]],  # full_groups
-            [obj.name],  # group_names
-            group_verts,
-            group_edges,
-            1,
-            [None],  # pivots (none for standard edition single object)
-            [],
-            []  # synced_pivots
-        )
+    # REMOVED: Global `all_meshes` generation. 
+    # We no longer scan the whole scene at startup.
 
-    # Build a lookup that points every nested collection back to its top-level owner.
-    coll_to_top_map = defaultdict(list)
-    stack = []
-    for top_coll in scene_coll.children:
-        if top_coll.get(CLASSIFICATION_MARKER_PROP, False) or top_coll.get(CLASSIFICATION_ROOT_MARKER_PROP, False):
+    cdef list group_names = []
+    cdef list mesh_groups = []
+    
+    cdef object col
+    cdef object root_obj
+    cdef object new_col
+    cdef object obj
+    cdef object eval_obj
+    cdef object eval_mesh
+    
+    cdef set col_objects_set
+    cdef list eval_members
+    cdef str new_col_name
+
+    cdef list mesh_members_list = []
+    
+    # --- 2. Pass 1: Existing Collections ---
+    for col in scene_coll.children:
+        if col.get(marker):
             continue
-        invalid_found = False
-        temp_map = defaultdict(list)
-        stack = [(top_coll, top_coll)]
-        while stack:
-            current_coll, current_top = stack.pop()
-            if current_coll.get(CLASSIFICATION_MARKER_PROP, False) or current_coll.get(CLASSIFICATION_ROOT_MARKER_PROP, False):
-                invalid_found = True
-                continue
-            temp_map[current_coll].append(current_top)
-            for child_coll in current_coll.children:
-                stack.append((child_coll, current_top))
-        if not invalid_found:
-            for coll, tops in temp_map.items():
-                coll_to_top_map[coll].extend(tops)
 
-    root_objects = set()
-    mesh_groups = []
-    parent_groups = []
-    full_groups = []
-    group_names = []
-
-    root_obj = None
-    meshes = []
-    descendants = []
-    top_roots = []
-    group_verts = 0
-    group_edges = 0
-
-    for obj in selected_objects:
-        root_obj = get_root_object(obj)
-        root_objects.add(root_obj)
-
-    collections_to_process = set()
-    for root_obj in root_objects:
-        if not has_mesh_with_vertices(root_obj, depsgraph):
+        col_objects_set = set(col.all_objects)
+        
+        # Optimization: Fail-Fast
+        # If the collection doesn't touch our selection, skip it entirely.
+        if col_objects_set.isdisjoint(sel_set_meshes):
             continue
-        for coll in root_obj.users_collection:
-            if coll == scene_coll:
-                new_coll = bpy.data.collections.new(root_obj.name)
-                scene_coll.objects.unlink(root_obj)
-                scene_coll.children.link(new_coll)
-                new_coll.objects.link(root_obj)
-                _, descendants = get_mesh_and_all_descendants(root_obj, depsgraph)
-                for obj in descendants:
-                    if obj != root_obj and scene_coll in obj.users_collection:
+
+        # If we are here, this collection is relevant.
+        # NOW we filter for meshes, only on this specific subset.
+        eval_members = []
+        for obj in col_objects_set:
+            if obj.type == MESH_TYPE:
+                # We also check if it's in the selection OR in the scene_coll scope
+                # (Assuming col.all_objects implies it is in scope, we just need type check)
+                try:
+                    eval_obj = obj.evaluated_get(depsgraph)
+                    eval_mesh = eval_obj.data
+                    eval_members.append((eval_obj, eval_mesh, eval_mesh.vertices, eval_mesh.edges))
+                except (RuntimeError, AttributeError):
+                    continue
+
+        if eval_members:
+            mesh_groups.append(eval_members)
+            group_names.append(col.name)
+
+    # --- 3. Pass 2: Root Objects ---
+    # Iterate over tuple copy to handle list mutation safely
+    for root_obj in tuple(scene_coll.objects):
+        
+        # Build hierarchy set
+        if root_obj.type == MESH_TYPE:
+            col_objects_set = set(root_obj.children_recursive)
+            col_objects_set.add(root_obj)
+        else:
+            col_objects_set = set(root_obj.children_recursive)
+
+        # Optimization: Fail-Fast
+        if col_objects_set.isdisjoint(sel_set_meshes):
+            continue
+
+        # Process valid hierarchy
+        eval_members = []
+        mesh_members_list = [] # Temporary list for relinking
+
+        for obj in col_objects_set:
+            if obj.type == MESH_TYPE:
+                try:
+                    eval_obj = obj.evaluated_get(depsgraph)
+                    eval_mesh = eval_obj.data
+                    eval_members.append((eval_obj, eval_mesh, eval_mesh.vertices, eval_mesh.edges))
+                    mesh_members_list.append(obj)
+                except (RuntimeError, AttributeError):
+                    continue
+        
+        if eval_members:
+            mesh_groups.append(eval_members)
+
+            # Create new collection
+            new_col_name = f"{root_obj.name}"
+            new_col = bpy.data.collections.new(new_col_name)
+            scene_coll.children.link(new_col)
+            group_names.append(new_col.name)
+
+            # Relink objects
+            for obj in mesh_members_list:
+                try:
+                    if obj.name in scene_coll.objects:
                         scene_coll.objects.unlink(obj)
-                        new_coll.objects.link(obj)
-                collections_to_process.add(new_coll)
-            elif coll in coll_to_top_map: 
-                for top in coll_to_top_map[coll]:
-                    # if not group_manager.get_group_manager().get_sync_state().get(top.name, False):
-                        collections_to_process.add(top)
+                    if obj.name not in new_col.objects:
+                        new_col.objects.link(obj)
+                except RuntimeError:
+                    pass
 
-    for processed_coll in collections_to_process:
-        top_roots = get_all_root_objects(processed_coll)
-        if not top_roots:
-            continue
-        if sync_state.get(processed_coll.name, False):
-            if processed_coll.name not in seen_synced:
-                seen_synced.add(processed_coll.name)
-                synced_group_names.append(processed_coll.name)
-                synced_parent_groups.append(top_roots)
-                synced_parent_group_names.append(processed_coll.name)
-            continue
-        meshes = []
-        descendants = []
-        for root_obj in top_roots:
-            root_meshes, root_descendants = get_mesh_and_all_descendants(root_obj, depsgraph)
-            meshes.extend(root_meshes)
-            descendants.extend(root_descendants)
-        group_verts = 0
-        group_edges = 0
-        for (obj, mesh, verts, edges) in meshes:
-            group_verts += len(verts)
-            group_edges += len(edges)
-        mesh_groups.append(meshes)
-        parent_groups.append(top_roots)
-        full_groups.append(descendants)
-        group_names.append(processed_coll.name)
-
-    pivots = _setup_pivots_for_groups_return_empties(parent_groups, group_names, existing_groups)
-
-    for i, pivot in enumerate(pivots):
-        if pivot not in full_groups[i]:
-            full_groups[i].append(pivot)
-
-    if synced_parent_group_names:
-        synced_pivots = _setup_pivots_for_groups_return_empties(
-            synced_parent_groups, synced_parent_group_names, existing_groups)
-    else:
-        synced_pivots = []
-
-    return mesh_groups, full_groups, group_names, pivots, synced_group_names, synced_pivots
-
-
-def _setup_pivots_for_groups_return_empties(parent_groups, group_names, existing_groups):
-    """Set up one pivot empty per group with smart empty detection/creation."""
-    pivots = []
-    for i, parent_group in enumerate(parent_groups):
-        target_origin = parent_group[0].matrix_world.translation.copy()
-        empty = _get_or_create_pivot_empty(parent_group, group_names[i], target_origin, existing_groups)
-        pivots.append(empty)
-    return pivots
-
-
-def _get_or_create_pivot_empty(parent_group, group_name, target_origin, existing_groups):
-    """
-    Get or create a single pivot empty for the group.
-    - If group's collection has exactly one empty, reuse it
-    - If group's collection has no empties, create one
-    - If group's collection has multiple empties, create a new one and parent existing empties to it
-    Only parent the parent objects (from parent_group) to the pivot; children inherit automatically.
-    Returns: the pivot empty (which is NOT added to parent_group)
-    """
-    # Get the collection containing the first object
-    group_collection = parent_group[0].users_collection[0] if parent_group[0].users_collection else bpy.context.scene.collection
-    
-    # Find all empties in the parent_group (root objects of the group)
-    empties_in_collection = [obj for obj in parent_group if obj.type == 'EMPTY']
-    
-    # Determine which empty to use
-    if len(empties_in_collection) == 1:
-        # Exactly one empty: reuse it
-        empty = empties_in_collection[0]
-        
-    else:
-        # Zero or multiple empties: create a new one
-        empty = bpy.data.objects.new(f"{group_name}_pivot", None)
-        group_collection.objects.link(empty)
-
-    # Reset rotation by setting matrix_world to preserve translation and scale, but reset rotation to identity
-    if group_name not in existing_groups:
-        empty.matrix_world = Matrix.LocRotScale(target_origin, None, empty.matrix_world.to_scale())
-    
-    # Parent all objects in parent_group to the pivot (except the pivot itself)
-    for obj in parent_group:
-        if obj != empty:  # Avoid self-parenting
-            obj.parent = empty
-            obj.matrix_parent_inverse = Matrix.Translation(-target_origin)
-    
-    return empty
+    return mesh_groups, group_names

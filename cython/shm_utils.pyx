@@ -25,7 +25,7 @@ from libc.stddef cimport size_t
 from libc.string cimport memcpy, memset
 from .timer_manager import timers
 
-def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list group_names, list surface_contexts):
+def create_data_arrays(list mesh_groups, list group_names, list surface_contexts):
     # Build counts and object names without generators to avoid closures
     cdef list vert_counts_list = []
     cdef list edge_counts_list = []
@@ -50,14 +50,13 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
     timers.reset("create_data_arrays.totals")
 
     # Decide whether to reuse the caller-supplied group names or fall back to the raw object names
-    cdef list effective_group_names = group_names if is_group_mode else object_names_list
     timers.start("rust.makeshm")
     # Prepare shared memory using the per-object counts and group data so finalize needs no args
     shm_context = engine.prepare_standardize_groups(
         vert_counts_list,
         edge_counts_list,
         object_counts_list,
-        effective_group_names,
+        group_names,
         surface_contexts,
     )
     print("create_data_arrays.make_shm: ", timers.stop("rust.makeshm"), "ms")
@@ -115,11 +114,9 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
         ecount_mv = ecount_cast
         names_mv = names_cast
         uuids_mv = uuids_cast
-        print(f"Processing group {i} with {len(group)} objects.")
         
         for obj_index in range(len(group)):
             obj, mesh, verts, edges = group[obj_index]
-            print(group)
             vcount_mv[obj_index] = v_cursor
             ecount_mv[obj_index] = e_cursor
 
@@ -189,7 +186,7 @@ def create_data_arrays(list mesh_groups, list pivots, bint is_group_mode, list g
     print("create_data_arrays.finalize: ", timers.stop("create_data_arrays.finalize"), "ms")
     timers.reset("create_data_arrays.finalize")
 
-    timers.start("set_origin_selected_objects.underhead")
+    
     return final_response
 
 

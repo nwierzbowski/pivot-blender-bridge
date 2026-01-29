@@ -70,24 +70,6 @@ def _apply_transforms_to_pivots(pivots, origins, rots, cogs, bint origin_method_
 
         pivot.matrix_world.translation = target_origin
 
-def set_origin_and_preserve_children(obj, new_origin_local):
-    """Move object origin to new_origin_world while preserving visual placement of mesh and children."""
-    old_matrix = obj.matrix_world.copy()
-    # print(new_origin_local)
-    # Rotate new_origin_local by the inverse of the world matrix rotation to get local space
-    local_new_origin = old_matrix.to_3x3().inverted() @ new_origin_local
-    new_world_pos = old_matrix.translation + new_origin_local
-    correction = Matrix.Translation(-local_new_origin)
-
-    # Apply correction to mesh if it exists
-    if hasattr(obj, 'data') and hasattr(obj.data, 'transform'):
-        obj.data.transform(correction)
-
-    # Update world location and fix children parenting
-    obj.matrix_world.translation = new_world_pos
-    for child in obj.children:  
-        child.matrix_parent_inverse = correction @ child.matrix_parent_inverse
-
 def _build_group_surface_contexts(group_names, surface_context, classification_map=None):
     """Build per-group surface context strings, honoring AUTO overrides with stored classifications."""
 
@@ -131,77 +113,93 @@ def _standardize_synced_groups(synced_group_names, surface_contexts):
 def standardize_groups(list selected_objects, str origin_method, str surface_context):
     """Pro Edition: Classify selected groups via engine."""
 
-    mesh_groups, full_groups, group_names, pivots, synced_group_names, synced_pivots = selection_utils.aggregate_object_groups(selected_objects)
-    core_group_mgr = group_manager.get_group_manager()
-    origin_method_is_base = origin_method == "BASE"
+    timers.start("standardize_groups.aggregate_object_groups")
+    mesh_groups, group_names = selection_utils.aggregate_object_groups(selected_objects)
+    print("standardize_groups.aggregate_object_groups: ", timers.stop("standardize_groups.aggregate_object_groups"), "ms")
+    timers.reset("standardize_groups.aggregate_object_groups")
 
-    new_group_results = {}
-    transformed_group_names = []
+    # core_group_mgr = group_manager.get_group_manager()
+    # origin_method_is_base = origin_method == "BASE"
+
+    # new_group_results = {}
+    # transformed_group_names = []
 
     #Retain old classifications for user correction support
-    classification_map = None
-    if surface_context == "AUTO" and (group_names or synced_group_names):
-        classification_map = get_surface_manager().collect_group_classifications()
+    # classification_map = None
+    # if surface_context == "AUTO" and (group_names or synced_group_names):
+    #     classification_map = get_surface_manager().collect_group_classifications()
+
+    if (surface_context):
+        if surface_context == "AUTO":
+            context = 0
+        elif surface_context == "1":
+            context = 1
+        elif surface_context == "2":
+            context = 2
+        elif surface_context == "3":
+            context = 3
+        else:
+            context = 0
 
     if group_names:
-        surface_contexts = _build_group_surface_contexts(group_names, surface_context, classification_map)
+        # surface_contexts = _build_group_surface_contexts(group_names, surface_context, classification_map)
 
-        final_response = shm_utils.create_data_arrays(mesh_groups, pivots, True, group_names, surface_contexts)
+        shm_utils.create_data_arrays(mesh_groups, group_names, [context] * len(group_names))
 
-        new_group_results = final_response["groups"]
-        transformed_group_names = list(new_group_results.keys())
+        # new_group_results = final_response["groups"]
+        # transformed_group_names = list(new_group_results.keys())
 
-        group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, transformed_group_names)
-        engine_state.update_group_membership_snapshot(group_membership_snapshot, replace=False)
+        # group_membership_snapshot = engine_state.build_group_membership_snapshot(full_groups, transformed_group_names)
+        # engine_state.update_group_membership_snapshot(group_membership_snapshot, replace=False)
 
-    synced_surface_contexts = _build_group_surface_contexts(synced_group_names, surface_context, classification_map)
-    synced_group_results = _standardize_synced_groups(synced_group_names, synced_surface_contexts)
+    # synced_surface_contexts = _build_group_surface_contexts(synced_group_names, surface_context, classification_map)
+    # synced_group_results = _standardize_synced_groups(synced_group_names, synced_surface_contexts)
 
-    all_group_results = {**new_group_results, **synced_group_results}
-    all_transformed_group_names = list(all_group_results.keys())
+    # all_group_results = {**new_group_results, **synced_group_results}
+    # all_transformed_group_names = list(all_group_results.keys())
 
-    if all_transformed_group_names:
-        all_rots = [Quaternion(all_group_results[name]["rot"]) for name in all_transformed_group_names]
-        all_origins = [tuple(all_group_results[name]["origin"]) for name in all_transformed_group_names]
-        all_cogs = [tuple(all_group_results[name]["cog"]) for name in all_transformed_group_names]
+    # if all_transformed_group_names:
+    #     all_rots = [Quaternion(all_group_results[name]["rot"]) for name in all_transformed_group_names]
+    #     all_origins = [tuple(all_group_results[name]["origin"]) for name in all_transformed_group_names]
+    #     all_cogs = [tuple(all_group_results[name]["cog"]) for name in all_transformed_group_names]
 
-        pivot_lookup = {group_names[i]: pivots[i] for i in range(len(group_names))}
-        pivot_lookup.update({synced_group_names[i]: synced_pivots[i] for i in range(len(synced_group_names))})
-        all_pivots = []
-        for name in all_transformed_group_names:
-            pivot = pivot_lookup.get(name)
-            if pivot is None:
-                print(f"Warning: Pivot not found for group '{name}'")
-            all_pivots.append(pivot)
+    #     pivot_lookup = {group_names[i]: pivots[i] for i in range(len(group_names))}
+    #     pivot_lookup.update({synced_group_names[i]: synced_pivots[i] for i in range(len(synced_group_names))})
+    #     all_pivots = []
+    #     for name in all_transformed_group_names:
+    #         pivot = pivot_lookup.get(name)
+    #         if pivot is None:
+    #             print(f"Warning: Pivot not found for group '{name}'")
+    #         all_pivots.append(pivot)
 
-        _apply_transforms_to_pivots(all_pivots, all_origins, all_rots, all_cogs, origin_method_is_base)
-        core_group_mgr.set_groups_last_origin_method_base(all_transformed_group_names, origin_method_is_base)
+    #     _apply_transforms_to_pivots(all_pivots, all_origins, all_rots, all_cogs, origin_method_is_base)
+    #     core_group_mgr.set_groups_last_origin_method_base(all_transformed_group_names, origin_method_is_base)
 
-    surface_types_response = json.loads(engine.get_surface_types_command())
+    # surface_types_response = json.loads(engine.get_surface_types_command())
     
-    if not bool(surface_types_response.get("ok", True)):
-        error_msg = surface_types_response.get("error", "Unknown engine error during get_surface_types")
-        raise RuntimeError(f"get_surface_types failed: {error_msg}")
+    # if not bool(surface_types_response.get("ok", True)):
+    #     error_msg = surface_types_response.get("error", "Unknown engine error during get_surface_types")
+    #     raise RuntimeError(f"get_surface_types failed: {error_msg}")
     
-    all_surface_types = surface_types_response.get("groups", {})
-    # print(all_surface_types)
+    # all_surface_types = surface_types_response.get("groups", {})
+    # # print(all_surface_types)
 
-    # --- Always organize ALL groups using surface types ---
-    if all_surface_types:
-        # Use the response order directly instead of converting to list and back
-        # This preserves the engine's ordering and prevents group/surface type misalignment
-        all_group_names = list(all_surface_types.keys())
-        surface_types = [all_surface_types[name]["surface_type"] for name in all_group_names]
+    # # --- Always organize ALL groups using surface types ---
+    # if all_surface_types:
+    #     # Use the response order directly instead of converting to list and back
+    #     # This preserves the engine's ordering and prevents group/surface type misalignment
+    #     all_group_names = list(all_surface_types.keys())
+    #     surface_types = [all_surface_types[name]["surface_type"] for name in all_group_names]
         
-        # Verify we have matching counts to prevent misalignment
-        if len(all_group_names) != len(surface_types):
-            raise RuntimeError(f"Mismatch between group names ({len(all_group_names)}) and surface types ({len(surface_types)})")
+    #     # Verify we have matching counts to prevent misalignment
+    #     if len(all_group_names) != len(surface_types):
+    #         raise RuntimeError(f"Mismatch between group names ({len(all_group_names)}) and surface types ({len(surface_types)})")
         
-        core_group_mgr.update_managed_group_names(all_group_names)
-        core_group_mgr.set_groups_synced(all_group_names)
+    #     core_group_mgr.update_managed_group_names(all_group_names)
+    #     core_group_mgr.set_groups_synced(all_group_names)
         
-        # Pass as parallel lists with verified alignment to avoid swapping
-        get_surface_manager().organize_groups_into_surfaces(all_group_names, surface_types)
+    #     # Pass as parallel lists with verified alignment to avoid swapping
+    #     get_surface_manager().organize_groups_into_surfaces(all_group_names, surface_types)
 
 def _get_standardize_results(list objects, str surface_context="AUTO"):
     """
@@ -254,61 +252,24 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     timers.start("create_data_arrays.total")
     final_response = shm_utils.create_data_arrays(
         mesh_groups,
-        [None] * len(mesh_groups),
-        False,
         group_names,
         surface_contexts,
     )
     print("create_data_arrays.total: ", timers.stop("create_data_arrays.total"), "ms")
     timers.reset("create_data_arrays.total")
+    timers.start("set_origin_selected_objects.underhead")
     
     if not bool(final_response.get("ok", True)):
         error_msg = final_response.get("error", "Unknown engine error during standardize_groups")
         raise RuntimeError(f"standardize_groups failed: {error_msg}")
-    
-    # --- Extract engine results ---
-    # Engine returns results as a dict keyed by group name
-    results = final_response.get("groups", {})
-    rots = [Quaternion(results[obj.name]["rot"]) for obj in objects if obj.name in results]
-    origins = [tuple(results[obj.name]["origin"]) for obj in objects if obj.name in results]
-    cogs = [tuple(results[obj.name]["cog"]) for obj in objects if obj.name in results]
-    
-    return objects, rots, origins, cogs
 
 
 
 def standardize_object_origins(list objects, str origin_method, str surface_context="AUTO"):
     """Standardize object origins."""
-    mesh_objects, rots, origins, cogs = _get_standardize_results(objects, surface_context)
-    if not mesh_objects:
-        return
-    new_origins = []
-
-    if (origin_method == "BASE"):
-        new_origins = origins
-    else:
-        new_origins = cogs
-
-    timers.start("standardize_object_origins.application")
-    for i, obj in enumerate(mesh_objects):
-        if i < len(origins) and i < len(cogs):
-
-            # origin_vector = obj.matrix_world.translation + 
-            set_origin_and_preserve_children(obj, Vector(new_origins[i]))
-            bpy.context.scene.cursor.location = obj.matrix_world.translation
-    print("standardize_object_origins.application: ", timers.stop("standardize_object_origins.application"), "ms")
-    timers.reset("standardize_object_origins.application")
+    _get_standardize_results(objects, surface_context)
     
 
 def standardize_object_rotations(list objects):
     """Standardize object rotations."""
-    mesh_objects, rots, origins, cogs = _get_standardize_results(objects)
-    if not mesh_objects:
-        return
-    for i, obj in enumerate(mesh_objects):
-        if i < len(rots) and i < len(cogs):
-            rot = rots[i]
-            cog = Vector(cogs[i])
-            rotation_matrix = rot.to_matrix().to_4x4()
-            transform = Matrix.Translation(obj.matrix_world.translation + cog) @ rotation_matrix @ Matrix.Translation(-obj.matrix_world.translation - cog) @ obj.matrix_world
-            obj.matrix_world = transform
+    _get_standardize_results(objects)
