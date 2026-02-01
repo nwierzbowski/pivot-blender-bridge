@@ -63,6 +63,7 @@ set(CYTHON_MODULE_SOURCES
     selection_utils
     shm_utils
     surface_manager
+    id_manager
 )
 
 set(_blender_bridge_targets)

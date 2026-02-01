@@ -55,11 +55,9 @@ def aggregate_object_groups(list selected_objects):
     if not sel_set_meshes:
         return [], []
 
-    # REMOVED: Global `all_meshes` generation. 
-    # We no longer scan the whole scene at startup.
-
     cdef list group_names = []
     cdef list mesh_groups = []
+    cdef list collections = []
     
     cdef object col
     cdef object root_obj
@@ -103,6 +101,7 @@ def aggregate_object_groups(list selected_objects):
         if eval_members:
             mesh_groups.append(eval_members)
             group_names.append(col.name)
+            collections.append(col)
 
     # --- 3. Pass 2: Root Objects ---
     # Iterate over tuple copy to handle list mutation safely
@@ -141,6 +140,7 @@ def aggregate_object_groups(list selected_objects):
             new_col = bpy.data.collections.new(new_col_name)
             scene_coll.children.link(new_col)
             group_names.append(new_col.name)
+            collections.append(new_col)
 
             # Relink objects
             for obj in mesh_members_list:
@@ -152,4 +152,4 @@ def aggregate_object_groups(list selected_objects):
                 except RuntimeError:
                     pass
 
-    return mesh_groups, group_names
+    return mesh_groups, group_names, collections

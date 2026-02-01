@@ -31,7 +31,6 @@ from . import selection_utils, shm_utils, edition_utils, group_manager
 from . import engine_state
 import elbo_sdk_rust as engine
 from .surface_manager import get_surface_manager
-from multiprocessing.shared_memory import SharedMemory
 from .timer_manager import timers
 
 # Collection metadata keys
@@ -114,7 +113,7 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
     """Pro Edition: Classify selected groups via engine."""
 
     timers.start("standardize_groups.aggregate_object_groups")
-    mesh_groups, group_names = selection_utils.aggregate_object_groups(selected_objects)
+    mesh_groups, group_names, collections = selection_utils.aggregate_object_groups(selected_objects)
     print("standardize_groups.aggregate_object_groups: ", timers.stop("standardize_groups.aggregate_object_groups"), "ms")
     timers.reset("standardize_groups.aggregate_object_groups")
 
@@ -144,7 +143,7 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
     if group_names:
         # surface_contexts = _build_group_surface_contexts(group_names, surface_context, classification_map)
 
-        shm_utils.create_data_arrays(mesh_groups, group_names, [context] * len(group_names))
+        shm_utils.create_data_arrays(mesh_groups, group_names, collections, [context] * len(group_names))
 
         # new_group_results = final_response["groups"]
         # transformed_group_names = list(new_group_results.keys())

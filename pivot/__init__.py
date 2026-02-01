@@ -184,6 +184,7 @@ def unregister():
         bpy.app.handlers.depsgraph_update_post.remove(handlers.on_depsgraph_update)
 
     # Perform cleanup as if we're unloading a file
+    print("[Pivot] Performing cleanup on unregister")
     _reset_sync_state()
     handlers.on_load_pre(None)
     engine.stop_engine()

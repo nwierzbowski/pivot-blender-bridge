@@ -15,17 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <https://www.gnu.org/licenses>.
 
-import numpy as np
-cimport numpy as cnp
 import elbo_sdk_rust as engine
 import json
-from mathutils import Matrix, Vector
 from libc.stdint cimport uint32_t
-from libc.stddef cimport size_t
 from libc.string cimport memcpy, memset
 from .timer_manager import timers
+from . import id_manager
 
-def create_data_arrays(list mesh_groups, list group_names, list surface_contexts):
+def create_data_arrays(list mesh_groups, list group_names, list collections, list surface_contexts):
     # Build counts and object names without generators to avoid closures
     cdef list vert_counts_list = []
     cdef list edge_counts_list = []
@@ -58,6 +55,7 @@ def create_data_arrays(list mesh_groups, list group_names, list surface_contexts
         object_counts_list,
         group_names,
         surface_contexts,
+        id_manager.get_or_create_asset_uuid(collections)
     )
     print("create_data_arrays.make_shm: ", timers.stop("rust.makeshm"), "ms")
     timers.reset("rust.makeshm")
@@ -85,8 +83,9 @@ def create_data_arrays(list mesh_groups, list group_names, list surface_contexts
     cdef bytes name_bytes
     cdef Py_ssize_t name_len
     cdef const unsigned char* name_ptr
-    cdef float[::1] mat_flat
     cdef float *outp
+    cdef bytes uuid_seq
+    cdef const unsigned char *uuid_ptr
 
     timers.start("data_arrays.loop")
     for i, group in enumerate(mesh_groups):
@@ -119,6 +118,12 @@ def create_data_arrays(list mesh_groups, list group_names, list surface_contexts
             obj, mesh, verts, edges = group[obj_index]
             vcount_mv[obj_index] = v_cursor
             ecount_mv[obj_index] = e_cursor
+            uuid_bytes = id_manager.get_or_create_obj_uuid(obj.original)
+            uuid_seq = bytes(uuid_bytes)
+            if len(uuid_seq) != 16:
+                raise ValueError(f"pivot uuid must be 16 bytes but got {len(uuid_seq)}")
+            uuid_ptr = <const unsigned char *>uuid_seq
+            memcpy(&uuids_mv[obj_index * 16], uuid_ptr, 16)
 
             name_bytes = obj.name.encode('utf-8')
             name_len = len(name_bytes)
@@ -188,140 +193,3 @@ def create_data_arrays(list mesh_groups, list group_names, list surface_contexts
 
     
     return final_response
-
-
-# def prepare_face_data(uint32_t total_objects, list mesh_groups):
-#     """Prepare face data for sending to engine after initial classification."""
-#     cdef uint32_t total_faces_count = 0
-#     cdef uint32_t total_face_vertices = 0
-#     cdef size_t expected_objects = 0
-#     cdef list group
-#     cdef object obj
-#     cdef uint32_t obj_face_count
-#     cdef uint32_t obj_vertex_count
-#     cdef cnp.ndarray[cnp.uint32_t, ndim=1] face_sizes_slice
-#     cdef cnp.ndarray[cnp.uint32_t, ndim=1] shm_face_sizes_buf = None
-#     cdef cnp.ndarray[cnp.uint32_t, ndim=1] shm_faces_buf = None
-#     cdef cnp.ndarray[cnp.uint32_t, ndim=1] face_counts = None
-#     cdef cnp.ndarray[cnp.uint32_t, ndim=1] face_vert_counts = None
-#     cdef uint32_t[::1] face_sizes_slice_view
-#     cdef uint32_t[::1] face_counts_mv
-#     cdef uint32_t[::1] face_sizes_mv
-#     cdef uint32_t[::1] face_vert_counts_mv
-#     cdef uint32_t[::1] face_vert_counts_view
-#     cdef uint32_t face_sizes_offset = 0
-#     cdef uint32_t obj_idx = 0
-#     cdef uint32_t faces_offset = 0
-#     cdef size_t faces_size = 0
-#     cdef tuple shm_objects
-#     cdef tuple shm_names
-#     cdef str faces_shm_name = ""
-#     cdef str face_sizes_shm_name = ""
-#     cdef object faces_shm = None
-#     cdef object face_sizes_shm = None
-#     depsgraph = bpy.context.evaluated_depsgraph_get()
-
-#     # First pass: gather totals and validate counts
-#     for group in mesh_groups:
-#         expected_objects += len(group)
-#         for obj in group:
-#             eval_obj = obj.evaluated_get(depsgraph)
-#             eval_mesh = eval_obj.data
-#             total_faces_count += len(eval_mesh.polygons)
-
-#     if expected_objects != total_objects:
-#         raise ValueError(f"prepare_face_data: expected {expected_objects} objects, received {total_objects}")
-
-#     # Early exit when no faces are present
-#     if total_faces_count == 0:
-#         face_counts = np.zeros(total_objects, dtype=np.uint32)
-#         face_vert_counts = np.zeros(total_objects, dtype=np.uint32)
-#         shm_face_sizes_buf = np.zeros(0, dtype=np.uint32)
-
-#         face_counts_mv = face_counts
-#         face_sizes_mv = shm_face_sizes_buf
-#         face_vert_counts_mv = face_vert_counts
-
-#         return (), ("", ""), face_counts_mv, face_sizes_mv, face_vert_counts_mv, 0, 0
-
-#     cdef str uid_faces
-
-#     try:
-#         face_sizes_shm, face_sizes_shm_name, uid_faces = shm_manager.create_face_sizes_segment(total_faces_count)
-#         shm_face_sizes_buf = np.ndarray((total_faces_count,), dtype=np.uint32, buffer=face_sizes_shm.buf)
-
-#         face_counts = np.empty(total_objects, dtype=np.uint32)
-#         face_vert_counts = np.empty(total_objects, dtype=np.uint32)
-
-#         face_sizes_offset = 0
-#         obj_idx = 0
-
-#         for group in mesh_groups:
-#             for obj in group:
-#                 eval_obj = obj.evaluated_get(depsgraph)
-#                 eval_mesh = eval_obj.data
-#                 obj_face_count = <uint32_t>len(eval_mesh.polygons)
-#                 face_counts[obj_idx] = obj_face_count
-
-#                 if obj_face_count > 0:
-#                     face_sizes_slice = shm_face_sizes_buf[face_sizes_offset:face_sizes_offset + obj_face_count]
-#                     eval_mesh.polygons.foreach_get('loop_total', face_sizes_slice)
-
-#                     obj_vertex_count = 0
-#                     face_sizes_slice_view = face_sizes_slice
-#                     for i in range(obj_face_count):
-#                         obj_vertex_count += face_sizes_slice_view[i]
-
-#                     face_vert_counts[obj_idx] = obj_vertex_count
-#                     total_face_vertices += obj_vertex_count
-#                 else:
-#                     face_vert_counts[obj_idx] = 0
-
-#                 face_sizes_offset += obj_face_count
-#                 obj_idx += 1
-
-#         if total_face_vertices == 0:
-#             raise ValueError("prepare_face_data: collected faces but no vertex indices recorded")
-
-#         faces_shm, faces_shm_name = shm_manager.create_faces_segment(total_face_vertices, uid_faces)
-#         shm_faces_buf = np.ndarray((total_face_vertices,), dtype=np.uint32, buffer=faces_shm.buf)
-
-#         faces_offset = 0
-#         obj_idx = 0
-#         face_vert_counts_view = face_vert_counts
-
-#         for group in mesh_groups:
-#             for obj in group:
-#                 eval_obj = obj.evaluated_get(depsgraph)
-#                 eval_mesh = eval_obj.data
-#                 obj_vertex_count = face_vert_counts_view[obj_idx]
-#                 if obj_vertex_count > 0:
-#                     eval_mesh.polygons.foreach_get("vertices", shm_faces_buf[faces_offset:faces_offset + obj_vertex_count])
-#                     faces_offset += obj_vertex_count
-#                 obj_idx += 1
-
-#         face_counts_mv = face_counts
-#         face_sizes_mv = shm_face_sizes_buf
-#         face_vert_counts_mv = face_vert_counts_view
-
-#         shm_objects = (faces_shm, face_sizes_shm)
-#         shm_names = (faces_shm_name, face_sizes_shm_name)
-
-#         return shm_objects, shm_names, face_counts_mv, face_sizes_mv, face_vert_counts_mv, total_faces_count, total_face_vertices
-
-#     except Exception:
-#         if faces_shm is not None:
-#             try:
-#                 pass
-#             except Exception:
-#                 pass
-#             faces_shm.close()
-#             faces_shm.unlink()
-#         if face_sizes_shm is not None:
-#             try:
-#                 pass
-#             except Exception:
-#                 pass
-#             face_sizes_shm.close()
-#             face_sizes_shm.unlink()
-#         raise
