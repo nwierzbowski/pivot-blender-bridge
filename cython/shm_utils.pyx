@@ -49,6 +49,8 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
     # Decide whether to reuse the caller-supplied group names or fall back to the raw object names
     timers.start("rust.makeshm")
     # Prepare shared memory using the per-object counts and group data so finalize needs no args
+    # print(f"[Pivot] Selected {len(collections)} collections for SHM allocation. Names: {group_names}")
+
     shm_context = engine.prepare_standardize_groups(
         vert_counts_list,
         edge_counts_list,

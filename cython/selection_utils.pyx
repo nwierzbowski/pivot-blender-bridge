@@ -74,7 +74,7 @@ def aggregate_object_groups(list selected_objects):
     
     # --- 2. Pass 1: Existing Collections ---
     for col in scene_coll.children:
-        if col.get(marker):
+        if col.get(marker) or col.get(CLASSIFICATION_ROOT_MARKER_PROP):
             continue
 
         col_objects_set = set(col.all_objects)

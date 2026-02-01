@@ -1,6 +1,7 @@
 import bpy
 import mathutils
 import elbo_sdk_rust as engine
+import time
 
 MAX_NAME_LEN = 64  # keep in sync with pivot_com_types::MAX_NAME_LEN
 
@@ -11,6 +12,7 @@ def sync_timer_callback():
     if sync_context is None:
         return 0.01
     
+    start = time.perf_counter()
     for group_index in range(sync_context.size()):
         (verts, edges, transforms, vert_counts, edge_counts, object_names, uuids) = sync_context.buffers(group_index)
 
@@ -22,7 +24,7 @@ def sync_timer_callback():
             obj_name = name_bytes.decode("utf-8", errors="ignore")
             if not obj_name:
                 continue
-                
+                1
             obj = bpy.data.objects.get(obj_name)
             if obj is not None:
                 transform_start = obj_index * 16 * 4
@@ -33,5 +35,7 @@ def sync_timer_callback():
                 mat = mathutils.Matrix(mat_view.tolist()).transposed()
                 obj.matrix_world = mat
                 obj.data.update()
+    end = time.perf_counter()
+    print(f"[Pivot] Applied sync for {sync_context.size()} assets in {(end - start) * 1000:.2f} ms")
 
     return 0
