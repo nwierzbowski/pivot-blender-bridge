@@ -187,7 +187,13 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
     timers.reset("data_arrays.loop")
 
     timers.start("create_data_arrays.finalize")
-    final_json = shm_context.finalize()
+    try:
+        print("Starting finalize")
+        final_json = shm_context.finalize()
+        print("Ending finalize")
+    except Exception as e:
+        print ("BIG ERROR")
+        print(e)
     final_response = json.loads('{"ok": true }')
     
     print("create_data_arrays.finalize: ", timers.stop("create_data_arrays.finalize"), "ms")

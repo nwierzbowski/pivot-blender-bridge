@@ -105,14 +105,13 @@ def aggregate_object_groups(list selected_objects):
 
     # --- 3. Pass 2: Root Objects ---
     # Iterate over tuple copy to handle list mutation safely
-    for root_obj in tuple(scene_coll.objects):
+    all_objects = tuple(scene_coll.objects)
+    for root_obj in all_objects:
+        if root_obj.parent is not None: continue
         
         # Build hierarchy set
-        if root_obj.type == MESH_TYPE:
-            col_objects_set = set(root_obj.children_recursive)
-            col_objects_set.add(root_obj)
-        else:
-            col_objects_set = set(root_obj.children_recursive)
+        col_objects_set = set(root_obj.children_recursive)
+        col_objects_set.add(root_obj)
 
         # Optimization: Fail-Fast
         if col_objects_set.isdisjoint(sel_set_meshes):
@@ -143,7 +142,7 @@ def aggregate_object_groups(list selected_objects):
             collections.append(new_col)
 
             # Relink objects
-            for obj in mesh_members_list:
+            for obj in col_objects_set:
                 try:
                     if obj.name in scene_coll.objects:
                         scene_coll.objects.unlink(obj)
@@ -151,5 +150,7 @@ def aggregate_object_groups(list selected_objects):
                         new_col.objects.link(obj)
                 except RuntimeError:
                     pass
+
+    # print(collections, "\n")
 
     return mesh_groups, group_names, collections

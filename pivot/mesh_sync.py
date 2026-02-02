@@ -4,7 +4,7 @@ import elbo_sdk_rust as engine
 import time
 
 MAX_NAME_LEN = 64  # keep in sync with pivot_com_types::MAX_NAME_LEN
-
+temp_mat = mathutils.Matrix()
 def sync_timer_callback():
 
     sync_context = engine.poll_mesh_sync()
@@ -24,18 +24,30 @@ def sync_timer_callback():
             obj_name = name_bytes.decode("utf-8", errors="ignore")
             if not obj_name:
                 continue
-                1
             obj = bpy.data.objects.get(obj_name)
             if obj is not None:
                 transform_start = obj_index * 16 * 4
                 transform_end = transform_start + 16 * 4
-                mat_view = transforms[transform_start:transform_end].cast("f", shape=(4, 4))
-                # SHM stores transforms as column-major floats for Eigen interop.
-                # Python's memoryview cast uses row-major, so this view is transposed.
-                mat = mathutils.Matrix(mat_view.tolist()).transposed()
-                obj.matrix_world = mat
-                obj.data.update()
+                # 1. Cast the flat view into a 2D 4x4 shape
+                # This creates a 'view' of the data as 4 rows of 4 floats
+                # 1. Keep the view FLAT
+                mat_view = transforms[transform_start:transform_end].cast("f")
+
+                # 2. Use a simple generator or zip to chunk it into rows of 4
+                # This is much faster than .tolist() because it doesn't create 16 float objects upfront
+                it = iter(mat_view)
+                mat = mathutils.Matrix(list(zip(it, it, it, it)))
+
+                # 3. Apply
+                obj.matrix_world = mat.transposed()
+                obj.data.update() 
+                obj.update_tag()
     end = time.perf_counter()
     print(f"[Pivot] Applied sync for {sync_context.size()} assets in {(end - start) * 1000:.2f} ms")
 
+    start = time.perf_counter()
+    # bpy.context.view_layer.update()
+    end = time.perf_counter()
+    print(f"[Pivot] Depsgraph update took {(end - start) * 1000:.2f} ms")
+    
     return 0
