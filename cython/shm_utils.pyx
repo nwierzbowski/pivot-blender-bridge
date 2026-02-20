@@ -115,7 +115,7 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
         ecount_mv = ecount_cast
         names_mv = names_cast
         uuids_mv = uuids_cast
-        
+
         for obj_index in range(len(group)):
             obj, mesh, verts, edges = group[obj_index]
             vcount_mv[obj_index] = v_cursor
