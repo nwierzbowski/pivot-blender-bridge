@@ -75,22 +75,17 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
 
     cdef uint32_t v_cursor
     cdef uint32_t e_cursor
+    cdef uint32_t lb_cursor
+    cdef uint32_t l_cursor
 
     # Typed memoryviews for zero-copy writes
     cdef float[::1] trans_mv
     cdef unsigned char[::1] names_mv
     cdef unsigned char[::1] uuids_mv
     cdef uint32_t[::1] vcount_mv
-    cdef uint32_t[::1] ecount_mv
+    cdef int[::1] ecount_mv
     cdef float[::1] verts_mv
-    cdef uint32_t[::1] edges_mv
-    cdef object vcount_cast
-    cdef object ecount_cast
-    cdef object verts_cast
-    cdef object edges_cast
-    cdef object trans_cast
-    cdef object names_cast
-    cdef object uuids_cast
+    cdef int[::1] edges_mv
     cdef object mat
     cdef Py_ssize_t obj_index
     cdef bytes name_bytes
@@ -104,6 +99,9 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
     for i, group in enumerate(mesh_groups):
         v_cursor = 0
         e_cursor = 0
+        lb_cursor = 0
+        l_cursor = 0
+
         idx_trans = 0
 
         verts_shm, edges_shm, loops_shm, loop_bases_shm, object_loop_counts_shm, transforms_shm, vcounts_shm, ecounts_shm, object_names_shm, uuids_shm = shm_context.buffers(i)
@@ -111,32 +109,23 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
         # Rust exposes raw u8 buffers; cast to typed views here.
         # Use Python's memoryview(...) constructor here (not a Cython type-cast) so we correctly
         # wrap any buffer-exporting object returned from Rust.
-        verts_cast = memoryview(verts_shm).cast('f')
-        edges_cast = memoryview(edges_shm).cast('I')
-        loops_cast = memoryview(loops_shm).cast('I')
-        lbases_cast = memoryview(loop_bases_shm).cast('I')
-        obj_loop_counts_cast = memoryview(object_loop_counts_shm).cast('I')
-        trans_cast = memoryview(transforms_shm).cast('f')
-        vcount_cast = memoryview(vcounts_shm).cast('I')
-        ecount_cast = memoryview(ecounts_shm).cast('I')
-        names_cast = memoryview(object_names_shm).cast('B')
-        uuids_cast = memoryview(uuids_shm).cast('B')
-
-        verts_mv = verts_cast
-        edges_mv = edges_cast
-        loops_mv = loops_cast
-        lbases_mv = lbases_cast
-        obj_loop_counts_mv = obj_loop_counts_cast
-        trans_mv = trans_cast
-        vcount_mv = vcount_cast
-        ecount_mv = ecount_cast
-        names_mv = names_cast
-        uuids_mv = uuids_cast
+        verts_mv = memoryview(verts_shm).cast('f')
+        edges_mv = memoryview(edges_shm).cast('i')
+        loops_mv = memoryview(loops_shm).cast('i')
+        lbases_mv = memoryview(loop_bases_shm).cast('I')
+        obj_loop_counts_mv = memoryview(object_loop_counts_shm).cast('I')
+        trans_mv = memoryview(transforms_shm).cast('f')
+        vcount_mv = memoryview(vcounts_shm).cast('I')
+        ecount_mv = memoryview(ecounts_shm).cast('i')
+        names_mv = memoryview(object_names_shm).cast('B')
+        uuids_mv = memoryview(uuids_shm).cast('B')
 
         for obj_index in range(len(group)):
             obj, mesh, verts, edges, loops, polygons = group[obj_index]
             vcount_mv[obj_index] = v_cursor
             ecount_mv[obj_index] = e_cursor
+            obj_loop_counts_mv[obj_index] = lb_cursor
+
             uuid_bytes = id_manager.get_or_create_obj_uuid(obj.original)
             uuid_seq = bytes(uuid_bytes)
             if len(uuid_seq) != 16:
@@ -185,19 +174,37 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
             timers.stop("create_data_arrays.loop.foreach_get_verts")
 
             timers.start("create_data_arrays.loop.foreach_get_edges")
-            mesh.edges.foreach_get("vertices", edges_mv[e_cursor * 2:e_cursor * 2 + len(edges) * 2])
+            mesh.attributes[".edge_verts"].data.foreach_get("value", edges_mv[e_cursor * 2:e_cursor * 2 + len(edges) * 2])
             e_cursor += len(edges)
             timers.stop("create_data_arrays.loop.foreach_get_edges")
+
+            timers.start("create_data_arrays.loop.foreach_get_loop_start")
+            polygons.foreach_get("loop_start", lbases_mv[lb_cursor:lb_cursor + len(polygons)])
+            lb_cursor += len(polygons)
+            timers.stop("create_data_arrays.loop.foreach_get_loop_start")
+
+            timers.start("create_data_arrays.loop.foreach_get_loops")
+            mesh.attributes[".corner_vert"].data.foreach_get("value", loops_mv[l_cursor:l_cursor + len(loops)])
+            l_cursor += len(loops)
+            timers.stop("create_data_arrays.loop.foreach_get_loops")
 
         # Sentinel totals (bases length = object_count + 1)
         vcount_mv[len(group)] = v_cursor
         ecount_mv[len(group)] = e_cursor
+        obj_loop_counts_mv[len(group)] = lb_cursor
+        
 
     print("create_data_arrays.loop.foreach_get_verts: ", timers.get_elapsed_ms("create_data_arrays.loop.foreach_get_verts"), "ms")
     timers.reset("create_data_arrays.loop.foreach_get_verts")
 
     print("create_data_arrays.loop.foreach_get_edges: ", timers.get_elapsed_ms("create_data_arrays.loop.foreach_get_edges"), "ms")
     timers.reset("create_data_arrays.loop.foreach_get_edges")
+
+    print("create_data_arrays.loop.foreach_get_loop_start: ", timers.get_elapsed_ms("create_data_arrays.loop.foreach_get_loop_start"), "ms")
+    timers.reset("create_data_arrays.loop.foreach_get_loop_start")
+
+    print("create_data_arrays.loop.foreach_get_loops: ", timers.get_elapsed_ms("create_data_arrays.loop.foreach_get_loops"), "ms")
+    timers.reset("create_data_arrays.loop.foreach_get_loops")
 
 
     print ("create_data_arrays.loop: ", timers.stop("data_arrays.loop"), "ms")
