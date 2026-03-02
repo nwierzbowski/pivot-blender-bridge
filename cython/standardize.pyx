@@ -240,6 +240,7 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     depsgraph = bpy.context.evaluated_depsgraph_get()
     mesh_groups = []
     group_names = []
+    targets = []
     for obj in objects:
         eval_obj = obj.evaluated_get(depsgraph)
         eval_mesh = eval_obj.data
@@ -249,6 +250,7 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
             continue
         mesh_groups.append([(eval_obj, eval_mesh, eval_verts, eval_edges, eval_mesh.loops, eval_mesh.polygons)])
         group_names.append(obj.name)
+        targets.append(obj)
     
     print("get_standardize_results.depsgraph: ", timers.stop("get_standardize_results.depsgraph"), "ms")
     timers.reset("get_standardize_results.depsgraph")
@@ -267,7 +269,7 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     context = shm_utils.create_data_arrays(
         mesh_groups,
         group_names,
-        id_manager.get_or_create_obj_uuids(objects),
+        id_manager.get_or_create_obj_uuids(targets),
         surface_contexts
     )
     print("create_data_arrays.total: ", timers.stop("create_data_arrays.total"), "ms")
