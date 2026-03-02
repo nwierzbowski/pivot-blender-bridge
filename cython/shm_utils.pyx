@@ -26,6 +26,8 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
     # Build counts and object names without generators to avoid closures
     cdef list vert_counts_list = []
     cdef list edge_counts_list = []
+    cdef list face_counts_list = []
+    cdef list face_corner_counts_list = []
     cdef list object_counts_list = []
     cdef list object_names_list = []
     cdef list group
@@ -37,12 +39,19 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
         object_counts_list.append(len(group))
         group_vert_total = 0
         group_edge_total = 0
+        group_face_total = 0
+        group_face_corner_total = 0
         for i, (obj, mesh, verts, edges, loops, polygons) in enumerate(group):
             object_names_list.append(obj.name)
             group_vert_total += len(verts)
             group_edge_total += len(edges)
+            group_face_total += len(polygons)
+            group_face_corner_total += len(loops)
         vert_counts_list.append(group_vert_total)
         edge_counts_list.append(group_edge_total)
+        face_counts_list.append(group_face_total)
+        face_corner_counts_list.append(group_face_corner_total)
+
     print("create_data_arrays.totals: ", timers.stop("create_data_arrays.totals"), "ms")
     timers.reset("create_data_arrays.totals")
 
@@ -51,15 +60,11 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
     # Prepare shared memory using the per-object counts and group data so finalize needs no args
     # print(f"[Pivot] Selected {len(collections)} collections for SHM allocation. Names: {group_names}")
 
-    # Build loop_counts and total_loop_lengths matching the number of groups
-    cdef list loop_counts_list = [0] * len(group_names)
-    cdef list total_loop_lengths_list = [0] * len(group_names)
-
     shm_context = engine.prepare_standardize_groups(
         vert_counts_list,
         edge_counts_list,
-        loop_counts_list,
-        total_loop_lengths_list,
+        face_counts_list,
+        face_corner_counts_list,
         object_counts_list,
         group_names,
         surface_contexts,
@@ -77,12 +82,12 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
     cdef unsigned char[::1] uuids_mv
     cdef uint32_t[::1] vcount_mv
     cdef uint32_t[::1] ecount_mv
-    cdef float[::1] vpool_mv
-    cdef uint32_t[::1] epool_mv
+    cdef float[::1] verts_mv
+    cdef uint32_t[::1] edges_mv
     cdef object vcount_cast
     cdef object ecount_cast
-    cdef object vpool_cast
-    cdef object epool_cast
+    cdef object verts_cast
+    cdef object edges_cast
     cdef object trans_cast
     cdef object names_cast
     cdef object uuids_cast
@@ -101,21 +106,27 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
         e_cursor = 0
         idx_trans = 0
 
-        verts_shm, edges_shm, transforms_shm, vcounts_shm, ecounts_shm, object_names_shm, uuids_shm = shm_context.buffers(i)
+        verts_shm, edges_shm, loops_shm, loop_bases_shm, object_loop_counts_shm, transforms_shm, vcounts_shm, ecounts_shm, object_names_shm, uuids_shm = shm_context.buffers(i)
 
         # Rust exposes raw u8 buffers; cast to typed views here.
         # Use Python's memoryview(...) constructor here (not a Cython type-cast) so we correctly
         # wrap any buffer-exporting object returned from Rust.
-        vpool_cast = memoryview(verts_shm).cast('f')
-        epool_cast = memoryview(edges_shm).cast('I')
+        verts_cast = memoryview(verts_shm).cast('f')
+        edges_cast = memoryview(edges_shm).cast('I')
+        loops_cast = memoryview(loops_shm).cast('I')
+        lbases_cast = memoryview(loop_bases_shm).cast('I')
+        obj_loop_counts_cast = memoryview(object_loop_counts_shm).cast('I')
         trans_cast = memoryview(transforms_shm).cast('f')
         vcount_cast = memoryview(vcounts_shm).cast('I')
         ecount_cast = memoryview(ecounts_shm).cast('I')
         names_cast = memoryview(object_names_shm).cast('B')
         uuids_cast = memoryview(uuids_shm).cast('B')
 
-        vpool_mv = vpool_cast
-        epool_mv = epool_cast
+        verts_mv = verts_cast
+        edges_mv = edges_cast
+        loops_mv = loops_cast
+        lbases_mv = lbases_cast
+        obj_loop_counts_mv = obj_loop_counts_cast
         trans_mv = trans_cast
         vcount_mv = vcount_cast
         ecount_mv = ecount_cast
@@ -169,12 +180,12 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
             idx_trans += 16
 
             timers.start("create_data_arrays.loop.foreach_get_verts")
-            mesh.attributes["position"].data.foreach_get("vector", vpool_mv[v_cursor * 3:v_cursor * 3 + len(verts) * 3])
+            mesh.attributes["position"].data.foreach_get("vector", verts_mv[v_cursor * 3:v_cursor * 3 + len(verts) * 3])
             v_cursor += len(verts)
             timers.stop("create_data_arrays.loop.foreach_get_verts")
 
             timers.start("create_data_arrays.loop.foreach_get_edges")
-            mesh.edges.foreach_get("vertices", epool_mv[e_cursor * 2:e_cursor * 2 + len(edges) * 2])
+            mesh.edges.foreach_get("vertices", edges_mv[e_cursor * 2:e_cursor * 2 + len(edges) * 2])
             e_cursor += len(edges)
             timers.stop("create_data_arrays.loop.foreach_get_edges")
 

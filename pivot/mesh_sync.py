@@ -17,7 +17,7 @@ def sync_timer_callback():
 
     start = time.perf_counter()
     for group_index in range(sync_context.size()):
-        (verts, edges, transforms, vert_counts, edge_counts, object_names, uuids) = sync_context.buffers(group_index)
+        (verts, edges, loops, loop_bases, object_loop_counts, transforms, vert_counts, edge_counts, object_names, uuids) = sync_context.buffers(group_index)
 
         object_count = len(object_names) // MAX_NAME_LEN
         for obj_index in range(object_count):
