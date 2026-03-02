@@ -29,8 +29,12 @@ def _get_or_create_uuid(obj, prop_name, cache):
     
     return uuid_bytes
 
-def get_or_create_obj_uuid(obj):
-    return _get_or_create_uuid(obj, "pivot_id", _obj_uuid_cache)
+def get_or_create_obj_uuids(list objs):
+    cdef list uuids = []
+    for obj in objs:
+        uuid_bytes = _get_or_create_uuid(obj, "pivot_id", _obj_uuid_cache)
+        uuids.append(uuid_bytes)
+    return uuids
 
 def get_or_create_asset_uuid(list cols):
     cdef list uuids = []

@@ -22,7 +22,7 @@ from libc.string cimport memcpy, memset
 from .timer_manager import timers
 from . import id_manager
 
-def create_data_arrays(list mesh_groups, list group_names, list collections, list surface_contexts):
+def create_data_arrays(list mesh_groups, list group_names, list uuids, list surface_contexts):
     # Build counts and object names without generators to avoid closures
     cdef list vert_counts_list = []
     cdef list edge_counts_list = []
@@ -55,10 +55,8 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
     print("create_data_arrays.totals: ", timers.stop("create_data_arrays.totals"), "ms")
     timers.reset("create_data_arrays.totals")
 
-    # Decide whether to reuse the caller-supplied group names or fall back to the raw object names
     timers.start("rust.makeshm")
     # Prepare shared memory using the per-object counts and group data so finalize needs no args
-    # print(f"[Pivot] Selected {len(collections)} collections for SHM allocation. Names: {group_names}")
 
     shm_context = engine.prepare_standardize_groups(
         vert_counts_list,
@@ -68,7 +66,7 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
         object_counts_list,
         group_names,
         surface_contexts,
-        id_manager.get_or_create_asset_uuid(collections)
+        uuids,
     )
     print("create_data_arrays.make_shm: ", timers.stop("rust.makeshm"), "ms")
     timers.reset("rust.makeshm")
@@ -126,8 +124,8 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
             ecount_mv[obj_index] = e_cursor
             obj_loop_counts_mv[obj_index] = lb_cursor
 
-            uuid_bytes = id_manager.get_or_create_obj_uuid(obj.original)
-            uuid_seq = bytes(uuid_bytes)
+            uuid_bytes = id_manager.get_or_create_obj_uuids([obj.original])
+            uuid_seq = bytes(uuid_bytes[0])
             if len(uuid_seq) != 16:
                 raise ValueError(f"pivot uuid must be 16 bytes but got {len(uuid_seq)}")
             uuid_ptr = <const unsigned char *>uuid_seq
@@ -209,19 +207,5 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
 
     print ("create_data_arrays.loop: ", timers.stop("data_arrays.loop"), "ms")
     timers.reset("data_arrays.loop")
-
-    timers.start("create_data_arrays.finalize")
-    try:
-        print("Starting finalize")
-        final_json = shm_context.finalize()
-        print("Ending finalize")
-    except Exception as e:
-        print ("BIG ERROR")
-        print(e)
-    final_response = json.loads('{"ok": true }')
     
-    print("create_data_arrays.finalize: ", timers.stop("create_data_arrays.finalize"), "ms")
-    timers.reset("create_data_arrays.finalize")
-
-    
-    return final_response
+    return shm_context

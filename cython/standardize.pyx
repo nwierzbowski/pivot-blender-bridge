@@ -28,10 +28,11 @@ import bpy
 import json
 
 from . import selection_utils, shm_utils, edition_utils, group_manager
-from . import engine_state
 import elbo_sdk_rust as engine
 from .surface_manager import get_surface_manager
 from .timer_manager import timers
+from . import id_manager
+
 
 # Collection metadata keys
 GROUP_COLLECTION_PROP = "pivot_group_name"
@@ -143,7 +144,20 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
     if group_names:
         # surface_contexts = _build_group_surface_contexts(group_names, surface_context, classification_map)
 
-        shm_utils.create_data_arrays(mesh_groups, group_names, collections, [context] * len(group_names))
+        context = shm_utils.create_data_arrays(mesh_groups, group_names, id_manager.get_or_create_asset_uuid(collections), [context] * len(group_names))
+
+        timers.start("engine.compute")
+        try:
+            print("Starting finalize")
+            final_json = context.finalize(True)
+            print("Ending finalize")
+        except Exception as e:
+            print ("BIG ERROR")
+            print(e)
+        final_response = json.loads('{"ok": true }')
+        
+        print("engine.compute: ", timers.stop("engine.compute"), "ms")
+        timers.reset("engine.compute")
 
         # new_group_results = final_response["groups"]
         # transformed_group_names = list(new_group_results.keys())
@@ -233,7 +247,7 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
         eval_edges = eval_mesh.edges
         if len(eval_verts) == 0:
             continue
-        mesh_groups.append([(eval_obj, eval_mesh, eval_verts, eval_edges)])
+        mesh_groups.append([(eval_obj, eval_mesh, eval_verts, eval_edges, eval_mesh.loops, eval_mesh.polygons)])
         group_names.append(obj.name)
     
     print("get_standardize_results.depsgraph: ", timers.stop("get_standardize_results.depsgraph"), "ms")
@@ -248,14 +262,33 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
         engine_surface_context = 0
     surface_contexts = [engine_surface_context] * len(mesh_groups)
 
+
     timers.start("create_data_arrays.total")
-    final_response = shm_utils.create_data_arrays(
+    context = shm_utils.create_data_arrays(
         mesh_groups,
         group_names,
-        surface_contexts,
+        id_manager.get_or_create_obj_uuids(objects),
+        surface_contexts
     )
     print("create_data_arrays.total: ", timers.stop("create_data_arrays.total"), "ms")
     timers.reset("create_data_arrays.total")
+
+
+    timers.start("engine.compute")
+    try:
+        print("Starting finalize")
+        final_json = context.finalize(False)
+        print("Ending finalize")
+    except Exception as e:
+        print ("BIG ERROR")
+        print(e)
+    final_response = json.loads('{"ok": true }')
+    
+    print("engine.compute: ", timers.stop("engine.compute"), "ms")
+    timers.reset("engine.compute")
+
+
+
     timers.start("set_origin_selected_objects.underhead")
     
     if not bool(final_response.get("ok", True)):
