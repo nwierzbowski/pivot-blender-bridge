@@ -94,7 +94,7 @@ def aggregate_object_groups(list selected_objects):
                 try:
                     eval_obj = obj.evaluated_get(depsgraph)
                     eval_mesh = eval_obj.data
-                    eval_members.append((eval_obj, eval_mesh, eval_mesh.vertices, eval_mesh.edges))
+                    eval_members.append((eval_obj, eval_mesh, eval_mesh.vertices, eval_mesh.edges, eval_mesh.loops, eval_mesh.polygons))
                 except (RuntimeError, AttributeError):
                     continue
 
@@ -126,7 +126,7 @@ def aggregate_object_groups(list selected_objects):
                 try:
                     eval_obj = obj.evaluated_get(depsgraph)
                     eval_mesh = eval_obj.data
-                    eval_members.append((eval_obj, eval_mesh, eval_mesh.vertices, eval_mesh.edges))
+                    eval_members.append((eval_obj, eval_mesh, eval_mesh.vertices, eval_mesh.edges, eval_mesh.loops, eval_mesh.polygons))
                     mesh_members_list.append(obj)
                 except (RuntimeError, AttributeError):
                     continue
@@ -150,7 +150,5 @@ def aggregate_object_groups(list selected_objects):
                         new_col.objects.link(obj)
                 except RuntimeError:
                     pass
-
-    # print(collections, "\n")
 
     return mesh_groups, group_names, collections

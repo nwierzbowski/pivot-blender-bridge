@@ -37,7 +37,7 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
         object_counts_list.append(len(group))
         group_vert_total = 0
         group_edge_total = 0
-        for i, (obj, mesh, verts, edges) in enumerate(group):
+        for i, (obj, mesh, verts, edges, loops, polygons) in enumerate(group):
             object_names_list.append(obj.name)
             group_vert_total += len(verts)
             group_edge_total += len(edges)
@@ -51,9 +51,15 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
     # Prepare shared memory using the per-object counts and group data so finalize needs no args
     # print(f"[Pivot] Selected {len(collections)} collections for SHM allocation. Names: {group_names}")
 
+    # Build loop_counts and total_loop_lengths matching the number of groups
+    cdef list loop_counts_list = [0] * len(group_names)
+    cdef list total_loop_lengths_list = [0] * len(group_names)
+
     shm_context = engine.prepare_standardize_groups(
         vert_counts_list,
         edge_counts_list,
+        loop_counts_list,
+        total_loop_lengths_list,
         object_counts_list,
         group_names,
         surface_contexts,
@@ -117,7 +123,7 @@ def create_data_arrays(list mesh_groups, list group_names, list collections, lis
         uuids_mv = uuids_cast
 
         for obj_index in range(len(group)):
-            obj, mesh, verts, edges = group[obj_index]
+            obj, mesh, verts, edges, loops, polygons = group[obj_index]
             vcount_mv[obj_index] = v_cursor
             ecount_mv[obj_index] = e_cursor
             uuid_bytes = id_manager.get_or_create_obj_uuid(obj.original)
