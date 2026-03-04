@@ -199,21 +199,21 @@ cdef class GroupManager:
 
     # ==================== Managed Groups ====================
 
-    cpdef void update_managed_group_names(self, list group_names):
+    cpdef void update_managed_group_names(self, list uuids):
         """Update the set of managed collection names by merging with existing names.
         
         When new groups are added, subscribe to their name changes.
         """
-        cdef str name
-        for name in group_names:
-            if name and name not in self._sync_state:
-                self._sync_state[name] = True
-                self._last_origin_base_state.setdefault(name, True)
+        cdef bytes uuid
+        for uuid in uuids:
+            if uuid and uuid not in self._sync_state:
+                self._sync_state[uuid] = True
+                self._last_origin_base_state.setdefault(uuid, True)
                 
-                # Subscribe to name changes when group is added
-                if name in bpy.data.collections:
-                    collection = bpy.data.collections[name]
-                    self._subscribe_to_group(collection)
+                # # Subscribe to name changes when group is added
+                # if name in bpy.data.collections:
+                #     collection = bpy.data.collections[name]
+                #     self._subscribe_to_group(collection)
 
     cpdef set get_managed_group_names_set(self):
         """Return the set of all managed collection names."""
