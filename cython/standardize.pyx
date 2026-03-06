@@ -29,7 +29,6 @@ import json
 
 from . import selection_utils, shm_utils, edition_utils
 import elbo_sdk_rust as engine
-from .surface_manager import get_surface_manager
 from .timer_manager import timers
 from . import id_manager
 
@@ -70,45 +69,45 @@ CLASSIFICATION_COLLECTION_PROP = "pivot_surface_type"
 
 #         pivot.matrix_world.translation = target_origin
 
-def _build_group_surface_contexts(group_names, surface_context, classification_map=None):
-    """Build per-group surface context strings, honoring AUTO overrides with stored classifications."""
+# def _build_group_surface_contexts(group_names, surface_context, classification_map=None):
+#     """Build per-group surface context strings, honoring AUTO overrides with stored classifications."""
 
-    if not group_names:
-        return []
+#     if not group_names:
+#         return []
 
-    contexts = []
-    auto_context = surface_context == "AUTO"
-    map_to_use = classification_map
-    if auto_context and map_to_use is None:
-        map_to_use = get_surface_manager().collect_group_classifications()
-    if map_to_use is None:
-        map_to_use = {}
+#     contexts = []
+#     auto_context = surface_context == "AUTO"
+#     map_to_use = classification_map
+#     if auto_context and map_to_use is None:
+#         map_to_use = get_surface_manager().collect_group_classifications()
+#     if map_to_use is None:
+#         map_to_use = {}
 
-    for name in group_names:
-        if auto_context and name in map_to_use:
-            surface_type_int = map_to_use[name]
-            if surface_type_int in (1, 2, 3):
-                contexts.append(surface_type_int)
-            else:
-                contexts.append(0)
-        else:
-            # surface_context is already in the correct format (AUTO, 0, 1, 2)
-            if surface_context in ("1", "2", "3"):
-                contexts.append(int(surface_context))
-            else:
-                contexts.append(0)  # default to AUTO
+#     for name in group_names:
+#         if auto_context and name in map_to_use:
+#             surface_type_int = map_to_use[name]
+#             if surface_type_int in (1, 2, 3):
+#                 contexts.append(surface_type_int)
+#             else:
+#                 contexts.append(0)
+#         else:
+#             # surface_context is already in the correct format (AUTO, 0, 1, 2)
+#             if surface_context in ("1", "2", "3"):
+#                 contexts.append(int(surface_context))
+#             else:
+#                 contexts.append(0)  # default to AUTO
 
-    return contexts
+#     return contexts
 
-def _standardize_synced_groups(synced_group_names, surface_contexts):
-    """Reclassify cached groups without sending mesh data."""
+# def _standardize_synced_groups(synced_group_names, surface_contexts):
+#     """Reclassify cached groups without sending mesh data."""
 
-    if not synced_group_names:
-        return {}
+#     if not synced_group_names:
+#         return {}
 
 
-    final_response = json.loads(engine.standardize_synced_groups_command(synced_group_names, surface_contexts))
-    return final_response.get("groups", {})
+#     final_response = json.loads(engine.standardize_synced_groups_command(synced_group_names, surface_contexts))
+#     return final_response.get("groups", {})
 
 def standardize_groups(list selected_objects, str origin_method, str surface_context):
     """Pro Edition: Classify selected groups via engine."""

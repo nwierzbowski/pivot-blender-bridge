@@ -18,7 +18,7 @@
 import bpy
 import time
 
-from ..constants import PRE, FINISHED, LICENSE_PRO
+from ..constants import PRE, FINISHED
 from pivot_lib import standardize
 from ..classification_utils import get_qualifying_objects_for_selected, selected_has_qualifying_objects
 from pivot_lib import edition_utils

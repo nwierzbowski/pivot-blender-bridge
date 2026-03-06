@@ -30,10 +30,7 @@ from typing import Any, Optional
 cdef class CollectionManager:
     """Handles low-level Blender collection operations."""
 
-    def __init__(self) -> None:
-        pass
-
-    def get_or_create_root_collection(self, str name) -> Optional[Any]:
+    def get_or_create_root_collection(str name) -> Optional[Any]:
         """Get or create a root collection linked to the scene."""
         scene = getattr(bpy.context, "scene", None)
         if not scene:
@@ -44,7 +41,7 @@ cdef class CollectionManager:
             scene.collection.children.link(root)
         return root
 
-    def ensure_collection_link(self, parent, child) -> None:
+    def ensure_collection_link(parent, child) -> None:
         """Ensure child is linked to parent."""
         if not parent or not child:
             return
@@ -58,21 +55,14 @@ cdef class CollectionManager:
         except RuntimeError as e:
             print(f"[ERROR] Failed to link {child.name} to {parent.name}: {e}")
 
-    def assign_objects_to_collection(self, list objects, collection) -> None:
+    def assign_objects_to_collection(list objects, collection) -> None:
         """Assign all objects to the collection."""
         for obj in objects:
             if collection not in obj.users_collection:
                 collection.objects.link(obj)
 
-    def ensure_object_unlink(self, collection, obj) -> None:
+    def ensure_object_unlink(collection, obj) -> None:
         """Ensure object is unlinked from collection."""
         if collection in obj.users_collection:
             collection.objects.unlink(obj)
 
-
-# Global instance
-cdef CollectionManager _collection_manager = CollectionManager()
-
-def get_collection_manager() -> CollectionManager:
-    """Get the global collection manager instance."""
-    return _collection_manager
