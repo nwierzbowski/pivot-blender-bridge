@@ -20,7 +20,7 @@ import time
 
 from ..constants import PRE, FINISHED
 from pivot_lib import standardize
-from pivot_lib import group_manager
+from pivot_lib import id_manager
 from pivot_lib import engine_state
 from ..classification_utils import get_qualifying_groups_for_selected, selected_has_qualifying_groups
 
@@ -43,7 +43,7 @@ class Pivot_OT_Standardize_Selected_Groups(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         sel = getattr(context, "selected_objects", None) or []
-        objects_collection = group_manager.get_group_manager().get_objects_collection()
+        objects_collection = id_manager.get_objects_collection()
         return selected_has_qualifying_groups(sel, objects_collection)
 
     def execute(self, context):
@@ -53,7 +53,7 @@ class Pivot_OT_Standardize_Selected_Groups(bpy.types.Operator):
         
         startTime = time.perf_counter()
         
-        objects_collection = group_manager.get_group_manager().get_objects_collection()
+        objects_collection = id_manager.get_objects_collection()
         objects = get_qualifying_groups_for_selected(context.selected_objects, objects_collection)
         origin_method = context.scene.pivot.origin_method
         surface_type = context.scene.pivot.surface_type

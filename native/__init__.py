@@ -23,7 +23,7 @@ try:
     from . import classification
     from . import collection_manager
     
-    from . import group_manager
+    from . import id_manager
     from . import selection_utils
     from . import shm_utils
     
@@ -41,7 +41,7 @@ __all__ = [
     "collection_manager",
     "edition_utils",
     "engine_state",
-    "group_manager",
+    "id_manager",
     "selection_utils",
     "shm_utils",
     "standardize",

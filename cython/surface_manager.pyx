@@ -23,10 +23,9 @@ Responsibilities:
 """
 
 import bpy
-from typing import Any, Dict, Optional
 
 from .collection_manager import get_collection_manager
-from . import group_manager
+from . import id_manager
 from . import classification
 import elbo_sdk_rust as engine
 
@@ -41,11 +40,9 @@ cdef class SurfaceManager:
     """Manages surface classification collections and hierarchy."""
 
     cdef object _collection_manager
-    cdef object _group_manager
 
     def __init__(self) -> None:
         self._collection_manager = get_collection_manager()
-        self._group_manager = group_manager.get_group_manager()
 
     def _get_surface_display_name(self, str surface_key) -> str:
         """Get the display name for a surface key."""
@@ -131,7 +128,7 @@ cdef class SurfaceManager:
                     continue
 
                 for group_coll in surface_coll.children:
-                    if self._group_manager.is_managed_collection(group_coll.name):
+                    if id_manager.has_asset(group_coll.get(id_manager.PIVOT_ASSET_ID)):
                         result[group_coll.name] = surface_int
 
         return result

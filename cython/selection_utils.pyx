@@ -20,7 +20,7 @@
 # cython: language_level=3
 import bpy
 from . import edition_utils
-from pivot_lib import group_manager
+from pivot_lib import id_manager
 
 # Constants (must match pivot/surface_manager.py)
 CLASSIFICATION_MARKER_PROP = "pivot_is_classification_collection"
@@ -35,9 +35,7 @@ def aggregate_object_groups(list selected_objects):
     if edition_utils.is_standard_edition() and len(selected_objects) != 1:
         raise ValueError("Standard edition only supports single object selection")
 
-    cdef object group_mgr = group_manager.get_group_manager()
-    cdef object scene_coll = group_mgr.get_objects_collection()
-    
+    cdef object scene_coll = id_manager.get_objects_collection()
     if not scene_coll.objects and not scene_coll.children:
         return [], []
 

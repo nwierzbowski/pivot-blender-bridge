@@ -24,7 +24,7 @@ from pivot_lib import engine_state
 from .classes import SceneAttributes
 from bpy.props import PointerProperty
 
-from pivot_lib import group_manager
+from pivot_lib import id_manager
 from . import handlers
 from .mesh_sync import sync_timer_callback
 from .operators.operators import (
@@ -53,8 +53,9 @@ classesToRegister = (
 
 def _reset_sync_state() -> None:
     """Clear cached engine sync data so reloads start from scratch."""
-    group_mgr = group_manager.get_group_manager()
-    group_mgr.reset_state()
+    # group_mgr = group_manager.get_group_manager()
+    # group_mgr.reset_state()
+    id_manager.reset_state()
     engine_state.update_group_membership_snapshot({}, replace=True)
     handlers.clear_previous_scales()
 
@@ -133,11 +134,11 @@ def register():
     
 
     # Register name change callback for group management
-    try:
-        group_mgr = group_manager.get_group_manager()
-        group_mgr.set_name_change_callback(handlers.on_group_name_changed)
-    except Exception as e:
-        print(f"[Pivot] Could not set group name change callback: {e}")
+    # try:
+    #     # group_mgr = group_manager.get_group_manager()
+    #     # group_mgr.set_name_change_callback(handlers.on_group_name_changed)
+    # except Exception as e:
+    #     print(f"[Pivot] Could not set group name change callback: {e}")
 
     _register_bpy_class(Pivot_PT_Status_Panel)
     _register_bpy_class(Pivot_PT_Configuration_Panel)

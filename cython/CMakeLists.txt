@@ -59,7 +59,6 @@ set(CYTHON_MODULE_SOURCES
     collection_manager
     edition_utils
     engine_state
-    group_manager
     selection_utils
     shm_utils
     surface_manager

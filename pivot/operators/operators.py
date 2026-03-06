@@ -30,8 +30,8 @@ from ..constants import (
     PRE,
 )
 
-from pivot_lib import group_manager
 from pivot_lib import surface_manager
+from pivot_lib import id_manager
 
 import elbo_sdk_rust as engine
 
@@ -45,17 +45,15 @@ class Pivot_OT_Organize_Classified_Objects(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         # Return true if we have existing groups (checked via collection metadata)
-        group_mgr = group_manager.get_group_manager()
-        return group_mgr.has_existing_groups()
-
+        # group_mgr = group_manager.get_group_manager()
+        return id_manager.has_assets()
     def execute(self, context):
         start_total = time.perf_counter()
         try:
             from pivot_lib import standardize
             
             # First, standardize all managed groups
-            group_mgr = group_manager.get_group_manager()
-            managed_groups = list(group_mgr.get_managed_group_names_set())
+            managed_groups = id_manager.get_all_asset_uuids()
             
             if managed_groups:
                 # Collect all objects from managed groups to standardize them

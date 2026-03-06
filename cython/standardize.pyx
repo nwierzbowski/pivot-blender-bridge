@@ -27,7 +27,7 @@ from mathutils import Quaternion, Vector, Matrix
 import bpy
 import json
 
-from . import selection_utils, shm_utils, edition_utils, group_manager
+from . import selection_utils, shm_utils, edition_utils
 import elbo_sdk_rust as engine
 from .surface_manager import get_surface_manager
 from .timer_manager import timers
@@ -39,36 +39,36 @@ GROUP_COLLECTION_PROP = "pivot_group_name"
 CLASSIFICATION_ROOT_COLLECTION_NAME = "Pivot"
 CLASSIFICATION_COLLECTION_PROP = "pivot_surface_type"
 
-def _apply_transforms_to_pivots(pivots, origins, rots, cogs, bint origin_method_is_base):
-    """Apply position and rotation transforms to pivots using the chosen origin method."""
+# def _apply_transforms_to_pivots(pivots, origins, rots, cogs, bint origin_method_is_base):
+#     """Apply position and rotation transforms to pivots using the chosen origin method."""
 
-    for i, pivot in enumerate(pivots):
-        if pivot is None:
-            continue
+#     for i, pivot in enumerate(pivots):
+#         if pivot is None:
+#             continue
 
-        is_base = group_manager.get_group_manager().was_object_last_transformed_using_base(pivot)
-        if not is_base:
-            pivot.matrix_world.translation -= Vector(cogs[i])
+#         is_base = group_manager.get_group_manager().was_object_last_transformed_using_base(pivot)
+#         if not is_base:
+#             pivot.matrix_world.translation -= Vector(cogs[i])
             
-        origin_vector = Vector(origins[i]) if origin_method_is_base else Vector(cogs[i])
-        pivot_world_rot = pivot.matrix_world.to_quaternion()
-        world_rot = pivot_world_rot @ rots[i]
-        rotation_matrix = world_rot.to_matrix().to_4x4()
+#         origin_vector = Vector(origins[i]) if origin_method_is_base else Vector(cogs[i])
+#         pivot_world_rot = pivot.matrix_world.to_quaternion()
+#         world_rot = pivot_world_rot @ rots[i]
+#         rotation_matrix = world_rot.to_matrix().to_4x4()
 
-        world_cog = pivot.matrix_world @ Vector(cogs[i])
-        world_origin = pivot.matrix_world @ origin_vector
-        target_origin = world_cog + rotation_matrix @ (world_origin - world_cog)
+#         world_cog = pivot.matrix_world @ Vector(cogs[i])
+#         world_origin = pivot.matrix_world @ origin_vector
+#         target_origin = world_cog + rotation_matrix @ (world_origin - world_cog)
 
-        local_cog = Vector(cogs[i])
-        local_origin = origin_vector
-        local_rotation_matrix = rots[i].to_matrix().to_4x4()
+#         local_cog = Vector(cogs[i])
+#         local_origin = origin_vector
+#         local_rotation_matrix = rots[i].to_matrix().to_4x4()
 
-        pre_rotate = Matrix.Translation(local_rotation_matrix @ (local_cog - local_origin)) @ local_rotation_matrix
-        post_translate = Matrix.Translation(-local_cog)
-        for child in pivot.children:
-            child.matrix_local = pre_rotate @ post_translate @ child.matrix_local
+#         pre_rotate = Matrix.Translation(local_rotation_matrix @ (local_cog - local_origin)) @ local_rotation_matrix
+#         post_translate = Matrix.Translation(-local_cog)
+#         for child in pivot.children:
+#             child.matrix_local = pre_rotate @ post_translate @ child.matrix_local
 
-        pivot.matrix_world.translation = target_origin
+#         pivot.matrix_world.translation = target_origin
 
 def _build_group_surface_contexts(group_names, surface_context, classification_map=None):
     """Build per-group surface context strings, honoring AUTO overrides with stored classifications."""

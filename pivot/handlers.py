@@ -29,15 +29,13 @@ import stat
 
 from .mesh_sync import sync_timer_callback
 from pivot_lib import engine_state
-from pivot_lib import group_manager
 import elbo_sdk_rust as engine
 from pivot_lib import surface_manager
+from pivot_lib import id_manager
 import time
 
-# Cache of each object's last-known scale to detect transform-only edits quickly.
-_previous_scales: dict[str, tuple[float, float, float]] = {}
-# Cache of each object's last-known rotation to detect rotation changes.
-_previous_rotations: dict[str, tuple[float, float, float, float]] = {}
+# Cache of each object's last-known world matrix (by UUID) to detect transform changes.
+_previous_world_matrices: dict[str, list[list[float]]] = {}  # keyed by obj_uuid
 
 
 @persistent
@@ -49,160 +47,89 @@ def on_depsgraph_update(scene, depsgraph):
     else:
         detect_collection_hierarchy_changes(scene, depsgraph)
         unsync_mesh_changes(scene, depsgraph)
-    enforce_colors(scene, depsgraph)
     end_time = time.time()
-    # print(f"on_depsgraph_update took {1000 * (end_time - start_time):.4f} milliseconds")
+    print(f"on_depsgraph_update took {1000 * (end_time - start_time):.4f} milliseconds")
 
 
 def detect_collection_hierarchy_changes(scene, depsgraph):
     """Detect changes in collection hierarchy and mark affected groups as out-of-sync with the engine."""
-    group_mgr = group_manager.get_group_manager()
-    
-    current_snapshot = group_mgr.get_group_membership_snapshot()
-    expected_snapshot = engine_state.get_group_membership_snapshot()
-    for group_name, expected_members in expected_snapshot.items():
-        current_members = current_snapshot.get(group_name, set())
-        if expected_members != current_members:
-            group_mgr.set_group_unsynced(group_name)
 
+    # Filter for collection changes
+    hierarchy_changed = False
+    for update in depsgraph.updates:
+        if type(update.id) is bpy.types.Collection:
+            hierarchy_changed = True
+            break
 
-def enforce_colors(scene, depsgraph):
-    """Enforce correct color tags for group collections based on sync state.
-    
-    Also immediately handles orphaned groups by dropping them from engine,
-    sync state, and clearing their colors.
-    """
-    group_mgr = group_manager.get_group_manager()
-    orphaned_groups = group_mgr.update_orphaned_groups()
-    
-    # Immediately handle orphaned groups
-    if orphaned_groups:
-        try:
-            # Drop from engine
-            dropped_count = engine.drop_groups_command(orphaned_groups)
-            if dropped_count >= 0:
-                # Clear their colors and remove from sync state
-                for coll_name in orphaned_groups:
-                    if coll_name in bpy.data.collections:
-                        bpy.data.collections[coll_name].color_tag = 'NONE'
-                group_mgr.drop_groups(orphaned_groups)
-                print(f"[Pivot] Dropped {dropped_count} orphaned groups from engine")
-        except Exception as e:
-            print(f"[Pivot] Error handling orphaned groups: {e}")
-    
-    # Update colors for remaining managed groups
-    group_mgr.update_colors()
+    if not hierarchy_changed:
+        return
 
+    scene_col = id_manager.get_objects_collection()
+
+    expected_asset_uuids = set(id_manager.get_all_asset_uuids())
+
+    cur_asset_uuids = set(u.get(id_manager.PIVOT_ASSET_ID) for u in scene_col.children if u.get(id_manager.PIVOT_ASSET_ID))
+
+    MESH_TYPE = "MESH"
+
+    dropped_assets = list(expected_asset_uuids.difference(cur_asset_uuids))
+    if dropped_assets:
+        id_manager.drop_assets(dropped_assets)
+        engine.drop_groups_command(dropped_assets)
+        print(f"[Pivot] Dropped {dropped_assets} from engine")
+
+    for asset_uuid in id_manager.get_all_asset_uuids():
+        uuids = id_manager.get_asset_members(asset_uuid)
+        objs = set(id_manager.get_obj_by_uuid(uuids))
+        cur_objs = {o for o in id_manager.get_asset_by_uuid([asset_uuid])[0].all_objects if o.type == MESH_TYPE}
+
+        synced = objs != cur_objs
+        if not synced:
+            id_manager.set_sync(asset_uuid, synced)
 
 def unsync_mesh_changes(scene, depsgraph):
     """Detect mesh and transform changes on selected objects and mark groups as unsynced."""
-    global _previous_scales, _previous_rotations
+    global _previous_world_matrices
     
-    group_mgr = group_manager.get_group_manager()
-
-    # Get all selected mesh objects first (quick operation)
-    all_selected_mesh = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
-    all_selected_mesh_set = set(all_selected_mesh)  # For O(1) lookup
-    
-    if not all_selected_mesh:
+    if not bpy.context.selected_objects:
         return  # No selected objects, nothing to do
     
-    # Get managed collections info (fast, no full snapshot yet)
-    managed_group_names = group_mgr.get_sync_state_keys()  # Returns a set
-    
-    selected_objects = []
-    obj_to_groups = {}
-    
-    # Iterate managed collections to find selected objects (avoids checking all 220 objects)
-    for group_name in managed_group_names:
-        # Get the collection
-        coll = bpy.data.collections.get(group_name)
-        if not coll:
-            continue
-        
-        # Check only objects in this collection against selected set (O(1) lookups)
-        for obj in coll.objects:
-            if obj in all_selected_mesh_set:
-                if obj not in selected_objects:
-                    selected_objects.append(obj)
-                if obj not in obj_to_groups:
-                    obj_to_groups[obj] = []
-                obj_to_groups[obj].append(group_name)
+    selected_uuids = {o.get(id_manager.PIVOT_OBJECT_ID) for o in bpy.context.selected_objects if o.get(id_manager.PIVOT_OBJECT_ID)}
+    selected_objects = selected_uuids.intersection(set(id_manager.get_all_obj_uuids()))
     
     if not selected_objects:
         return  # No selected objects in managed collections
-    
-    # Only build snapshots if we have selected objects to process
-    expected_snapshot = engine_state.get_group_membership_snapshot()
-    current_snapshot = group_mgr.get_group_membership_snapshot()
-    
-    # Build reverse lookup for O(1) matching: update.id.original -> obj
-    id_to_obj = {}
-    for obj in selected_objects:
-        id_to_obj[id(obj)] = obj
-        id_to_obj[id(obj.data)] = obj
 
     # Main processing loop
     for update in depsgraph.updates:
         if not (update.is_updated_geometry or update.is_updated_transform):
             continue
 
-        # O(1) lookup instead of O(m) loop
-        obj = id_to_obj.get(id(update.id.original))
-        if obj is None:
+        obj = update.id.original
+        obj_uuid = obj.get(id_manager.PIVOT_OBJECT_ID)
+
+        if not obj_uuid in selected_uuids:
             continue
 
-        group_names = obj_to_groups.get(obj, [])
-        for group_name in group_names:
-            expected_members = expected_snapshot.get(group_name)
-            current_members = current_snapshot.get(group_name, set())
-            member_count = len(expected_members) if expected_members is not None else len(current_members)
+        asset_uuids = id_manager.get_obj_asset(obj_uuid)
+        for uuid in asset_uuids:
+            # Convert world matrix to tuple for comparison
+            current_world_matrix = [list(col) for col in zip(*obj.matrix_world)]
+            prev_world_matrix = _previous_world_matrices.get(obj_uuid)
+            transform_changed = prev_world_matrix is not None and current_world_matrix != prev_world_matrix
 
-            current_scale = tuple(obj.scale)
-            prev_scale = _previous_scales.get(obj.name)
-            scale_changed = prev_scale is not None and current_scale != prev_scale
-
-            current_rotation = tuple(obj.rotation_quaternion)
-            prev_rotation = _previous_rotations.get(obj.name)
-            rotation_changed = prev_rotation is not None and current_rotation != prev_rotation
-
-            should_mark_unsynced = (
-                expected_members is None
-                or update.is_updated_geometry
-                or scale_changed
-                or rotation_changed
-                or (update.is_updated_transform and member_count > 1)
-            )
+            should_mark_unsynced = update.is_updated_geometry or transform_changed
 
             if should_mark_unsynced:
-                group_mgr.set_group_unsynced(group_name)
+                id_manager.set_sync(uuid, not should_mark_unsynced)
 
-        # Update scale and rotation caches for next handler invocation
-        _previous_scales[obj.name] = current_scale
-        _previous_rotations[obj.name] = current_rotation
+        # Update world matrix cache for next handler invocation
+        _previous_world_matrices[obj_uuid] = current_world_matrix
 
 def clear_previous_scales():
-    """Clear the scale and rotation caches used for detecting transform changes."""
-    global _previous_scales, _previous_rotations
-    _previous_scales.clear()
-    _previous_rotations.clear()
-
-
-def on_group_name_changed(collection, group_mgr):
-    """Callback for when a managed group's name changes.
-    
-    Args:
-        collection: The collection whose name changed
-        group_mgr: The GroupManager instance
-    """
-    name_tracker = group_mgr.get_name_tracker()
-    
-    old_name = name_tracker.get(collection)
-    new_name = collection.name
-
-    if old_name and old_name != new_name:
-        # Mark the collection as orphaned - enforce_colors will handle cleanup
-        collection.color_tag = 'NONE'
+    """Clear the world matrix cache used for detecting transform changes."""
+    global _previous_world_matrices
+    _previous_world_matrices.clear()
 
 
 # File Load Handlers
@@ -229,10 +156,7 @@ def on_load_pre(scene):
         bpy.app.timers.unregister(sync_timer_callback)
     # Stop the pivot engine
     engine.stop_engine()
-    
-    print("[Pivot] Unregistering sync timer callback")
-    if bpy.app.timers.is_registered(sync_timer_callback):
-        bpy.app.timers.unregister(sync_timer_callback)
+
 @persistent
 def on_load_post(scene):
     """Executed after a new file has finished loading.
@@ -240,7 +164,8 @@ def on_load_post(scene):
     Starts the engine up again for the new scene and initializes local tracked state.
     """
     # Reset GroupManager state for the new scene
-    group_manager.get_group_manager().reset_state()
+    # group_manager.get_group_manager().reset_state()
+    id_manager.reset_state()
     
     # Initialize engine state for the new scene
     engine_state.update_group_membership_snapshot({}, replace=True)

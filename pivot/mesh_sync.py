@@ -15,14 +15,17 @@ def sync_timer_callback():
     if sync_context is None:
         return 0.01
 
+    asset_uuids = sync_context.uuids()
+    id_manager.set_sync_batch(asset_uuids, True)
     start = time.perf_counter()
     for group_index in range(sync_context.size()):
         (verts, edges, loops, loop_bases, object_loop_counts, transforms, vert_counts, edge_counts, object_names, uuids) = sync_context.buffers(group_index)
-        asset_uuids = sync_context.uuids()
+        
 
         # Look up all collections from memoryview in single Cython loop
         # for coll in id_manager.get_asset_uuids_from_view(asset_uuids):
-        id_manager.set_sync_batch(asset_uuids, True)
+        
+        id_manager.set_asset_membership(bytes(asset_uuids[group_index*16:(group_index+1)*16]), uuids)
 
         object_count = len(object_names) //MAX_NAME_LEN
         for obj_index in range(object_count):
@@ -33,7 +36,7 @@ def sync_timer_callback():
 
             # Use O(1) lookup for the Blender object instead of string parsing
             # The objects should already be cached via get_or_create_obj_uuid in shm_utils.pyx
-            obj = id_manager.get_obj_uuid(bytes(obj_uuid))
+            obj = id_manager.get_obj_by_uuid([bytes(obj_uuid)])[0]
             if obj is not None:
                 transform_start = obj_index * 16 * 4
                 transform_end = transform_start + 16 * 4
