@@ -81,7 +81,7 @@ def get_or_create_surface_collection(pivot_root, str surface_key):
     """Get or create a surface classification collection."""
     if not pivot_root:
         return None
-    print(surface_key)
+
     for coll in pivot_root.children:
         if coll.get(CLASSIFICATION_COLLECTION_PROP) == surface_key:
             return coll

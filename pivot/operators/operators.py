@@ -43,83 +43,44 @@ class Pivot_OT_Organize_Classified_Objects(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        # Return true if we have existing groups (checked via collection metadata)
-        # group_mgr = group_manager.get_group_manager()
         return id_manager.has_assets()
     def execute(self, context):
         start_total = time.perf_counter()
         try:
             
-            # First, standardize all managed groups
-            managed_groups = id_manager.get_all_asset_uuids()
+            # # First, standardize all managed groups
+            # asset_uuids = id_manager.get_all_asset_uuids()
             
-            if managed_groups:
-                # Collect all objects from managed groups to standardize them
-                objects_to_standardize = []
-                for group_name in managed_groups:
-                    if group_name in bpy.data.collections:
-                        group_coll = bpy.data.collections[group_name]
-                        objects_to_standardize.extend(list(group_coll.objects))
+            # if asset_uuids:
+            #     # Collect all objects from managed groups to standardize them
+            #     objects_to_standardize = []
+            #     for uuid in asset_uuids:
+            #         if uuid in bpy.data.collections:
+            #             group_coll = bpy.data.collections[uuid]
+            #             objects_to_standardize.extend(list(group_coll.objects))
                 
-                if objects_to_standardize:
-                    try:
-                        standardize.standardize_groups(
-                            objects_to_standardize, 
-                            "BASE", 
-                            "AUTO"
-                        )
-                    except Exception as e:
-                        self.report({"WARNING"}, f"Failed to standardize groups: {e}")
-                        print(f"[Pivot] Standardize groups error: {e}")
+            #     if objects_to_standardize:
+            #         try:
+            #             standardize.standardize_groups(
+            #                 objects_to_standardize, 
+            #                 "BASE", 
+            #                 "AUTO"
+            #             )
+            #         except Exception as e:
+            #             self.report({"WARNING"}, f"Failed to standardize groups: {e}")
+            #             print(f"[Pivot] Standardize groups error: {e}")
             
-            surface_mgr = surface_manager.get_surface_manager()
-            classifications = surface_mgr.collect_group_classifications()
-            if classifications:
-                sync_ok = surface_mgr.sync_group_classifications(classifications)
-                if not sync_ok:
-                    self.report({"WARNING"}, "Failed to sync classifications to engine; results may be outdated")
+
+            # classifications = surface_manager.collect_group_classifications()
+            # if classifications:
+            #     sync_ok = surface_manager.sync_group_classifications(classifications)
+            #     if not sync_ok:
+            #         self.report({"WARNING"}, "Failed to sync classifications to engine; results may be outdated")
 
             # Call the engine to organize objects
             start_engine = time.perf_counter()
-            
-            response = json.loads(engine.organize_objects_command())
+            engine.organize_objects_command()
             end_engine = time.perf_counter()
-            
-            start_post = time.perf_counter()
-            if "positions" in response:
-                positions = response["positions"]
-                
-                # Apply positions to each group using collection-based tracking
-                organized_count = 0
-                for group_name, pos in positions.items():
-                    if group_name not in bpy.data.collections:
-                        continue
-                    
-                    objects_in_group = bpy.data.collections[group_name].objects
-                    if not objects_in_group:
-                        continue
-                    
-                    try:
-                        target_pos = Vector((pos[0], pos[1], pos[2]))
-                        
-                        # Move only parent objects in the group directly to the engine-provided position
-                        parent_objs = [obj for obj in objects_in_group if obj.parent is None]
-                        if not parent_objs:
-                            continue
-
-                        for obj in parent_objs:
-                            obj.location = target_pos.copy()
-                        
-                        organized_count += 1
-                    except Exception as e:
-                        print(f"[Pivot] Failed to organize group '{group_name}': {e}")
-                        # Continue to next group instead of failing the whole operation
-                
-                self.report({"INFO"}, f"Organized {organized_count} object groups")
-                engine_state.set_performing_classification(True)
-            else:
-                self.report({"WARNING"}, "No positions returned from engine")
-            end_post = time.perf_counter()
                 
         except Exception as e:
             end_total = time.perf_counter()
@@ -128,7 +89,7 @@ class Pivot_OT_Organize_Classified_Objects(bpy.types.Operator):
             return {CANCELLED}
         
         end_total = time.perf_counter()
-        print(f"Organize objects - Engine call: {(end_engine - start_engine) * 1000:.2f}ms, Post-processing: {(end_post - start_post) * 1000:.2f}ms, Total: {(end_total - start_total) * 1000:.2f}ms")
+        print(f"Organize objects - Engine call: {(end_engine - start_engine) * 1000:.2f}ms, Total: {(end_total - start_total) * 1000:.2f}ms")
             
         return {FINISHED}
 
