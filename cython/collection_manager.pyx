@@ -58,23 +58,6 @@ cdef class CollectionManager:
         except RuntimeError as e:
             print(f"[ERROR] Failed to link {child.name} to {parent.name}: {e}")
 
-    def find_top_collection_for_object(self, obj, root_collection) -> Optional[Any]:
-        """Find the top-level collection containing the object."""
-        for child in root_collection.children:
-            if self.collection_contains_object(child, obj):
-                return child
-        return None
-
-    cpdef bint collection_contains_object(self, coll, obj):
-        """Check if collection contains object, recursively."""
-        if coll in obj.users_collection:
-            return True
-
-        for child in coll.children:
-            if self.collection_contains_object(child, obj):
-                return True
-        return False
-
     def assign_objects_to_collection(self, list objects, collection) -> None:
         """Assign all objects to the collection."""
         for obj in objects:

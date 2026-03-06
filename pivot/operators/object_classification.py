@@ -21,7 +21,7 @@ import time
 from ..constants import PRE, FINISHED, LICENSE_PRO
 from pivot_lib import standardize
 from ..classification_utils import get_qualifying_objects_for_selected, selected_has_qualifying_objects
-from pivot_lib.engine_state import get_engine_license_status
+from pivot_lib import edition_utils
 from pivot_lib import timer_manager
 
 # Operator descriptions
@@ -63,10 +63,9 @@ class Pivot_OT_Set_Origin_Selected_Objects(bpy.types.Operator):
         print("set_origin_selected_objects.get_qualifying: ", timer_manager.timers.stop("set_origin_selected_objects.get_qualifying"), "ms")
         timer_manager.timers.reset("set_origin_selected_objects.get_qualifying")
         
-        license_type = get_engine_license_status()
         origin_method = context.scene.pivot.origin_method
         surface_type = context.scene.pivot.surface_type
-        if license_type != LICENSE_PRO and len(objects) > 1:
+        if edition_utils.is_standard_edition() and len(objects) > 1:
             for obj in objects:
                 standardize.standardize_object_origins([obj], origin_method=origin_method, surface_context=surface_type)
         else:
@@ -110,8 +109,7 @@ class Pivot_OT_Align_Facing_Selected_Objects(bpy.types.Operator):
         
         startTime = time.perf_counter()
         
-        license_type = get_engine_license_status()
-        if license_type != LICENSE_PRO and len(objects) > 1:
+        if edition_utils.is_standard_edition() and len(objects) > 1:
             for obj in objects:
                 standardize.standardize_object_rotations([obj])
         else:

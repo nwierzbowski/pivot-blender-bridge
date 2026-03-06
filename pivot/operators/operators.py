@@ -26,7 +26,6 @@ from pivot_lib import engine_state
 from ..constants import (
     CANCELLED,
     FINISHED,
-    LICENSE_PRO,
     PRE,
 )
 
@@ -37,7 +36,6 @@ import elbo_sdk_rust as engine
 
 class Pivot_OT_Organize_Classified_Objects(bpy.types.Operator):
     bl_idname = "object." + PRE.lower() + "organize_classified_objects"
-    license_type = engine_state.get_engine_license_status()
     bl_label = "Arrange Viewport by Collection"
     bl_description = "Arranges all standardized objects found in the Source Collection into clean rows grouped by class. Note: This operation ignores your current selection"
     bl_options = {"REGISTER", "UNDO"}

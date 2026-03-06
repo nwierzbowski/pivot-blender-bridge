@@ -168,7 +168,7 @@ def on_load_post(scene):
     id_manager.reset_state()
     
     # Initialize engine state for the new scene
-    engine_state.update_group_membership_snapshot({}, replace=True)
+    # engine_state.update_group_membership_snapshot({}, replace=True)
     clear_previous_scales()
 
     engine.start_engine()

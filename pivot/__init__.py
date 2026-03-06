@@ -56,7 +56,7 @@ def _reset_sync_state() -> None:
     # group_mgr = group_manager.get_group_manager()
     # group_mgr.reset_state()
     id_manager.reset_state()
-    engine_state.update_group_membership_snapshot({}, replace=True)
+    # engine_state.update_group_membership_snapshot({}, replace=True)
     handlers.clear_previous_scales()
 
 

@@ -31,7 +31,6 @@ from .operators.object_classification import (
 
 from .constants import PRE, CATEGORY, LICENSE_PRO, LICENSE_STANDARD
 from .classes import LABEL_OBJECTS_COLLECTION, LABEL_ORIGIN_METHOD, LABEL_SURFACE_TYPE
-from pivot_lib.engine_state import get_engine_license_status, set_engine_license_status
 from pivot_lib import edition_utils
 import elbo_sdk_rust as engine
 
@@ -47,21 +46,8 @@ class Pivot_PT_Status_Panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         
-        # Get license_type from cached engine status, sync if needed
-        license_type = get_engine_license_status()
-        if license_type == "UNKNOWN":
-            try:
-                if edition_utils.is_pro_edition():
-                    license_type = LICENSE_PRO
-                else:
-                    license_type = LICENSE_STANDARD
-                set_engine_license_status(license_type)
-            except Exception as e:
-                print(f"[Pivot] Failed to sync license: {e}")
-                license_type = "UNKNOWN"
-        
         # Show license selector
-        self._draw_license_selector(layout, license_type)
+        self._draw_license_selector(layout, LICENSE_PRO if edition_utils.is_pro_edition() else LICENSE_STANDARD)
     
     def _draw_license_selector(self, layout, license_type):
         """Draw the license type display (read-only)."""
@@ -98,27 +84,13 @@ class Pivot_PT_Pro_Panel(bpy.types.Panel):
 
     def draw_header(self, context):
         row = self.layout.row()
-        if get_engine_license_status() != LICENSE_PRO:
+        if edition_utils.is_standard_edition():
             row.label(text="", icon='LOCKED')
 
     def draw(self, context):
         layout = self.layout
-
         
-        # Get license_type from cached engine status, sync if needed
-        license_type = get_engine_license_status()
-        if license_type == "UNKNOWN":
-            try:
-                if edition_utils.is_pro_edition():
-                    license_type = LICENSE_PRO
-                else:
-                    license_type = LICENSE_STANDARD
-                set_engine_license_status(license_type)
-            except Exception as e:
-                print(f"[Pivot] Failed to sync license: {e}")
-                license_type = "UNKNOWN"
-        
-        enabled = (license_type == LICENSE_PRO)
+        enabled = edition_utils.is_pro_edition()
         
         if enabled:
             row = layout.row()
