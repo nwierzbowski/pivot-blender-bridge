@@ -22,13 +22,10 @@
 # - Computing and applying new world-space transforms based on engine output
 # - Managing collection hierarchy for surface type classification (Pro edition)
 
-from mathutils import Quaternion, Vector, Matrix
-
 import bpy
 import json
 
 from . import selection_utils, shm_utils, edition_utils
-import elbo_sdk_rust as engine
 from .timer_manager import timers
 from . import id_manager
 
@@ -130,15 +127,15 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
 
     if (surface_context):
         if surface_context == "AUTO":
-            context = 0
+            context = 3
         elif surface_context == "1":
             context = 1
         elif surface_context == "2":
             context = 2
-        elif surface_context == "3":
-            context = 3
-        else:
+        elif surface_context == "0":
             context = 0
+        else:
+            context = 3
 
     if group_names:
         # surface_contexts = _build_group_surface_contexts(group_names, surface_context, classification_map)

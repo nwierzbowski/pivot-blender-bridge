@@ -31,6 +31,7 @@ from ..constants import (
 
 from pivot_lib import surface_manager
 from pivot_lib import id_manager
+from pivot_lib import standardize
 
 import elbo_sdk_rust as engine
 
@@ -48,7 +49,6 @@ class Pivot_OT_Organize_Classified_Objects(bpy.types.Operator):
     def execute(self, context):
         start_total = time.perf_counter()
         try:
-            from pivot_lib import standardize
             
             # First, standardize all managed groups
             managed_groups = id_manager.get_all_asset_uuids()

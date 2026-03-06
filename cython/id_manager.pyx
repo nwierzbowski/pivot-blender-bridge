@@ -56,8 +56,8 @@ def _drop_objects(list uuids):
             print("Tried to drop object: ", uuid, ", but did not exist in both object caches")
 
 
-def set_asset_membership(bytes asset_uuid, unsigned char[:] obj_uuids):
-    cdef Py_ssize_t num_uuids = len(obj_uuids) // 16
+def set_asset_membership(bytes asset_uuid, unsigned char[:, :] obj_uuids):
+    cdef Py_ssize_t num_uuids = obj_uuids.shape[0]
 
     cdef Py_ssize_t i
 
@@ -73,7 +73,7 @@ def set_asset_membership(bytes asset_uuid, unsigned char[:] obj_uuids):
 
     # Add the uuids to the new membership cache and the asset to their parent caches
     for i in range(num_uuids):
-        uuid_bytes = bytes(obj_uuids[i*16:(i+1)*16])
+        uuid_bytes = bytes(obj_uuids[i])
         membership_cache[asset_uuid].append(uuid_bytes)
         parent_cache.setdefault(uuid_bytes, []).append(asset_uuid)
 
@@ -167,12 +167,12 @@ def set_sync(bytes uuid, bint value):
     else:
         print(f"[Pivot Error] Sync called on missing UUID: {uuid}")
 
-def set_sync_batch(unsigned char[:] asset_uuids, bint value):
-    cdef Py_ssize_t num_uuids = len(asset_uuids) // 16
+def set_sync_batch(unsigned char[:, :] asset_uuids, bint value):
+    cdef Py_ssize_t num_uuids = asset_uuids.shape[0]
     cdef Py_ssize_t i
 
     for i in range(num_uuids):
-        uuid_bytes = bytes(asset_uuids[i*16:(i+1)*16])
+        uuid_bytes = bytes(asset_uuids[i])
         set_sync(uuid_bytes, value)
 
 

@@ -2,9 +2,10 @@ import bpy
 import mathutils
 import elbo_sdk_rust as engine
 import time
+import numpy as np
 
 # Import our UUID manager that provides both forward and reverse caching
-from pivot_lib import id_manager
+from pivot_lib import id_manager, surface_manager
 
 MAX_NAME_LEN = 64  # keep in sync with pivot_com_types::MAX_NAME_LEN
 temp_mat = mathutils.Matrix()
@@ -14,29 +15,34 @@ def sync_timer_callback():
 
     if sync_context is None:
         return 0.01
+    
+    uuid_dt = np.dtype([('bytes', 'u1', 16)])
 
-    asset_uuids = sync_context.uuids()
-    id_manager.set_sync_batch(asset_uuids, True)
+    asset_uuids = np.frombuffer(sync_context.uuids(), dtype=uuid_dt)
+
+    id_manager.set_sync_batch(asset_uuids['bytes'], True)
+
+    asset_surface_contexts = np.frombuffer(sync_context.surface_contexts(), dtype=np.uint16)
+
+    surface_manager.organize_groups_into_surfaces(asset_uuids['bytes'], asset_surface_contexts)
+
     start = time.perf_counter()
     for group_index in range(sync_context.size()):
         (verts, edges, loops, loop_bases, object_loop_counts, transforms, vert_counts, edge_counts, object_names, uuids) = sync_context.buffers(group_index)
         
 
-        # Look up all collections from memoryview in single Cython loop
-        # for coll in id_manager.get_asset_uuids_from_view(asset_uuids):
+        obj_uuids = np.frombuffer(uuids, dtype=uuid_dt)
         
-        id_manager.set_asset_membership(bytes(asset_uuids[group_index*16:(group_index+1)*16]), uuids)
+        id_manager.set_asset_membership(asset_uuids['bytes'][group_index].tobytes(), obj_uuids['bytes'])
 
         object_count = len(object_names) //MAX_NAME_LEN
         for obj_index in range(object_count):
-            # Extract UUID for this object (16 bytes per UUID)
-            uuid_start = obj_index * 16  # UUID_SIZE = 16
-            uuid_end = uuid_start + 16
-            obj_uuid = uuids[uuid_start:uuid_end]
+            
+            obj_uuid = obj_uuids['bytes'][obj_index].tobytes()
 
             # Use O(1) lookup for the Blender object instead of string parsing
             # The objects should already be cached via get_or_create_obj_uuid in shm_utils.pyx
-            obj = id_manager.get_obj_by_uuid([bytes(obj_uuid)])[0]
+            obj = id_manager.get_obj_by_uuid([obj_uuid])[0]
             if obj is not None:
                 transform_start = obj_index * 16 * 4
                 transform_end = transform_start + 16 * 4

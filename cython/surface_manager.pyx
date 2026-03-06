@@ -81,7 +81,7 @@ def get_or_create_surface_collection(pivot_root, str surface_key):
     """Get or create a surface classification collection."""
     if not pivot_root:
         return None
-
+    print(surface_key)
     for coll in pivot_root.children:
         if coll.get(CLASSIFICATION_COLLECTION_PROP) == surface_key:
             return coll
@@ -125,7 +125,7 @@ def collect_group_classifications() -> dict:
 
     return result
 
-def sync_group_classifications(dict group_surface_map) -> bint:
+def sync_group_classifications(dict group_surface_map) -> bool:
     """Sync classifications with the engine."""
     try:
         return engine.set_surface_types_command(group_surface_map)
@@ -156,20 +156,19 @@ def organize_group_into_surface(group_collection, str surface_key, pivot_root) -
     if surface_coll.children.find(group_collection.name) == -1:
         collection_manager.ensure_collection_link(surface_coll, group_collection)
 
-def organize_groups_into_surfaces(list group_names, list surface_types) -> None:
+def organize_groups_into_surfaces(unsigned char[:, :] asset_uuids, unsigned short[:] surface_types) -> None:
     """Organize multiple group collections into the surface hierarchy using parallel lists."""
-    
+    cdef Py_ssize_t num_uuids = asset_uuids.shape[0]
+    cdef Py_ssize_t i
+
     # Get and enforce the root collection (includes cleanup)
     pivot_root = _get_and_enforce_root_collection()
     
     cdef int idx
-    cdef str group_name
     cdef str surface_key
     
-    for idx, group_name in enumerate(group_names):
-        group_coll = bpy.data.collections.get(group_name)
-        if not group_coll:
-            continue
+    for idx in range(num_uuids):
+        group_coll = id_manager.get_asset_by_uuid([bytes(asset_uuids[idx])])[0]
         
         surface_key = str(surface_types[idx])
         organize_group_into_surface(group_coll, surface_key, pivot_root)

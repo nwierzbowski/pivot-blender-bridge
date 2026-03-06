@@ -27,42 +27,42 @@ import bpy
 from typing import Any, Optional
 
 
-cdef class CollectionManager:
-    """Handles low-level Blender collection operations."""
 
-    def get_or_create_root_collection(str name) -> Optional[Any]:
-        """Get or create a root collection linked to the scene."""
-        scene = getattr(bpy.context, "scene", None)
-        if not scene:
-            return None
+"""Handles low-level Blender collection operations."""
 
-        root = bpy.data.collections.get(name) or bpy.data.collections.new(name)
-        if scene.collection.children.find(root.name) == -1:
-            scene.collection.children.link(root)
-        return root
+def get_or_create_root_collection(str name) -> Optional[Any]:
+    """Get or create a root collection linked to the scene."""
+    scene = getattr(bpy.context, "scene", None)
+    if not scene:
+        return None
 
-    def ensure_collection_link(parent, child) -> None:
-        """Ensure child is linked to parent."""
-        if not parent or not child:
-            return
-        
-        # Check if already linked
-        if parent.children.find(child.name) != -1:
-            return
-        
-        try:
-            parent.children.link(child)
-        except RuntimeError as e:
-            print(f"[ERROR] Failed to link {child.name} to {parent.name}: {e}")
+    root = bpy.data.collections.get(name) or bpy.data.collections.new(name)
+    if scene.collection.children.find(root.name) == -1:
+        scene.collection.children.link(root)
+    return root
 
-    def assign_objects_to_collection(list objects, collection) -> None:
-        """Assign all objects to the collection."""
-        for obj in objects:
-            if collection not in obj.users_collection:
-                collection.objects.link(obj)
+def ensure_collection_link(parent, child) -> None:
+    """Ensure child is linked to parent."""
+    if not parent or not child:
+        return
+    
+    # Check if already linked
+    if parent.children.find(child.name) != -1:
+        return
+    
+    try:
+        parent.children.link(child)
+    except RuntimeError as e:
+        print(f"[ERROR] Failed to link {child.name} to {parent.name}: {e}")
 
-    def ensure_object_unlink(collection, obj) -> None:
-        """Ensure object is unlinked from collection."""
-        if collection in obj.users_collection:
-            collection.objects.unlink(obj)
+def assign_objects_to_collection(list objects, collection) -> None:
+    """Assign all objects to the collection."""
+    for obj in objects:
+        if collection not in obj.users_collection:
+            collection.objects.link(obj)
+
+def ensure_object_unlink(collection, obj) -> None:
+    """Ensure object is unlinked from collection."""
+    if collection in obj.users_collection:
+        collection.objects.unlink(obj)
 

@@ -23,9 +23,6 @@
 
 import bpy
 from bpy.app.handlers import persistent
-import os
-import sys
-import stat
 
 from .mesh_sync import sync_timer_callback
 from pivot_lib import engine_state
