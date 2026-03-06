@@ -120,8 +120,9 @@ def collect_group_classifications() -> dict:
                 continue
 
             for group_coll in surface_coll.children:
-                if id_manager.has_asset(group_coll.get(id_manager.PIVOT_ASSET_ID)):
-                    result[group_coll.name] = surface_int
+                uuid = group_coll.get(id_manager.PIVOT_ASSET_ID)
+                if id_manager.has_asset(uuid):
+                    result[uuid] = surface_int
 
     return result
 
