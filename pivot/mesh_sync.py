@@ -58,8 +58,7 @@ def sync_timer_callback():
 
                 # 3. Apply
                 obj.matrix_world = mat.transposed()
-                # obj.data.update()
-                # obj.update_tag()
+                # obj.data.update_tag() #FAST
     end = time.perf_counter()
     print(f"[Pivot] Applied sync for {sync_context.size()} assets in {(end - start) * 1000:.2f} ms")
 
