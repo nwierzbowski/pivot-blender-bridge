@@ -81,6 +81,7 @@ class Pivot_OT_Organize_Classified_Objects(bpy.types.Operator):
             start_engine = time.perf_counter()
             engine.organize_objects_command()
             end_engine = time.perf_counter()
+            engine_state.set_performing_classification(True)
                 
         except Exception as e:
             end_total = time.perf_counter()
