@@ -24,6 +24,7 @@
 
 import bpy
 import json
+import elbo_sdk_rust as engine
 
 from . import selection_utils, shm_utils, edition_utils
 from .timer_manager import timers
@@ -78,14 +79,13 @@ def standardize_groups(list selected_objects, str origin_method, str surface_con
 
         timers.start("engine.compute")
         try:
-            print("Starting finalize")
-            final_json = context.finalize(True)
-            print("Ending finalize")
+            context.send()
+            engine.standardize_groups_command(asset_uuids)
         except Exception as e:
             print ("BIG ERROR")
             print(e)
         final_response = json.loads('{"ok": true }')
-        
+
         print("engine.compute: ", timers.stop("engine.compute"), "ms")
         timers.reset("engine.compute")
 
@@ -132,27 +132,27 @@ def _get_standardize_results(list objects, str surface_context="AUTO"):
     surface_contexts = [engine_surface_context] * len(mesh_groups)
 
 
+    uuids = id_manager.get_or_create_obj_uuids(targets)
+
     timers.start("create_data_arrays.total")
     context = shm_utils.create_data_arrays(
         mesh_groups,
         group_names,
-        id_manager.get_or_create_obj_uuids(targets),
+        uuids,
         surface_contexts
     )
     print("create_data_arrays.total: ", timers.stop("create_data_arrays.total"), "ms")
     timers.reset("create_data_arrays.total")
 
-
     timers.start("engine.compute")
     try:
-        print("Starting finalize")
-        final_json = context.finalize(False)
-        print("Ending finalize")
+        context.send()
+        engine.standardize_groups_command(uuids)
     except Exception as e:
         print ("BIG ERROR")
         print(e)
     final_response = json.loads('{"ok": true }')
-    
+
     print("engine.compute: ", timers.stop("engine.compute"), "ms")
     timers.reset("engine.compute")
 

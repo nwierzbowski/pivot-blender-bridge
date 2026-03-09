@@ -56,9 +56,8 @@ def create_data_arrays(list mesh_groups, list group_names, list uuids, list surf
     timers.reset("create_data_arrays.totals")
 
     timers.start("rust.makeshm")
-    # Prepare shared memory using the per-object counts and group data so finalize needs no args
 
-    shm_context = engine.prepare_standardize_groups(
+    shm_context = engine.prepare_mesh_send(
         vert_counts_list,
         edge_counts_list,
         face_counts_list,
