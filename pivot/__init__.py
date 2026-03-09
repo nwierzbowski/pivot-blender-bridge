@@ -37,6 +37,7 @@ from .operators.object_classification import (
     Pivot_OT_Set_Origin_Selected_Objects,
     Pivot_OT_Align_Facing_Selected_Objects,
 )
+from .operators.geometric_features import Pivot_OT_Extract_Geometric_Features
 from .ui import Pivot_PT_Standard_Panel, Pivot_PT_Pro_Panel, Pivot_PT_Status_Panel, Pivot_PT_Configuration_Panel
 
 classesToRegister = (
@@ -49,6 +50,7 @@ classesToRegister = (
     Pivot_OT_Organize_Classified_Objects,
     Pivot_OT_Reset_Classifications,
     Pivot_OT_Upgrade_To_Pro,
+    Pivot_OT_Extract_Geometric_Features,
 )
 
 def _reset_sync_state() -> None:

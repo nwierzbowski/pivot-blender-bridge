@@ -28,6 +28,7 @@ from .operators.object_classification import (
     Pivot_OT_Set_Origin_Selected_Objects,
     Pivot_OT_Align_Facing_Selected_Objects,
 )
+from .operators.geometric_features import Pivot_OT_Extract_Geometric_Features
 
 from .constants import PRE, CATEGORY, LICENSE_PRO, LICENSE_STANDARD
 from .classes import LABEL_OBJECTS_COLLECTION, LABEL_ORIGIN_METHOD, LABEL_SURFACE_TYPE
@@ -104,6 +105,13 @@ class Pivot_PT_Pro_Panel(bpy.types.Panel):
             # Organization button
             row = layout.row()
             row.operator(Pivot_OT_Organize_Classified_Objects.bl_idname)
+            
+            # Extract geometric features button (for testing)
+            layout.separator()
+            row = layout.row()
+            row.label(text="Testing:")
+            row = layout.row()
+            row.operator(Pivot_OT_Extract_Geometric_Features.bl_idname, icon='LIGHT')
             
             # Reset classifications button
             layout.separator()
