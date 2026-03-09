@@ -74,7 +74,7 @@ class Pivot_OT_Extract_Geometric_Features(bpy.types.Operator):
                 asset_uuid_list = id_manager.get_obj_asset(obj_uuid)
                 for asset_uuid in asset_uuid_list:
                     asset_uuids_set.add(asset_uuid)
-                    print(asset_uuid)
+                    # print(asset_uuid)
 
             if not asset_uuids_set:
                 self.report({"WARNING"}, "Could not find asset UUIDs for selected objects")
